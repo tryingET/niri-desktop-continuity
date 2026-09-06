@@ -1,0 +1,51 @@
+:root {
+  --version: alpha;
+  --name: Niri Desktop Continuity;
+  --description: A private offline map of the work that must survive maintenance.;
+  --colors-primary: #D9E5DA;
+  --colors-secondary: #A8BAB5;
+  --colors-tertiary: #F5C875;
+  --colors-neutral: #101D22;
+  --colors-surface: #192C32;
+  --colors-on-surface: #EAF0E8;
+  --colors-muted: #456268;
+  --colors-success: #8ED7C3;
+  --colors-warning: #F5C875;
+  --colors-error: #FFAF9F;
+  --typography-display-font-family: Georgia, serif;
+  --typography-display-font-size: 48px;
+  --typography-display-font-weight: 400;
+  --typography-display-line-height: 1.1;
+  --typography-h1-font-family: Georgia, serif;
+  --typography-h1-font-size: 32px;
+  --typography-h1-font-weight: 400;
+  --typography-h1-line-height: 1.2;
+  --typography-body-md-font-family: "DejaVu Sans", sans-serif;
+  --typography-body-md-font-size: 16px;
+  --typography-body-md-font-weight: 400;
+  --typography-body-md-line-height: 1.5;
+  --typography-label-caps-font-family: "DejaVu Sans Mono", monospace;
+  --typography-label-caps-font-size: 12px;
+  --typography-label-caps-font-weight: 400;
+  --typography-label-caps-line-height: 1.4;
+  --rounded-sm: 4px;
+  --rounded-md: 8px;
+  --spacing-xs: 4px;
+  --spacing-sm: 8px;
+  --spacing-md: 16px;
+  --spacing-lg: 24px;
+  --spacing-xl: 40px;
+}
+
+/* Component helpers generated from DESIGN.md component tokens. */
+.ds-card {
+  background: #192C32;
+  color: #EAF0E8;
+  border-radius: 4px;
+  padding: 16px;
+}
+.ds-alert-warning {
+  background: #101D22;
+  color: #F5C875;
+  padding: 16px;
+}

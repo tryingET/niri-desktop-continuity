@@ -1,0 +1,43 @@
+[project]
+name = "niri-desktop-continuity"
+version = "0.1.0"
+description = "Private desktop maps and explicit continuity planning for Niri on Linux"
+readme = "README.md"
+requires-python = ">=3.11"
+license = "Apache-2.0"
+license-files = ["LICENSE"]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Topic :: Desktop Environment",
+]
+dependencies = []
+
+[project.scripts]
+niri-desktop-continuity = "niri_desktop_continuity.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8,<10", "ruff>=0.15,<1"]
+
+[build-system]
+requires = ["hatchling>=1.27,<2"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/niri_desktop_continuity"]
+
+[tool.hatch.build.targets.sdist]
+include = ["src/", "tests/", "scripts/", "README.md", "LICENSE", "DESIGN.md", "Justfile", "pyproject.toml", "uv.lock", "docs/usage.md", "docs/architecture.md"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I"]

@@ -1,0 +1,17 @@
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.ruff_cache/
+*.egg-info/
+/dist/
+/build/
+/state/
+/snapshots/
+/previews/
+/receipts/
+/artifacts/
+# Generated immutable local template context; not part of the standalone repository.
+/docs/_core/
+# Generated index, never hand-authored.
+/docs/diary-index.md

@@ -1,0 +1,19 @@
+# Relative template provenance only; not required to install or run the tool.
+_src_path: ../../copier/tpl-project-repo
+template_source_sha: 433e8b8e01f49b11b54d102f46055f29d41f297f
+license: Apache-2.0
+company_name: Software Company
+company_ontology_ref: <repo:softwareco/ontology@main>
+company_slug: softwareco
+core_owner_handle: '@core-owner'
+enable_community_pack: false
+enable_release_pack: false
+enable_software_pack: true
+enable_vouch_gate: false
+kernel_ontology_ref: <repo:core/ontology-kernel@v0.2.0>
+language: python
+location: owned
+org_docs_profile: compact
+org_owner_handle: '@org-owners'
+project_owner_handle: '@maintainers'
+repo_slug: niri-desktop-continuity

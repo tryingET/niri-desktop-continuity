@@ -1,0 +1,11 @@
+{
+  "engineering_core": {
+    "lane": "py",
+    "ref": "workspace-local-unpinned",
+    "command": "engineering-core show py",
+    "optional": true,
+    "disciplines": ["validation", "testing", "security-privacy", "documentation", "dependency-governance"]
+  },
+  "local_contract": "../docs/engineering.local.md",
+  "validation": "just ci"
+}
