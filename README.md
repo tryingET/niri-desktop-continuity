@@ -65,6 +65,22 @@ proposals remain blocked because exact application checkpoint/restart adapters a
 Application versions remain unknown during capture: discovered binaries are **never executed**.
 A version selector with no matching known version selects nothing, not a guessed application.
 
+A separate **loss-bounded saved-conversation reconstruction** orchestration path is available
+through the same CLI: `plan --intent reconstruct --adapter-config`, exact loss/omission/utility-limit approval,
+`reconstruct`, and `verify`/`inspect --kind reconstruction`. It requires a separately reviewed,
+owner-established pinned internal adapter profile; **no real machine adapter ships here**.
+This public suite exercises fabricated installed-console-script workflows. Separately owned
+Pi/Claude/Codex/btop support is **implemented and independently reviewed with isolated integration
+tests; native desktop qualification unperformed**. Generic public coverage is not native certification.
+See the [coverage table](docs/usage.md#conversationtool-coverage-and-evidence-limits). Exact restart/migration
+remain blocked; reconstruction never claims prior memory, drafts, scrollback or hidden-tab order.
+See [usage](docs/usage.md) and the [internal protocol](docs/project/2026-09-06-integrated-reconstruction-protocol.md).
+Protocol v2 additionally accounts for btop utilities without inventing conversations or running-image
+pins. Unobservable capability-bearing btop images require exact separate limit acceptance. Reviewed
+recovery code stays pinned; installed OS/Pi/Jiti is an explicitly owner-trusted application platform,
+not a total dependency capsule. V1 history remains readable without upgrading its authority.
+Implementation is not live-effect approval or independent safety certification.
+
 There is an experimental, separately approved **within-workspace single-tile column reorder**
 path. It uses immutable plans, expiring exact-digest approvals, per-compositor writer exclusion,
 fresh-state checks, one-use consumption and effect receipts. Cross-workspace moves, resizing,

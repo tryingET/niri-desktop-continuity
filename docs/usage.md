@@ -65,6 +65,144 @@ and make a new decision; never delete the marker to replay an unknown operation.
 No live mutation canary is implied by the synthetic test suite. The public tool makes no claim
 of tested cross-version app restart, guaranteed focus safety, or restoration on another machine.
 
+## Loss-bounded reconstruction (separate from exact restart)
+
+The existing CLI implements orchestration for `saved-conversations-v1` over exact protocol v1/v2; **no real machine adapter
+ships with this package and no live reconstruction is certified by its tests**. The machine owner
+must first establish and independently review a pinned profile/internal endpoint according to the
+[protocol](project/2026-09-06-integrated-reconstruction-protocol.md). An absent profile reports
+`reconstruction-adapter-unavailable`; an absent explicit config reports
+`reconstruction-adapter-config-required`. Other untrusted adapter/config/protocol diagnostics are
+suppressed in favor of a static refusal. No shell/argv, native payload or environment is exported.
+
+```sh
+niri-desktop-continuity plan <snapshot> --intent reconstruct --adapter-config <private-config>
+niri-desktop-continuity preview <plan> --kind plans
+# Only after reviewing the exact plan and accepting the named losses:
+niri-desktop-continuity approve <plan> --confirm <plan> --accept-losses saved-conversations-v1
+niri-desktop-continuity reconstruct <approval> --apply --acknowledge-non-atomic-focus
+# The returned attempt_digest is the approval digest, not the receipt digest:
+niri-desktop-continuity inspect <attempt> --kind reconstruction
+niri-desktop-continuity verify <attempt> --kind reconstruction
+```
+
+These commands describe the interface, **not permission to run a live operation**. Plan and approve
+perform fresh read-only observations. Capture/preview remain inert with respect to adapter effects.
+The preview's desired map is explicitly the original target topology; replacement window identities,
+native surfaces and recovery groups are not predicted by this renderer. Its admission warnings show
+sanitized native coverage, losses and any required omission digests. Read the typed plan/proof rather
+than interpreting the schematic as native recovery evidence.
+
+Memory, drafts, scrollback, shell state and hidden-tab order are unsupported losses. Unknown ownership,
+unknown native process identity or controller/protected overlap always blocks. The only image
+unobservability exception is the separately typed v2 btop utility below. An otherwise fully
+identified owned process without a native session association also blocks by default. If the operator
+separately chooses to omit **only that exact association**, make a fresh proposal with
+`plan ... --omit-association <process-pin-digest>` (candidate digests are returned by planning), then
+repeat each with `approve ... --accept-omission <same-process-pin-digest>` in addition to the exact
+plan and baseline loss contract. No specific omission has been accepted by this documentation.
+Boot/birth/image drift invalidates the typed decision; generic loss acceptance never substitutes.
+
+### Conversation/tool coverage and evidence limits
+
+Pi, Claude and Codex saved conversations use the **same existing CLI and opaque `session_refs`**;
+btop is a separate v2 utility, never a conversation. No public v3, app-name field, second CLI,
+machine import or new runtime dependency is needed. The separately owned private `machine.v3`
+implementation uses unchanged public v1/v2. Interface capacity alone is not native compatibility.
+
+| Surface | Current evidence / status | Not established |
+|---|---|---|
+| Generic public v1/v2 contract | Fabricated three-reference workflows; distinct refs stay distinct, same-ref processes deduplicate, consistent renaming preserves results; every native predicate and malformed/missing proof tested; installed CLI/socket subprocess smoke | Which tool produced a ref, app-kind namespacing, native identity semantics or live recovery |
+| Pi machine integration | Separately owned implementation/review and isolated installed-CLI tests; owner-reported real Pi resume with fabricated sessions in a filesystem/network sandbox | Ghostty/service/provider/live layout proof or production qualification |
+| btop machine integration | Separately owned observed-image/capability-limit implementation and isolated machine-boundary tests | Native btop/Ghostty reconstruction or live effects |
+| Claude + Codex machine integration | **Implemented and independently reviewed with isolated integration tests; native desktop qualification unperformed**. App-kind-scoped equal-ID separation, same-kind deduplication and actual native-shape callback/log fixtures verified | Permanent real-native opt-in tests, clean Claude compatibility, full native/runtime certification or production qualification |
+
+The machine implementation's isolated tests verify tool-kind-scoped identities, same-app
+deduplication and distinct-app separation, including equal native IDs across apps. Independent
+file/cwd/runtime/bootstrap/surface/causal-window evidence remains mandatory for each admitted ref.
+Public tests deliberately do not implement or certify that producer mapping. They cannot infer
+semantic conversation identity, completeness or provider usability from a digest or six booleans.
+Unknown or unproved helpers remain blockers. No native/full-coverage or live-effect approval follows.
+
+### Recorded validation and qualification limits
+
+The following supplied review/validation results are separate evidence sets, not additive totals:
+
+- Independent public review accepted the bounded fixture/documentation slice: 161 tests, including
+  70 new cases, and eight installed-console smoke cases. The parent actual checkout subsequently
+  passed `UV_OFFLINE=1 just ci`: 343 tests, a new build and installed-console smoke.
+- Independent machine final review accepted six native fixes after 187 application tests and eight
+  independent cases. Recorded machine source/full validation passed 686 tests with five native Pi
+  skips. The later combined parent run was still running at this documentation update; no newer
+  total or completion is claimed.
+- Real Claude/Codex sandbox prototypes supplied genuine callback, file-descriptor and initialization
+  evidence. The Claude prototype could not exit cleanly because of a faulty harness; one isolated
+  sandbox remains held pending operator cleanup approval. No cleanup is authorized here, and this
+  is not clean Claude compatibility evidence. No permanent real Claude/Codex native opt-in tests
+  were delivered.
+
+No production profile, global installation, live Ghostty/service/layout qualification or full
+native/runtime certification is established. The public package ships no machine adapter. These
+results do not validate this final documentation edit; build/strict-docs validation remains with
+the parent. Checkout-only chronology: `diary/2026-09-07--implementation-multitool-recovery.md`
+(deliberately excluded from the sdist; not a shipped evidence dependency).
+
+### V2 btop utilities and trusted application platform
+
+A v2 owner profile explicitly declares an installed owner-trusted application platform and critical
+file pins. The Python recovery-control implementation stays closed/source checked; exhaustive
+OS/ELF/Pi/Jiti dependency closure is not required. This is neither a sandbox nor native proof.
+
+V2 plans separately list btop utilities and `owned_utilities` / `image_unobservable_utilities`
+coverage. An ordinary observed image requires a real running-process Pin. A capability-btop identity
+must explicitly use a null image Pin, retained installed-file/capabilities/birth/parent/argv/cgroup
+corroboration and a sole owned leaf; unknown ownership or overlap still blocks. It is not a Pi
+session and must never be represented by a fabricated conversation or association omission.
+
+For each capability-btop utility_ref shown by the plan warning, approval additionally requires
+`--accept-utility-limit <utility_ref>`. Repeat this flag for each exact limit. Missing, duplicate,
+extra or wrong-branch limits refuse. Baseline losses and any native omissions must also be accepted
+separately. No specific limit is accepted by these instructions.
+
+All utility proof predicates remain mandatory. Limits cap success at
+`verified-with-accepted-limitations`, even when native omissions also exist. Receipts retain both
+decisions, expose `overall_image_coverage_complete=false` and `image_coverage=observable-subset-only`,
+and never claim complete overall native coverage. Image dimensions cover only observable images.
+A utility-only selection can succeed with `saved_conversations_recovered=0`; it does not recover
+a conversation. Interrupted history cannot be upgraded by fresh proof. Synthetic v1/v2 installed
+console workflows are tested; separately owned machine integration has isolated evidence as above,
+not native btop/Ghostty reconstruction or live-effect proof.
+
+### Canonical accounting and execution
+
+Canonical attempts live in the fixed owner's ledger, not the chosen CLI state root. Approval is
+consumed once with a durable canonical prepare/consume/ready fence. Copies, different state roots
+and re-approval cannot bypass it. Partial/indeterminate canonical history and incomplete legacy
+accounting block new reconstruction. Historical v1 evidence stays inspectable after an owner profile
+upgrade, with its original schema/profile identity and adapter accounting unknown; this does not
+authorize cross-profile execution or reconcile old accounting. Do not delete markers, change profiles/ledgers or invent a nonce
+to retry. A crash after intent may leave stopped processes or unresolved children; no automatic
+rollback, service repair, signal, launch fallback or cleanup is authorized.
+
+The worker receives one expiring effect permit at a time and retains the writer lock if its parent
+disconnects. It must cease new effects on disconnect/lease expiry; only already-dispatched observation
+and durable recording remain permitted. The CLI never timeout-kills the worker and waits for exit,
+so a defective worker can block rather than silently release exclusion. Launched applications must
+not inherit the lock. The operator must remain idle; Niri focus-plus-move is still non-atomic.
+
+Final receipts separately report native file/cwd/runtime/bootstrap/surface/causal ownership, new
+images, old-tree exit, services, layout/focus, labels/holds and protected preservation. Complete
+mandatory proof yields `verified`; accepted association omissions cap it at
+`verified-with-accepted-omissions`, always with incomplete overall native coverage. Neither means
+provider usability, semantic completeness, human acceptance or memory restoration. Partial or
+indeterminate execution exits 2. Fresh verification never upgrades an interrupted effect history
+or modifies its canonical terminal marker. In v2, `saved_conversations_recovered` is an aggregate
+complete-proof/history count: a partial attempt reports zero even if other native records pass,
+not a per-conversation salvage tally. Missing native records yield partial; missing utility records
+violate the exact proof set and make execution indeterminate. Inspect reports history/accounting,
+not fresh native proof.
+Default `verify <snapshot>` and ordinary layout reconciliation retain their existing meaning.
+
 ## Privacy and trust model
 
 Private files are content-addressed and integrity checked, with distinct latest-observed,

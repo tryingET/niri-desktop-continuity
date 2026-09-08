@@ -9,9 +9,15 @@ type: "reference"
 
 ## Product boundary
 
-A small Niri/Linux-only tool. No multi-compositor framework, daemon, application launcher,
-telemetry, browser-profile reader or arbitrary process-memory recovery. Runtime uses Python's
-standard library and Niri IPC. Development must not require a maintainer's private infrastructure.
+A small Niri/Linux-only tool. No multi-compositor framework, daemon, general application launcher,
+telemetry, browser-profile reader or arbitrary process-memory recovery. The portable runtime uses
+Python's standard library, Niri IPC and an optional explicitly pinned internal recovery adapter.
+Development must not require a maintainer's private infrastructure.
+
+Loss-bounded saved-conversation reconstruction is a distinct, explicitly approved contract:
+[design](docs/project/2026-09-06-integrated-reconstruction-design.md). All operator stages must use
+the existing CLI; machine-specific adapter/configuration/private state stay with their owner.
+This boundary permits implementation, not unreviewed or automatically authorized live effects.
 
 ## Safety and privacy
 
@@ -19,9 +25,16 @@ standard library and Niri IPC. Development must not require a maintainer's priva
 - All restart/migration remains blocked until an independently tested exact recovery adapter exists.
 - Live layout actions require explicit operator approval; synthetic tests do not authorize them.
 - Never put real desktop snapshots, titles, executable paths, environment dumps or session logs in Git.
-- Use fabricated fixtures. Keep generated runtime state outside the repository.
+- Use fabricated fixtures. Keep generated product runtime state (including captures and receipts)
+  outside the repository. Optional workspace-local SCI development state may remain only in ignored
+  root `.ontology/`; it is not a product state location, source input or distributable. Never track it.
 - Preserve the digest, expiry, focus, per-compositor writer-lock and replay gates.
-- No automatic retry after ambiguous IPC effects. No automatic rollback or process termination.
+- No automatic retry after ambiguous effects or automatic rollback/cleanup. Process termination
+  is permitted only within an independently reviewed, exact-digest-approved reconstruction of
+  freshly proved owned targets; never as generic recovery, timeout cleanup or fault handling.
+- Unknown ownership, process identity or protected/controller overlap always blocks. Missing native
+  session association blocks unless a separately reviewed, exact-process omission is explicitly
+  approved in the new plan; generic loss acceptance never supplies that decision.
 - Tests must not contact a real compositor or modify its live lock directory.
 
 ## Engineering and validation

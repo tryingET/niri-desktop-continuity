@@ -29,7 +29,22 @@ build-backend = "hatchling.build"
 packages = ["src/niri_desktop_continuity"]
 
 [tool.hatch.build.targets.sdist]
-include = ["src/", "tests/", "scripts/", "README.md", "LICENSE", "DESIGN.md", "Justfile", "pyproject.toml", "uv.lock", "docs/usage.md", "docs/architecture.md"]
+only-include = [
+    "src/",
+    "tests/",
+    "scripts/",
+    "README.md",
+    "LICENSE",
+    "DESIGN.md",
+    "Justfile",
+    "pyproject.toml",
+    "uv.lock",
+    "docs/usage.md",
+    "docs/architecture.md",
+    "docs/project/2026-09-06-integrated-reconstruction-design.md",
+    "docs/project/2026-09-06-integrated-reconstruction-plan.md",
+    "docs/project/2026-09-06-integrated-reconstruction-protocol.md",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

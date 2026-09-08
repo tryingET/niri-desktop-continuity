@@ -8,7 +8,12 @@ read_when:
 
 One CLI, no daemon, no platform plugin framework. Python standard library at runtime; Niri/Linux
 is the supported environment. Plain JSON on stdout composes with Unix tools; errors go to stderr.
-No application restart or migration adapter is implemented.
+No exact application restart/migration adapter is implemented. A distinct loss-bounded reconstruction
+coordinator drives a separately owned and reviewed machine adapter, which does not ship in the wheel.
+Pi/Claude/Codex/btop support is **implemented and independently reviewed with isolated integration
+tests; native desktop qualification unperformed**. The private `machine.v3` implementation uses
+unchanged public v1/v2 schemas and the existing CLI; it is not a public protocol v3.
+See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits) for proof limits.
 
 - `probe`: bounded read-only Niri queries and Linux same-user process metadata. Discovered
   application binaries are hashed, never executed. Version remains unknown.
@@ -24,6 +29,15 @@ No application restart or migration adapter is implemented.
 - `map_preview`: escaped offline schematic and complete HTML ledger. CSS is packaged beside the
   module; no access to a source checkout or external design service is needed after installation.
 - `cli` / `__main__`: console script and `python -m` entrypoints; no private infrastructure imports.
+- `recovery` / `recovery_verification`: fresh proposal/admission, exact losses and typed process-pin
+  omissions, deterministic approval, execution and non-upgrading fresh native verification.
+- `recovery_protocol` / `recovery_requests`: closed bounded, exactly routed v1/v2 schemas and separate native proof
+  dimensions, never native transcript/environment payloads or arbitrary effect commands.
+- `recovery_profile` / `recovery_adapter`: account-home owner trust anchor, closed recovery-control and critical platform pins,
+  explicit isolated JSON socketpair IPC, per-effect permits, liveness and cancellation without kill.
+- `recovery_ledger`: fixed owner-profile canonical Store, prepare/CLI-consume/ready crash fence,
+  cross-root replay refusal and retained indeterminate history. Worker inherits the compositor
+  lock; applications must not. An unresolved attempt blocks new reconstruction, not automatic repair.
 
 ## Evidence model
 
@@ -43,3 +57,29 @@ and verify packaged map assets and absence of runtime dependencies.
 Wheel contains only the Python package/assets plus license metadata. Sdist uses an explicit
 source allowlist. Local private template snapshot context and runtime state are not distributed.
 The source tree's reusable code is Apache-2.0; generated personal capture data is never sample data.
+
+## Reconstruction integration boundary
+
+The [exact internal protocol](project/2026-09-06-integrated-reconstruction-protocol.md) fixes the
+separately owned machine adapter's contract. The coordinator validates all declared profile/source pins before
+every phase. Recovery-control Python code is closed and source checked; installed OS/ELF/Pi/Jiti
+is explicitly owner-trusted, not an exhaustive dependency capsule or sandbox. The owner still pins
+critical executable/entrypoint/provider/presence/config surfaces and proves native ownership,
+observable running images, saved-file/runtime/cwd/bootstrap presence, services and layout.
+`recovery_utilities` validates only the exact v2 btop identity/proof branches. Capability-bearing
+btop may explicitly lack an observable running image; separate exact utility-ref approval caps
+success and exposes incomplete image coverage. No synthetic sessions or utility association omissions.
+Canonical inspection routes historical versions without executing foreign-profile code; strict
+admission and fresh verification still refuse foreign or damaged accounting.
+Protocol validation is not a sandbox or native-state proof. Endpoint read-only phases are an audited
+no-effects contract, not OS capability isolation. A defective effect worker can retain exclusion and
+block indefinitely; the coordinator does not kill it, retry or clean up after ambiguity.
+
+Installed wheel smoke drives the actual console script outside the checkout through all reconstruction
+phases with a fabricated endpoint and isolated capture/profile/lock boundaries. Synthetic tests also
+exercise parent disconnect, worker-retained exclusion, application FD noninheritance, replay, omissions
+and independent native-dimension counterexamples. Three opaque saved references and mixed utilities
+exercise unchanged v1/v2 semantics, not a public app classifier or native identity producer. Machine
+implementation/review has separate owner evidence; deployment qualification and live desktop proof
+remain unperformed. Preview retains the original target topology, with explicit coverage,
+loss and omission warnings; it does not fabricate replacement identities or draw native recovery groups.
