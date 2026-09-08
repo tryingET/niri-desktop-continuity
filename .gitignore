@@ -11,6 +11,8 @@ __pycache__/
 /previews/
 /receipts/
 /artifacts/
+# Optional workspace-local SCI development state; never a source or package input.
+/.ontology/
 # Generated immutable local template context; not part of the standalone repository.
 /docs/_core/
 # Generated index, never hand-authored.

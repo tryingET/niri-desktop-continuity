@@ -10,41 +10,77 @@ import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+RUNTIME_PARTS = {"state", "snapshots", "plans", "approvals", "previews", "receipts", "artifacts"}
 
 
 def source_paths():
-    if (ROOT / ".git").exists():
-        return (
-            subprocess.check_output(
-                ["git", "ls-files", "--cached", "--others", "--exclude-standard", "-z"], cwd=ROOT
-            )
+    git = (ROOT / ".git").exists()
+    paths = []
+    ignore_devstate = False
+    if git:
+        # The index is independent of ignore rules, including forced additions and missing files.
+        paths.extend(
+            subprocess.check_output(["git", "ls-files", "--cached", "-z"], cwd=ROOT)
             .decode()
             .split("\0")
         )
-    # Source archives have no Git metadata. Exclude build/tool caches, not runtime-state leaks.
+        ignore_devstate = (
+            subprocess.run(
+                ["git", "check-ignore", "--no-index", "-q", ".ontology/"], cwd=ROOT, check=False
+            ).returncode
+            == 0
+        )
+    # Walk untracked inputs too: arbitrary ignore rules must not hide runtime leaks.
+    # Never descend into private state, even when it is a rejected input.
     excluded = {".git", ".venv", ".pytest_cache", ".ruff_cache", "__pycache__", "dist", "build"}
-    paths = []
-    for directory, dirs, files in os.walk(ROOT):
-        dirs[:] = [name for name in dirs if name not in excluded]
+
+    def fail_walk(error: OSError) -> None:
+        # os.walk otherwise suppresses scandir failures and yields an incomplete inventory.
+        raise error
+
+    for directory, dirs, files in os.walk(ROOT, followlinks=False, onerror=fail_walk):
+        for name in list(dirs):
+            path = Path(directory) / name
+            relative = path.relative_to(ROOT)
+            if path.is_symlink():
+                paths.append(str(relative))
+            elif relative == Path(".ontology") and ignore_devstate:
+                pass
+            elif name == ".ontology" or name in RUNTIME_PARTS:
+                paths.append(str(relative))
+            elif git and (name in excluded or relative == Path("docs/_core")):
+                pass
+            else:
+                continue
+            dirs.remove(name)
         paths.extend(str((Path(directory) / name).relative_to(ROOT)) for name in files)
     return paths
 
 
 def check() -> list[str]:
-    paths = source_paths()
+    try:
+        paths = source_paths()
+    except OSError:
+        # Do not expose OS exception text, absolute paths or a partial-scan success.
+        return ["source traversal failed: unable to enumerate source inputs"]
     failures = []
     home_path = re.compile(r"/(?:home|Users)/[A-Za-z0-9._-]+")
     for name in sorted(set(paths) - {""}):
         path = ROOT / name
-        if path.is_symlink():
+        parts = Path(name).parts
+        if ".ontology" in parts:
+            failures.append(
+                f"{name}: optional development state must not be tracked or distributed"
+            )
+            continue
+        if any(part in RUNTIME_PARTS for part in parts):
+            failures.append(f"{name}: runtime state must not be distributed")
+            continue
+        if any(ROOT.joinpath(*parts[:end]).is_symlink() for end in range(1, len(parts) + 1)):
             failures.append(f"{name}: unreviewed source symlink")
             continue
         if not path.is_file():
             continue
-        if any(
-            part in {"snapshots", "previews", "receipts"} for part in path.relative_to(ROOT).parts
-        ):
-            failures.append(f"{name}: runtime state must not be distributed")
         try:
             content = path.read_text(encoding="utf-8")
         except UnicodeDecodeError:
