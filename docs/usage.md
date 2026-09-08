@@ -203,6 +203,59 @@ violate the exact proof set and make execution indeterminate. Inspect reports hi
 not fresh native proof.
 Default `verify <snapshot>` and ordinary layout reconciliation retain their existing meaning.
 
+## Additive saved-session reopening
+
+Use this distinct mode when the selected saved conversations remain available but their old
+windows/processes are gone. It does **not** restart Ghostty, reconstruct tabs, move existing windows,
+or demand invented old-process, shutdown or service proofs. The public package ships no native
+adapter; its fabricated tests are not live machine qualification.
+
+```sh
+niri-desktop-continuity plan <current-snapshot> --intent reconstruct --mode additive \
+  --saved-set <owner-private-saved-set-digest> --adapter-config <private-config>
+niri-desktop-continuity preview <plan> --kind plans
+niri-desktop-continuity approve <plan> --confirm <plan> --accept-losses saved-conversations-v1
+niri-desktop-continuity reconstruct <approval> --apply --acknowledge-non-atomic-focus
+niri-desktop-continuity verify <attempt> --kind reconstruction
+niri-desktop-continuity inspect <attempt> --kind reconstruction
+```
+
+The existing lifecycle uses the separately versioned `desktop-continuity.saved-reopen.v1` owner
+profile. `--mode replacement` remains the default and preserves v1/v2 behavior. Additive mode requires
+an exact saved-set digest, never arbitrary argv, transcript content or a native path. The owner
+resolves that private immutable set and proves each exact saved file/ID/cwd, native runtime/bootstrap,
+and current absence or existing native association (including recovered descendants). Live-window,
+PID, app/version and association-omission selectors are not accepted in this mode. All currently
+observed windows are protected; no former PID or window must be fabricated.
+
+Planning reports selected, missing, already-present and unresolved saved-conversation counts.
+The offline HTML preview includes a saved-scope ledger with the complete saved-set digest, each
+exact opaque ref and its disposition/count. It distinguishes a missing-session plan from a zero-launch
+already-present plan without exposing native paths or adapter-private manifests. The map remains a
+schematic; the scope ledger, not inferred tabs or unchanged topology, identifies planned launches.
+Unresolved refs block that exact selection rather than silently disappear or acquire loss approval.
+A revised owner-selected subset requires a new saved-set digest, plan and exact approval; it cannot
+bypass unresolved effects. At execution the coordinator permits each admitted missing ref once, then
+one restoration of the admitted focus. Shutdown, service, layout, duplicate launch, already-present
+launch and unbound refs are refused before a permit. An already-present-only set performs **zero
+effects** but still consumes its approval and receives fresh native verification. No-op evidence does
+not authorize replay.
+
+`verified` requires all selected native identities, pinned images, focus and protected preservation.
+For already-present refs the ownership/image proofs concern those current processes, not fictitious
+new launches. `saved_conversations_restored` counts admitted missing refs only after complete proof
+and intact history; partial/indeterminate history reports zero, not a per-ref salvage tally.
+`saved_conversations_already_present` and `saved_conversations_unresolved` retain admission counts;
+they are not fresh success claims if overall native verification fails. Layout is explicitly not
+reconstructed: normal tiling insertion can change geometry, and uncertain former tabs remain an
+owner-declared loss, not guessed tab targets. Memory, drafts, scrollback and provider usability stay
+unsupported/unverified. Ordinary capture/preview never launches anything.
+
+All exact profile/source pins, native identity checks, expiry, focus revalidation, per-compositor
+writer exclusion, canonical prepare/consume/ready fencing and no-retry/no-cleanup rules remain.
+This is a bounded source-owned recovery mode, not a general application launcher or a workaround
+for the independent requirements of destructive reconstruction.
+
 ## Privacy and trust model
 
 Private files are content-addressed and integrity checked, with distinct latest-observed,

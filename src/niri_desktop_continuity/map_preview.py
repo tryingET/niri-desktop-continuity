@@ -8,6 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .model import readiness, require_snapshot
+from .recovery_protocol import ADDITIVE
 
 ASSETS = Path(__file__).resolve().parent / "assets"
 LIMITATIONS = (
@@ -107,6 +108,47 @@ def map_html(snapshot, title, selected):
     return "".join(rows)
 
 
+def saved_scope_html(plan):
+    """Show only opaque admitted scope, never adapter-private manifests or native data."""
+    recovery = (plan or {}).get("recovery", {})
+    if recovery.get("schema") != ADDITIVE:
+        return ""
+    observed = recovery["observation"]
+    selection = observed["saved_selection"]
+    rows = [
+        '<section class="workspace" aria-labelledby="saved-set-scope">'
+        '<h2 id="saved-set-scope">Additive saved-session scope</h2>',
+        f"<p>Saved-set digest: <code>{escape(recovery['saved_set'])}</code></p>",
+        f"<p>Selected saved conversations: {len(observed['session_refs'])}. "
+        "All current windows are protected; this preview grants no approval.</p>",
+        '<div class="table-scroll"><table><thead><tr><th>Disposition</th>'
+        "<th>Count</th><th>Exact saved references</th></tr></thead><tbody>",
+    ]
+    for name, title in (
+        ("missing_refs", "Missing (to reopen)"),
+        ("present_refs", "Already present (preserved)"),
+        ("unresolved_refs", "Unresolved (blocks approval)"),
+    ):
+        refs = selection[name]
+        rendered = "<br>".join(f"<code>{escape(ref)}</code>" for ref in refs) or "None"
+        rows.append(
+            f'<tr><th scope="row">{escape(title)}</th><td>{len(refs)}</td><td>{rendered}</td></tr>'
+        )
+    rows.append("</tbody></table></div>")
+    if selection["unresolved_refs"]:
+        summary = "Unresolved references block approval of this exact saved set."
+    elif not observed["session_refs"]:
+        summary = "No saved references selected; approval is blocked."
+    elif not selection["missing_refs"]:
+        summary = "No launches planned: all selected references are already present."
+    else:
+        summary = "Only the listed missing references may be reopened after exact approval."
+    rows.append(
+        f'<p class="note">{escape(summary)} Layout and hidden tabs are not reconstructed.</p></section>'
+    )
+    return "".join(rows)
+
+
 def render_html(snapshot, *, plan=None, plan_digest=None):
     require_snapshot(snapshot)
     selected = set((plan or {}).get("selection", {}).get("window_ids", []))
@@ -140,6 +182,7 @@ main{padding:var(--spacing-xl);max-width:1800px;margin:auto}h1,h2{font-family:va
             f"<p>Selected windows: {escape(sorted(selected))} · Affected windows: {escape(affected.get('window_ids', []))} · "
             f"Dependent processes: {len(affected.get('pids', []))}</p>"
         )
+    body.append(saved_scope_html(plan))
     body.append(map_html(snapshot, "01 / Current observation", selected))
     if plan:
         body.append(map_html(plan["desired"], "02 / Desired topology (proposal only)", selected))

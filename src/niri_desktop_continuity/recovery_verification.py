@@ -1,6 +1,7 @@
 """Separate native and layout evidence; fresh observation never rewrites effect history."""
 
-from .recovery_protocol import VERSION2, proof, version
+from . import recovery_additive as additive
+from .recovery_protocol import ADDITIVE, VERSION2, proof, version
 from .recovery_utilities import utility_limits
 
 
@@ -31,6 +32,11 @@ def receipt(plan, attempt, evidence, *, history_complete, events):
         "coverage": recovery["coverage"],
         "overall_native_coverage_complete": status == "verified" and not omissions,
         "accepted_omissions": omissions,
+        **(
+            additive.receipt_fields(recovery, complete and history_complete)
+            if schema == ADDITIVE
+            else {}
+        ),
         **(
             {
                 "accepted_utility_limits": limits,

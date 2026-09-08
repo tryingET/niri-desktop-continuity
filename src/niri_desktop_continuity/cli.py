@@ -38,6 +38,8 @@ def parser():
     plan.add_argument("--replacement")
     plan.add_argument("--ttl", type=int, default=300)
     plan.add_argument("--adapter-config", type=Path)
+    plan.add_argument("--mode", choices=["replacement", "additive"], default="replacement")
+    plan.add_argument("--saved-set", help="owner-private saved-set digest; additive mode only")
     plan.add_argument("--omit-association", action="append", default=[])
     preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
     preview.add_argument("digest")
@@ -91,7 +93,9 @@ def run(args):
     )
     if recovery_mode:
         return run_recovery(args, store)
-    if args.command == "plan" and (args.adapter_config or args.omit_association):
+    if args.command == "plan" and (
+        args.adapter_config or args.omit_association or args.saved_set or args.mode != "replacement"
+    ):
         raise ValueError("adapter configuration and association omissions are reconstruction-only")
     if args.command == "approve" and (
         args.accept_losses or args.accept_omission or args.accept_utility_limit
@@ -176,6 +180,8 @@ def run_recovery(args, store):
                 args.adapter_config,
                 capture(),
                 omissions=args.omit_association,
+                mode=args.mode,
+                saved_set=args.saved_set,
                 window_ids=args.window_id,
                 pids=args.pid,
                 app_id=args.app_id,

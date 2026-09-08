@@ -294,3 +294,31 @@ loss acceptance cannot authorize it. Any such limit caps success at
 cover only observable images, and overall image coverage is explicitly incomplete. A utility-only
 selection can succeed without claiming saved-conversation recovery. Native/live proof remains
 unperformed and no live effects are authorized. The exact schema is in the protocol's v2 section.
+
+## 10. Additive saved-set decision
+
+The replacement baseline above does not cover reopening saved conversations after their old
+processes/windows have already gone. Requiring live selections, old-tree exit, service contracts
+or full layout reconstruction for that operation conflates destructive replacement with useful
+saved-session recovery. The explicit additive mode is a separate closed contract on the existing
+CLI lifecycle, not a second launcher, inferred old-process identity or relaxed replacement gate.
+
+`plan --intent reconstruct --mode additive --saved-set H` uses the distinct
+`desktop-continuity.saved-reopen.v1` pinned owner profile. All current windows remain protected;
+the machine owner resolves an exact private saved set and distinguishes missing, already-present
+and unresolved refs using actual native file/ID/cwd/runtime/bootstrap evidence. Uncertain former
+tab grouping never grants tab targeting. Unresolved identity blocks the exact set. No arbitrary
+argv, native transcript body or machine-specific path crosses the public protocol.
+
+Only one launch per admitted missing ref and restoration of the admitted focus may receive effect
+permits. Shutdown, service changes, existing-window movement and layout reconstruction are not
+admitted. Already-present-only selections consume approval but execute zero effects. Separate
+native ownership/images/focus/protected proofs apply; old-tree exit, services, labels and holds
+are neither required nor dishonestly marked proved. Ordinary insertion may change tiling geometry.
+The source/profile pins, exact approval/loss acceptance, expiry, shared writer lock, cross-root
+canonical replay fence, interrupted-history limits and no-cleanup rule all remain mandatory.
+
+This amendment permits bounded implementation and fabricated installed-CLI testing. It supplies
+no native machine compatibility or live-effect approval. An operator-approved incident script
+restoration is separate evidence, not proof of this new integrated mode. The public package still
+ships no machine adapter. Exact shapes and proof limits are in the protocol's saved-reopen section.

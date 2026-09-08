@@ -10,6 +10,7 @@ from pathlib import Path
 
 from .model import digest
 from .recovery_protocol import (
+    ADDITIVE,
     CONTRACT,
     VERSION2,
     RecoveryRefusal,
@@ -107,11 +108,11 @@ def identify_profile():
             "ledger_root",
             "legacy_locations",
         )
-        + (("platform",) if schema == VERSION2 else ()),
+        + (("platform",) if schema in (VERSION2, ADDITIVE) else ()),
     )
     require(profile["contract"] == CONTRACT and profile["reviewed"] is True)
     require(type(profile["sources"]) is list and 1 <= len(profile["sources"]) <= 256)
-    if schema == VERSION2:
+    if schema in (VERSION2, ADDITIVE):
         fields(profile["platform"], ("kind", "pins"))
         require(profile["platform"]["kind"] == "owner-trusted-application-platform")
         require(
@@ -183,5 +184,5 @@ def profile_pins(profile):
         profile["interpreter"],
         profile["endpoint"],
         *profile["sources"],
-        *(profile["platform"]["pins"] if profile["schema"] == VERSION2 else []),
+        *(profile["platform"]["pins"] if profile["schema"] in (VERSION2, ADDITIVE) else []),
     ]

@@ -1,11 +1,11 @@
 ---
-summary: "Exact v1/v2 internal JSON IPC contract for the portable coordinator and a separately reviewed machine endpoint."
+summary: "Exact replacement v1/v2 and additive saved-reopen IPC contracts for separately reviewed machine endpoints."
 read_when:
   - "You implement or review the machine-owned reconstruction endpoint."
 type: "reference"
 ---
 
-# Integrated reconstruction internal protocol v1 and v2
+# Integrated reconstruction and saved-reopen internal protocols
 
 Implemented portable coordinator and separately owned, independently reviewed machine endpoint;
 **no production profile provisioning or live desktop safety certification**.
@@ -18,6 +18,7 @@ A green fabricated workflow does not establish native compatibility or authorize
 ## 1. Wire types and limits
 
 Sections 1–7 specify frozen v1 shapes; section 8 defines exact v2 changes, not optional fields.
+Section 9 defines a separately versioned additive saved-set mode; it does not reinterpret v1/v2.
 `V` = `desktop-continuity.recovery.v1`; `C` = `saved-conversations-v1`.
 All objects below have **exactly** their listed keys. Unknown keys, missing keys, duplicate JSON
 keys, nonfinite numbers, wrong types, unsupported phases and trailing messages refuse.
@@ -559,3 +560,108 @@ Independent-review regressions additionally reject utility PIDs colliding with a
 and prevent historical success from hiding adverse current adapter accounting. Inspection retains
 `historical_status` separately: interrupted/unresolved/incomplete current accounting returns
 `status=indeterminate` without changing canonical history or granting retry authority.
+
+## 9. Additive saved-reopen v1 (replacement v1/v2 remain frozen)
+
+`A = desktop-continuity.saved-reopen.v1`; `C = saved-conversations-v1` remains the loss scope.
+The same capture/plan/preview/approve/reconstruct/verify/inspect CLI lifecycle, framing/size bounds,
+fixed trust anchor, pin checks, private Store, canonical ledger and cancellation rules apply.
+Select it explicitly with `plan --intent reconstruct --mode additive --saved-set H`; mode defaults
+to replacement. It requires an A profile. Replacement selectors, omission/utility-limit decisions,
+arbitrary commands and public native paths are forbidden. No old selected PID/window is required.
+
+The A profile has the exact **v2 profile fields**, including the explicit owner-trusted platform
+and pins, with schema A. Config/frames/bindings/receipts route by exact A, never an optional v1/v2
+field. Profile provisioning and reviewed native implementation remain owner responsibilities.
+An owner-private immutable saved-set resolver is bound by `saved_set:H`. The public tool does not
+import recipes or discover native stores. All current desktop windows/processes are protected.
+
+```text
+SavedSelection = {missing_refs:H[], present_refs:H[], unresolved_refs:H[]}
+Admitted = {snapshot_digest:H, identity_digest:H, state_fingerprint:H, focus_digest:H,
+ selection:EmptySelection, omission_pins:[], private_ref:H|null,
+ mode:"additive", saved_set:H, saved_selection:SavedSelection|null}
+EmptySelection = {window_ids:[], pids:[], requested_window_ids:[], requested_pids:[],
+ app_id:null, version:null}
+Observation = {identity_digest:H, state_fingerprint:H, focus_digest:H, private_ref:H,
+ supported:boolean, processes:[], session_refs:H[], legacy:Legacy,
+ saved_set:H, saved_selection:SavedSelection, selection_proved:boolean}
+Coverage = {selected_saved_conversations:Count, missing_saved_conversations:Count,
+ already_present_saved_conversations:Count, unresolved_saved_conversations:Count}
+```
+
+The three sorted unique arrays are pairwise disjoint and their sorted union exactly equals
+`session_refs`; at most 256 refs total and **255 missing refs**, reserving one focus event.
+`private_ref` and `saved_selection` are null only in initial observe. Every subsequent phase binds
+the exact private manifest and classified set. Admit returns byte-equivalent semantic Observation;
+it cannot move refs from missing to present under the old approval. Saved-set drift or classification
+changes require fresh plan/approval, never replay of an unresolved attempt.
+
+The adapter must independently prove exact native saved file/header/ID/cwd, allowed runtime and
+bootstrap, current absence or already-present association, live descendant deduplication, and
+protected overlap/ownership. `selection_proved` summarizes retained private evidence, not an
+allowlist or permission to echo request values. A missing terminal sidecar does not establish
+absence; independently identified headless/native processes must participate in duplicate checks.
+No cwd/title/recency heuristic can substitute for native identity. `supported=false`, unproved
+selection, empty selected refs, any unresolved ref, incomplete legacy or canonical history blocks.
+A separately chosen subset has a different saved-set digest; omissions are never implicit.
+
+Recovery plan fields are exactly the v1 fields plus `mode:"additive",saved_set:H` (omissions=[]).
+Approval fields are exactly the v1 fields plus `mode:"additive",saved_set:H`
+(accepted_omissions=[]). Whole-plan/approval hashes bind the classified set. Baseline loss
+acknowledgment is still required. Live selected window/PID arrays and affected scope are empty,
+but the complete current snapshot/focus remains the protected admission basis.
+
+Only the following exact effect intent is accepted:
+
+```text
+{sequence:integer,kind:"launch"|"focus",intent_ref:H,target_ref:H}
+```
+
+A launch's target_ref must equal one admitted **missing** session_ref and may be permitted once.
+Already-present, unresolved, extra or repeated refs refuse. A focus effect's target_ref must equal
+the admitted focus_digest; exactly one is permitted **after every missing launch has an observed
+result**, never before or between launches. No launch may follow focus. Shutdown, service and
+layout intents refuse before permits, including attempts to target existing windows. The adapter
+resolves the exact focus pin from its admitted private manifest; the opaque digest is not free-form
+window targeting. Intent/result journaling, absolute expiry and no-pending-heartbeat rules remain.
+Effect-result shape is unchanged. Missing-ref sets require all their launches and that one focus
+exchange before final success. Already-present-only sets require **zero effects**, including zero
+focus effects; they still prepare/consume/ready and cannot replay. Canonical validation independently
+rechecks the event target set/order, so a missing launch cannot be hidden by a final scalar proof.
+
+```text
+Proof = {dimensions:Dimensions,native:Native[],interrupted:boolean,unresolved_children:Count}
+Dimensions = {causal_ownership:Evidence,new_images:Evidence,focus:Evidence,
+ protected_preservation:Evidence}
+```
+
+Evidence and Native retain their existing exact shapes. Native rows must cover **all** session_refs,
+including present refs, with all six independently observed predicates true. For present refs,
+causal_ownership/new_images mean corroborated current ownership and pinned observed native images;
+they do not claim a new process was launched. For missing refs they also require causal binding to
+the authorized launch. Old-tree exit, service contracts, layout, labels and temporary holds are not
+fields, prerequisites or invented proved dimensions. Normal tiling insertion may alter geometry;
+no exact tab ordering or placement is asserted by this initial mode.
+
+A receipts retain base v1 fields and additionally `mode`, `saved_set`,
+`saved_conversations_restored`, `saved_conversations_already_present`,
+`saved_conversations_unresolved`, `layout`, and `destructive_effects`.
+Restored is the missing-ref count only after complete proof and successful history; otherwise zero,
+not a partial salvage tally. Already-present/unresolved are frozen admission counts, not fresh
+claims after failed verification. Layout is
+`not-reconstructed; ordinary-tiling-insertion-may-change-geometry`; destructive_effects is
+`not-authorized`. Status is verified, partial or indeterminate; no omission/utility-limit upgrades.
+No-op complete native proof can be verified without fabricating an event. Interrupted history
+never upgrades on fresh verify. Native/provider/human/memory nonclaims remain unchanged.
+
+`tests/test_saved_reopen_backend.py` is a handwritten fabricated endpoint with no native/compositor
+transport. `tests/test_saved_reopen.py` checks missing/present selection, exact effect refs, refusal
+of destructive/layout/duplicate effects, native predicates, changed pins/state/expiry, replay and
+non-upgrading history. `tests/test_saved_reopen_installed.py` builds/installs a wheel outside the
+checkout and drives the actual console script through both missing-ref and zero-effect workflows.
+The disposable interpreter replaces only capture/profile/lock providers; no production bypass is
+added. `tests/test_saved_reopen_preview.py` verifies the offline HTML saved-set/ref/disposition
+ledger, missing-versus-no-op distinction and escaped values without private-manifest disclosure.
+Additive scope is reviewable even though live-window selectors are empty and topology is unchanged.
+These tests establish portable orchestration, not machine integration or native qualification.

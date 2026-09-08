@@ -33,6 +33,12 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   omissions, deterministic approval, execution and non-upgrading fresh native verification.
 - `recovery_protocol` / `recovery_requests`: closed bounded, exactly routed v1/v2 schemas and separate native proof
   dimensions, never native transcript/environment payloads or arbitrary effect commands.
+- `recovery_additive`: distinct saved-set protocol branch on that same lifecycle. Missing,
+  present and unresolved refs partition a bound private selection; no old live PID is invented.
+  The coordinator permits only an exact missing-ref launch and admitted-focus restoration,
+  never shutdown/service/layout. Already-present-only execution has a canonical zero-effect
+  receipt. Its proofs concern native identities/images, focus and protected preservation,
+  not old-tree exit, services or reconstructed geometry. V1/v2 replacement behavior is unchanged.
 - `recovery_profile` / `recovery_adapter`: account-home owner trust anchor, closed recovery-control and critical platform pins,
   explicit isolated JSON socketpair IPC, per-effect permits, liveness and cancellation without kill.
 - `recovery_ledger`: fixed owner-profile canonical Store, prepare/CLI-consume/ready crash fence,

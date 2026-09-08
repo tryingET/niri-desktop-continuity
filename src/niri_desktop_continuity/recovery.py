@@ -5,6 +5,7 @@ from __future__ import annotations
 import os
 from datetime import datetime, timezone
 
+from . import recovery_additive as additive
 from .model import digest, fingerprint, focus_pin, readiness
 from .operation_lock import operation_lock
 from .planner import build_plan
@@ -12,6 +13,7 @@ from .recovery_adapter import Adapter
 from .recovery_ledger import Ledger
 from .recovery_profile import identify_profile, load_profile
 from .recovery_protocol import (
+    ADDITIVE,
     CONTRACT,
     VERSION2,
     coverage,
@@ -55,6 +57,7 @@ def payload(plan):
         "selection": plan["selection"],
         "omission_pins": [v["process_pin_digest"] for v in plan["recovery"]["omissions"]],
         "private_ref": plan["recovery"].get("observation", {}).get("private_ref"),
+        **(additive.payload_fields(plan) if plan["recovery"]["schema"] == ADDITIVE else {}),
     }
 
 
@@ -77,6 +80,8 @@ def observe(adapter, plan, phase):
         )
     )
     require(len({item["pin"]["pid"] for item in value["processes"]}) == len(value["processes"]))
+    if adapter.profile["schema"] == ADDITIVE:
+        require(value["saved_set"] == plan["recovery"]["saved_set"])
     if adapter.profile["schema"] == VERSION2:
         for item in value["utilities"]:
             require(item["host_pin"]["boot_id"] == plan["source_identity"]["boot_id"])
@@ -86,9 +91,27 @@ def observe(adapter, plan, phase):
     return value
 
 
-def propose(store, snapshot_key, config, current, *, omissions=(), **selectors):
+def propose(
+    store,
+    snapshot_key,
+    config,
+    current,
+    *,
+    omissions=(),
+    mode="replacement",
+    saved_set=None,
+    **selectors,
+):
     require(config is not None)
     profile = load_profile(config)
+    require(mode in ("replacement", "additive"))
+    require((mode == "additive") == (profile["schema"] == ADDITIVE))
+    if mode == "additive":
+        require(not omissions and saved_set is not None)
+        require(selectors.get("app_id") is None and selectors.get("version") is None)
+        require(not any(v for k, v in selectors.items() if k != "ttl_seconds"))
+    else:
+        require(saved_set is None)
     snapshot = store.get("snapshots", snapshot_key)
     plan = build_plan(snapshot, intent="inspect", **selectors)
     plan["intent"] = "reconstruct"
@@ -97,6 +120,8 @@ def propose(store, snapshot_key, config, current, *, omissions=(), **selectors):
         "native_state": "saved-conversations-only",
         "process_memory": "unsupported",
     }
+    if mode == "additive":
+        additive.prepare_plan(plan, saved_set)
     omission_keys = sorted(omissions)
     keys(omission_keys)
     # Only digests are sent on initial observation; full typed decisions come from fresh pins.
@@ -105,6 +130,7 @@ def propose(store, snapshot_key, config, current, *, omissions=(), **selectors):
         "contract": CONTRACT,
         "profile_digest": digest(profile),
         "omissions": [{"process_pin_digest": key} for key in omission_keys],
+        **({"mode": "additive", "saved_set": saved_set} if mode == "additive" else {}),
     }
     fresh(plan, current)
     adapter = Adapter(profile)
@@ -121,7 +147,9 @@ def propose(store, snapshot_key, config, current, *, omissions=(), **selectors):
     plan["admission"] = {
         "status": "blocked" if blockers else "awaiting-approval",
         "blockers": sorted(set(blockers)),
-        "warnings": [
+        "warnings": additive.warnings()
+        if mode == "additive"
+        else [
             "reconstruction-only; exact restart/migration remain blocked",
             "accepted loss required: saved-conversations-v1 (memory, drafts, scrollback, shell state, hidden-tab order)",
             "desired map is the original target topology, not predicted replacement identities",
@@ -181,10 +209,13 @@ def validate(store, key, current, adapter):
 
 
 def approval_record(plan, key):
-    fields(
-        plan["recovery"],
-        ("schema", "contract", "profile_digest", "observation", "coverage", "omissions"),
-    )
+    if plan["recovery"]["schema"] == ADDITIVE:
+        additive.plan_fields(plan["recovery"])
+    else:
+        fields(
+            plan["recovery"],
+            ("schema", "contract", "profile_digest", "observation", "coverage", "omissions"),
+        )
     require(plan["recovery"]["contract"] == CONTRACT)
     schema = version(plan["recovery"]["schema"])
     observed = plan["recovery"]["observation"]
@@ -204,6 +235,7 @@ def approval_record(plan, key):
         "scope": CONTRACT,
         "profile_digest": plan["recovery"]["profile_digest"],
         "accepted_omissions": [v["process_pin_digest"] for v in plan["recovery"]["omissions"]],
+        **(additive.approval_fields(plan) if schema == ADDITIVE else {}),
         **(
             {"accepted_utility_limits": utility_limits(plan["recovery"]["observation"])}
             if schema == VERSION2
@@ -263,7 +295,13 @@ def execute(store, key, capture):
                 expires_at=plan["expires_at"],
                 journal=lambda kind, value: ledger.event(key, kind, value),
             )
-            require(bool(adapter.events))
+            require(
+                bool(adapter.events)
+                or (
+                    profile["schema"] == ADDITIVE
+                    and not plan["recovery"]["observation"]["saved_selection"]["missing_refs"]
+                )
+            )
             report = receipt(plan, key, evidence, history_complete=True, events=adapter.events)
         except (ValueError, OSError, KeyError, TypeError):
             report = receipt(plan, key, None, history_complete=False, events=adapter.events)

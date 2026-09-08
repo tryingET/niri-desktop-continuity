@@ -10,6 +10,7 @@ from .model import digest
 
 VERSION = "desktop-continuity.recovery.v1"
 VERSION2 = "desktop-continuity.recovery.v2"
+ADDITIVE = "desktop-continuity.saved-reopen.v1"
 CONTRACT = "saved-conversations-v1"
 LIMIT = 1024 * 1024
 COUNT = 256
@@ -124,12 +125,14 @@ def legacy(value, expected):
 
 
 def version(value):
-    require(value in (VERSION, VERSION2))
+    require(value in (VERSION, VERSION2, ADDITIVE))
     return value
 
 
 def successes(schema):
     version(schema)
+    if schema == ADDITIVE:
+        return ("verified",)
     return ("verified", "verified-with-accepted-omissions") + (
         ("verified-with-accepted-limitations",) if schema == VERSION2 else ()
     )
@@ -137,6 +140,10 @@ def successes(schema):
 
 def observation(value, legacy_digest, schema=VERSION):
     version(schema)
+    if schema == ADDITIVE:
+        from .recovery_additive import observation as additive_observation
+
+        return additive_observation(value, legacy_digest)
     fields(
         value,
         (
@@ -176,6 +183,10 @@ def observation(value, legacy_digest, schema=VERSION):
 
 def coverage(value, omissions, schema=VERSION):
     version(schema)
+    if schema == ADDITIVE:
+        from .recovery_additive import coverage as additive_coverage
+
+        return additive_coverage(value, omissions)
     keys(omissions)
     missing, blockers, associated = set(), [], 0
     if not value["supported"]:
@@ -226,6 +237,11 @@ def coverage(value, omissions, schema=VERSION):
 
 def proof(value, session_refs, schema=VERSION, utilities=()):
     version(schema)
+    if schema == ADDITIVE:
+        from .recovery_additive import proof as additive_proof
+
+        require(not utilities)
+        return additive_proof(value, session_refs)
     fields(
         value,
         ("dimensions", "native", "interrupted", "unresolved_children")

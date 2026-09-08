@@ -81,6 +81,15 @@ recovery code stays pinned; installed OS/Pi/Jiti is an explicitly owner-trusted 
 not a total dependency capsule. V1 history remains readable without upgrading its authority.
 Implementation is not live-effect approval or independent safety certification.
 
+For saved conversations whose old windows/processes are already gone, the same lifecycle also
+supports `plan --intent reconstruct --mode additive --saved-set <digest> --adapter-config ...`.
+A separately pinned owner profile resolves the private saved set, distinguishes missing from
+already-present refs, and may launch each missing ref once while preserving current windows/focus.
+It cannot shut down processes/services or move existing windows; already-present-only sets perform
+zero effects. Exact native identity, expiry, approval and replay gates remain. Layout/tab and memory
+reconstruction are not claimed. See [additive reopening](docs/usage.md#additive-saved-session-reopening).
+This portable contract is covered by fabricated installed-CLI tests, not live native qualification.
+
 There is an experimental, separately approved **within-workspace single-tile column reorder**
 path. It uses immutable plans, expiring exact-digest approvals, per-compositor writer exclusion,
 fresh-state checks, one-use consumption and effect receipts. Cross-workspace moves, resizing,

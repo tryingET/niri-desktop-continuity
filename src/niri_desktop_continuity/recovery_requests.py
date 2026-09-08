@@ -2,6 +2,7 @@
 
 from .model import digest
 from .recovery_protocol import (
+    ADDITIVE,
     CONTRACT,
     VERSION,
     VERSION2,
@@ -26,7 +27,7 @@ def selection(value):
         require(value[name] is None or (type(value[name]) is str and len(value[name]) <= 256))
 
 
-def admitted(value, *, initial=False):
+def admitted(value, *, initial=False, schema=VERSION):
     fields(
         value,
         (
@@ -37,12 +38,29 @@ def admitted(value, *, initial=False):
             "selection",
             "omission_pins",
             "private_ref",
-        ),
+        )
+        + (("mode", "saved_set", "saved_selection") if schema == ADDITIVE else ()),
     )
     for name in ("snapshot_digest", "identity_digest", "state_fingerprint", "focus_digest"):
         hexkey(value[name])
     selection(value["selection"])
     keys(value["omission_pins"])
+    if schema == ADDITIVE:
+        from .recovery_additive import selection as saved_selection
+
+        require(value["mode"] == "additive" and not value["omission_pins"])
+        require(
+            all(
+                value["selection"][name] == []
+                for name in ("window_ids", "pids", "requested_window_ids", "requested_pids")
+            )
+        )
+        require(value["selection"]["app_id"] is None and value["selection"]["version"] is None)
+        hexkey(value["saved_set"])
+        if initial:
+            require(value["saved_selection"] is None)
+        else:
+            saved_selection(value["saved_selection"])
     if initial:
         require(value["private_ref"] is None)
     else:
@@ -53,13 +71,13 @@ def request_payload(phase, value, *, profile_digest, expires_at, schema=VERSION)
     version(schema)
     if phase in ("observe", "admit"):
         require(expires_at is None)
-        admitted(value, initial=phase == "observe")
+        admitted(value, initial=phase == "observe", schema=schema)
         return
     names = ("attempt_digest", "plan_digest", "admitted")
     fields(value, (*names, "approval") if phase == "execute" else names)
     hexkey(value["attempt_digest"])
     hexkey(value["plan_digest"])
-    admitted(value["admitted"])
+    admitted(value["admitted"], schema=schema)
     if phase == "execute":
         approval = value["approval"]
         fields(
@@ -72,7 +90,8 @@ def request_payload(phase, value, *, profile_digest, expires_at, schema=VERSION)
                 "profile_digest",
                 "accepted_omissions",
             )
-            + (("accepted_utility_limits",) if schema == VERSION2 else ()),
+            + (("accepted_utility_limits",) if schema == VERSION2 else ())
+            + (("mode", "saved_set") if schema == ADDITIVE else ()),
         )
         require(
             approval["schema"] == schema
@@ -83,6 +102,12 @@ def request_payload(phase, value, *, profile_digest, expires_at, schema=VERSION)
             and approval["accepted_omissions"] == value["admitted"]["omission_pins"]
             and digest(approval) == value["attempt_digest"]
         )
+        if schema == ADDITIVE:
+            require(
+                approval["mode"] == "additive"
+                and approval["saved_set"] == value["admitted"]["saved_set"]
+            )
+            require(not value["admitted"]["saved_selection"]["unresolved_refs"])
     else:
         require(expires_at is None)
     if phase == "execute" and schema == VERSION2:

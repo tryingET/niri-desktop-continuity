@@ -6,9 +6,11 @@ import socket
 import subprocess
 from datetime import datetime, timezone
 
+from . import recovery_additive as additive
 from .model import digest
 from .recovery_profile import load_profile
 from .recovery_protocol import (
+    ADDITIVE,
     COUNT,
     LIMIT,
     PHASES,
@@ -80,6 +82,7 @@ class Adapter:
             parent.sendall(encode(request))
             with parent.makefile("rb") as reader:
                 pending = None
+                launched, focus_issued = set(), False
                 while True:
                     raw = reader.readline(LIMIT + 2)
                     kind, body = envelope(decode_frame(raw), request)
@@ -92,6 +95,8 @@ class Adapter:
                     }
                     if kind == "result":
                         require(pending is None)
+                        if phase == "execute" and self.profile["schema"] == ADDITIVE:
+                            additive.complete_effects(payload["admitted"], launched, focus_issued)
                         # Exactly one final frame; no trailing messages, with bounded EOF wait.
                         require(reader.read(1) == b"")
                         break
@@ -100,13 +105,19 @@ class Adapter:
                         fields(body, ())
                     elif kind == "effect":
                         require(phase == "execute" and pending is None)
-                        fields(body, ("sequence", "kind", "intent_ref"))
+                        if self.profile["schema"] == ADDITIVE:
+                            focus_issued = additive.effect(
+                                body, payload["admitted"], launched, focus_issued=focus_issued
+                            )
+                        else:
+                            fields(body, ("sequence", "kind", "intent_ref"))
                         require(
                             type(body["sequence"]) is int
                             and body["sequence"] == len(self.events)
                             and body["sequence"] < COUNT
                         )
-                        require(body["kind"] in ("shutdown", "service", "launch", "layout"))
+                        if self.profile["schema"] != ADDITIVE:
+                            require(body["kind"] in ("shutdown", "service", "launch", "layout"))
                         hexkey(body["intent_ref"])
                         unexpired(expires_at)
                         pending = body

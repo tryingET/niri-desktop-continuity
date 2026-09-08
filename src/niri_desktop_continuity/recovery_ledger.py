@@ -5,9 +5,10 @@ from __future__ import annotations
 from itertools import islice
 from pathlib import Path
 
+from . import recovery_additive as additive
 from .model import digest
 from .recovery_profile import read_private
-from .recovery_protocol import VERSION, fields, hexkey, require, successes, version
+from .recovery_protocol import ADDITIVE, VERSION, fields, hexkey, require, successes, version
 from .store import HEX, Store, private_directory
 
 
@@ -99,7 +100,10 @@ class Ledger:
         ]
         require(observed == receipt["events"])
         if terminal["status"] in successes(self.schema):
-            require(bool(evidence) and all(item["outcome"] == "observed" for item in evidence))
+            if self.schema == ADDITIVE:
+                additive.validate_event_history(plan, evidence)
+            else:
+                require(bool(evidence) and all(item["outcome"] == "observed" for item in evidence))
         return terminal["status"]
 
     def disposition(self):
@@ -169,13 +173,17 @@ class Ledger:
         fields(
             value,
             ("sequence", "kind", "intent_ref")
+            + (("target_ref",) if self.schema == ADDITIVE else ())
             if kind == "intent"
             else ("sequence", "intent_ref", "outcome", "evidence_ref"),
         )
         require(type(value["sequence"]) is int and value["sequence"] == sequence)
         hexkey(value["intent_ref"])
         if kind == "intent":
-            require(value["kind"] in ("shutdown", "service", "launch", "layout"))
+            if self.schema == ADDITIVE:
+                additive.event_intent(value)
+            else:
+                require(value["kind"] in ("shutdown", "service", "launch", "layout"))
         else:
             require(value["outcome"] in ("observed", "indeterminate"))
             hexkey(value["evidence_ref"])
