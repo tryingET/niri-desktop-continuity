@@ -11,7 +11,8 @@ from pathlib import Path
 
 from .model import digest, readiness, require_snapshot, verify
 
-KINDS = {"snapshots", "plans", "approvals", "used", "receipts", "previews"}
+RECOVERY_MARKERS = {"recovery-prepared", "recovery-ready", "recovery-terminal", "recovery-events"}
+KINDS = {"snapshots", "plans", "approvals", "used", "receipts", "previews"} | RECOVERY_MARKERS
 HEX = re.compile(r"[0-9a-f]{64}\Z")
 
 
@@ -22,29 +23,63 @@ def default_root() -> Path:
     )
 
 
-def private_directory(path: Path) -> None:
-    if path.is_symlink():
-        raise ValueError(f"refusing symlink state directory: {path}")
-    path.mkdir(mode=0o700, parents=True, exist_ok=True)
-    info = path.stat()
-    if info.st_uid != os.getuid() or stat.S_IMODE(info.st_mode) & 0o077:
-        raise ValueError(f"state directory must be owned by you and mode 0700: {path}")
+def sync_directory(path: Path) -> None:
+    fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        os.fsync(fd)
+    finally:
+        os.close(fd)
+
+
+def private_directory(path: Path, *, create=True) -> None:
+    path = path.absolute()
+    # Establish every edge root-to-leaf, never mkdir(parents=True): each new name
+    # must be durable in its parent before any descendant record can grant effects.
+    for directory in (*reversed(path.parents), path):
+        if create:
+            try:
+                directory.mkdir(mode=0o700)
+            except FileExistsError:
+                pass
+        info = directory.lstat()
+        if stat.S_ISLNK(info.st_mode):
+            raise ValueError("refusing symlink state directory")
+        if (
+            not stat.S_ISDIR(info.st_mode)
+            or info.st_uid not in {0, os.getuid()}
+            or (info.st_mode & 0o022 and not info.st_mode & stat.S_ISVTX)
+        ):
+            raise ValueError("unsafe state directory ancestry")
+        if directory == path and (info.st_uid != os.getuid() or info.st_mode & 0o077):
+            raise ValueError("state directory must be owned by you and mode 0700")
+        if create:
+            # Also sync existing edges: they may have survived an earlier interrupted
+            # mkdir without its parent fsync. This does not repair permissions/content.
+            sync_directory(directory)
+            if directory.parent != directory:
+                sync_directory(directory.parent)
 
 
 def check_file(path: Path) -> None:
     info = path.lstat()
-    if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid() or info.st_mode & 0o077:
+    if (
+        not stat.S_ISREG(info.st_mode)
+        or info.st_nlink != 1
+        or info.st_uid != os.getuid()
+        or info.st_mode & 0o077
+    ):
         raise ValueError("artifact must be a private regular file owned by the current user")
     if info.st_size > 16 * 1024 * 1024:
         raise ValueError("artifact exceeds 16 MiB bound")
 
 
 class Store:
-    def __init__(self, root: Path | None = None):
+    def __init__(self, root: Path | None = None, *, create=True):
         self.root = (root or default_root()).absolute()
-        private_directory(self.root)
-        for kind in KINDS:
-            private_directory(self.root / kind)
+        private_directory(self.root, create=create)
+        if create:
+            for kind in sorted(KINDS):
+                private_directory(self.root / kind)
 
     def path(self, kind: str, key: str) -> Path:
         if kind not in KINDS or not HEX.fullmatch(key):
@@ -53,11 +88,7 @@ class Store:
 
     @staticmethod
     def _sync_dir(path: Path) -> None:
-        fd = os.open(path, os.O_RDONLY | os.O_DIRECTORY)
-        try:
-            os.fsync(fd)
-        finally:
-            os.close(fd)
+        sync_directory(path)
 
     def _create(self, path: Path, content: bytes) -> None:
         if len(content) > 16 * 1024 * 1024:
@@ -134,6 +165,17 @@ class Store:
         # The marker name binds the approval, not the marker content. O_EXCL is the replay fence.
         self.get("approvals", approval_key)
         self._create(self.path("used", approval_key), (json.dumps(record) + "\n").encode())
+
+    def recovery_marker(self, kind: str, key: str, value: dict | None = None):
+        if kind not in RECOVERY_MARKERS:
+            raise ValueError("invalid reconstruction marker")
+        path = self.path(kind, key)
+        if value is not None:
+            self._create(path, (json.dumps(value, sort_keys=True, allow_nan=False) + "\n").encode())
+            return value
+        from .recovery_profile import read_private
+
+        return read_private(path)
 
     def write_preview(self, key: str, suffix: str, content: str) -> Path:
         self.path("snapshots", key)  # validate digest shape; preview can also address a plan

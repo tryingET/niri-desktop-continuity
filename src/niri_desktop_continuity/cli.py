@@ -26,7 +26,9 @@ def parser():
     plan = commands.add_parser("plan", help="prepare proposal, never apply it")
     plan.add_argument("snapshot")
     plan.add_argument(
-        "--intent", choices=["inspect", "reconcile", "restart", "migrate"], default="inspect"
+        "--intent",
+        choices=["inspect", "reconcile", "restart", "migrate", "reconstruct"],
+        default="inspect",
     )
     plan.add_argument("--desired", help="desired stored snapshot digest")
     plan.add_argument("--window-id", type=int, action="append", default=[])
@@ -35,14 +37,29 @@ def parser():
     plan.add_argument("--version")
     plan.add_argument("--replacement")
     plan.add_argument("--ttl", type=int, default=300)
+    plan.add_argument("--adapter-config", type=Path)
+    plan.add_argument("--omit-association", action="append", default=[])
     preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
     preview.add_argument("digest")
     preview.add_argument("--kind", choices=["snapshots", "plans"], default="snapshots")
     check = commands.add_parser("verify", help="compare with a fresh read-only observation")
     check.add_argument("desired")
-    approval = commands.add_parser("approve", help="write one-use layout-only approval")
+    check.add_argument("--kind", choices=["snapshots", "reconstruction"], default="snapshots")
+    inspect = commands.add_parser("inspect", help="inspect reconstruction history without effects")
+    inspect.add_argument("attempt")
+    inspect.add_argument("--kind", choices=["reconstruction"], required=True)
+    approval = commands.add_parser(
+        "approve", help="write exact one-use layout or reconstruction approval"
+    )
     approval.add_argument("plan")
     approval.add_argument("--confirm", required=True, help="repeat the entire reviewed plan digest")
+    approval.add_argument("--accept-losses", choices=["saved-conversations-v1"])
+    approval.add_argument("--accept-omission", action="append", default=[])
+    approval.add_argument("--accept-utility-limit", action="append", default=[])
+    reconstruct = commands.add_parser("reconstruct", help="execute exact approved reconstruction")
+    reconstruct.add_argument("approval")
+    reconstruct.add_argument("--apply", action="store_true")
+    reconstruct.add_argument("--acknowledge-non-atomic-focus", action="store_true")
     apply = commands.add_parser("reconcile", help="explicitly apply approved supported layout only")
     apply.add_argument("approval")
     apply.add_argument("--apply", action="store_true")
@@ -58,7 +75,28 @@ def parser():
 
 
 def run(args):
+    if args.command == "inspect":
+        # Inspection identifies its canonical source only through the fixed owner
+        # profile. Never create caller-root children, even if it aliases the ledger.
+        return run_recovery(args, None)
     store = Store(args.state_root)
+    recovery_mode = (
+        args.command == "reconstruct"
+        or (args.command == "plan" and args.intent == "reconstruct")
+        or (args.command == "verify" and args.kind == "reconstruction")
+        or (
+            args.command == "approve"
+            and store.get("plans", args.plan).get("intent") == "reconstruct"
+        )
+    )
+    if recovery_mode:
+        return run_recovery(args, store)
+    if args.command == "plan" and (args.adapter_config or args.omit_association):
+        raise ValueError("adapter configuration and association omissions are reconstruction-only")
+    if args.command == "approve" and (
+        args.accept_losses or args.accept_omission or args.accept_utility_limit
+    ):
+        raise ValueError("loss and omission decisions are reconstruction-only")
     if args.command == "capture":
         value = capture(include_titles=args.include_titles)
         key = store.save_snapshot(value)
@@ -120,6 +158,58 @@ def run(args):
         (store.root / args.kind).glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
     )
     return {"kind": args.kind, "digests": [path.stem for path in paths[: args.limit]]}, 0
+
+
+def run_recovery(args, store):
+    from . import recovery
+    from .recovery_protocol import RecoveryRefusal
+
+    try:
+        if args.command == "plan":
+            if args.adapter_config is None:
+                raise RecoveryRefusal("reconstruction-adapter-config-required")
+            if args.desired or args.replacement:
+                raise ValueError("unsupported reconstruction selector")
+            value = recovery.propose(
+                store,
+                args.snapshot,
+                args.adapter_config,
+                capture(),
+                omissions=args.omit_association,
+                window_ids=args.window_id,
+                pids=args.pid,
+                app_id=args.app_id,
+                version=args.version,
+                ttl_seconds=args.ttl,
+            )
+        elif args.command == "approve":
+            value = recovery.approve(
+                store,
+                args.plan,
+                capture,
+                confirmation=args.confirm,
+                losses=args.accept_losses,
+                omissions=args.accept_omission,
+                utility_limits_accepted=args.accept_utility_limit,
+            )
+        elif args.command == "reconstruct":
+            if not args.apply or not args.acknowledge_non_atomic_focus:
+                raise ValueError("explicit effect acknowledgments required")
+            value = recovery.execute(store, args.approval, capture)
+        else:
+            value = recovery.inspect_or_verify(
+                store,
+                args.desired if args.command == "verify" else args.attempt,
+                verify=args.command == "verify",
+            )
+    except RecoveryRefusal:
+        raise
+    except (ValueError, OSError, KeyError, TypeError, StopIteration, subprocess.SubprocessError):
+        # Neither adapter diagnostics nor private payload/configuration values are displayable.
+        raise ValueError(
+            "reconstruction-refused: profile, protocol, state or approval gate failed; no retry authorized"
+        ) from None
+    return value, 2 if value.get("status") in {"partial", "indeterminate"} else 0
 
 
 def main(argv=None):

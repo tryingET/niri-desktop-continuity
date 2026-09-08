@@ -37,7 +37,9 @@ def operation_lock(identity: dict):
             raise ValueError(
                 "another continuity writer owns this compositor; no action taken"
             ) from None
-        yield
+        # Only the explicitly pinned effect worker may receive this descriptor.
+        # flock is retained by that worker's copy even if the coordinator exits.
+        yield fd
     finally:
         # Never unlink a flock path; doing so could create two independently locked inodes.
         os.close(fd)
