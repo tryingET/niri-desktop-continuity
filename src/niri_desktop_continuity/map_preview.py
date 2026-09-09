@@ -8,6 +8,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from .model import readiness, require_snapshot
+from .recovery_projection import REASONS
 from .recovery_protocol import ADDITIVE
 
 ASSETS = Path(__file__).resolve().parent / "assets"
@@ -108,6 +109,48 @@ def map_html(snapshot, title, selected):
     return "".join(rows)
 
 
+def saved_projection_html(observed):
+    """Display only explicitly projected grouping/diagnostics, never private manifests."""
+    rows = []
+    grouping = observed.get("grouping")
+    if grouping is not None:
+        rows += [
+            "<h3>Desired shared-window groups</h3>",
+            '<p class="note">Reviewed grouping intent, not captured native topology. '
+            "Sequence is desired creation order, not verified original tab order. "
+            "Existing windows remain protected; this is not a tab-transfer operation.</p>",
+            '<div class="table-scroll"><table><thead><tr><th>Desired group</th>'
+            "<th>Reviewed provenance</th><th>Saved references in creation sequence</th>"
+            "</tr></thead><tbody>",
+        ]
+        for index, group in enumerate(grouping["groups"], start=1):
+            refs = "".join(f"<li><code>{escape(ref)}</code></li>" for ref in group["session_refs"])
+            rows.append(
+                f'<tr><th scope="row">Group {index}</th><td>{escape(group["provenance"])}</td>'
+                f"<td><ol>{refs}</ol></td></tr>"
+            )
+        rows.append("</tbody></table></div>")
+    else:
+        rows.append(
+            '<p class="note">Grouping not supplied by this historical/standalone '
+            "observation; no grouping is inferred.</p>"
+        )
+    diagnostics = observed.get("diagnostics")
+    if diagnostics is not None:
+        rows.append(
+            f"<h3>Admission diagnostics</h3><p>Private-store capacity: "
+            f"{escape(diagnostics['capacity'])}</p><ul>"
+        )
+        for row in diagnostics["reasons"]:
+            reason = REASONS.get(row["code"], "Unrecognized reason; admission unverified.")
+            rows.append(
+                f"<li><code>{escape(row['session_ref'])}</code>: "
+                f"{escape(reason)} <code>{escape(row['code'])}</code></li>"
+            )
+        rows.append("</ul>")
+    return "".join(rows)
+
+
 def saved_scope_html(plan):
     """Show only opaque admitted scope, never adapter-private manifests or native data."""
     recovery = (plan or {}).get("recovery", {})
@@ -143,6 +186,7 @@ def saved_scope_html(plan):
         summary = "No launches planned: all selected references are already present."
     else:
         summary = "Only the listed missing references may be reopened after exact approval."
+    rows.append(saved_projection_html(observed))
     rows.append(
         f'<p class="note">{escape(summary)} Layout and hidden tabs are not reconstructed.</p></section>'
     )

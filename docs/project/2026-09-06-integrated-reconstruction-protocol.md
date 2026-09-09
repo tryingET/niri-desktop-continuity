@@ -624,7 +624,8 @@ the admitted focus_digest; exactly one is permitted **after every missing launch
 result**, never before or between launches. No launch may follow focus. Shutdown, service and
 layout intents refuse before permits, including attempts to target existing windows. The adapter
 resolves the exact focus pin from its admitted private manifest; the opaque digest is not free-form
-window targeting. Intent/result journaling, absolute expiry and no-pending-heartbeat rules remain.
+window targeting. Intent/result journaling and absolute expiry remain. The additive-only correlated
+pending heartbeat extension below supersedes the empty-heartbeat prohibition for A, not V/V2.
 Effect-result shape is unchanged. Missing-ref sets require all their launches and that one focus
 exchange before final success. Already-present-only sets require **zero effects**, including zero
 focus effects; they still prepare/consume/ready and cannot replay. Canonical validation independently
@@ -665,3 +666,87 @@ added. `tests/test_saved_reopen_preview.py` verifies the offline HTML saved-set/
 ledger, missing-versus-no-op distinction and escaped values without private-manifest disclosure.
 Additive scope is reviewable even though live-window selectors are empty and topology is unchanged.
 These tests establish portable orchestration, not machine integration or native qualification.
+
+### 9.1 Optional closed review projections
+
+A observations may additionally contain `grouping`, `diagnostics`, or both. Their absence retains
+historical standalone semantics and bytes; the reader must not invent defaults or infer grouping.
+Old pinned readers refuse these new fields. Adopting a new producer requires a newly reviewed
+source-pinned profile; this is not an implicit historical approval/profile migration.
+
+```text
+Grouping = {schema:"desktop-continuity.saved-grouping.v1", saved_set:H, groups:Group[]}
+Group = {session_refs:H[], provenance:"native"|"inferred"|"requested",
+ reviewed:true, sequence:"desired-creation"}
+Diagnostics = {schema:"desktop-continuity.saved-diagnostics.v1", reasons:Reason[],
+ capacity:"available"|"exhausted"|"unproved"}
+Reason = {session_ref:H, code:ReasonCode}
+```
+
+Groups are nonempty, ordered desired groups. Each group's nonempty refs preserve **desired creation
+sequence**, not lexical sort or captured native order. Their union exactly partitions all observed
+session_refs; duplicate/unknown/missing refs refuse. Grouping.saved_set equals Observation.saved_set.
+The reviewed provenance is an owner assertion, not a proof supplied by the portable validator.
+Group membership can be requested despite native topology being unknown; it must never claim exact
+original tabs/splits/order. The producer must bind this projection to the same private immutable
+selection/manifest, reobserve it unchanged at admit and verify it against subsequent admitted data.
+
+Reasons are sorted by session_ref and contain exactly one row per unresolved_ref. ReasonCode is:
+`native-metadata-unavailable`, `native-identity-mismatch`, `live-writer-ambiguous`,
+`existing-native-binding-unproved`, `descendant-writer-conflict`, `group-mixed-presence`,
+`group-membership-unproved`, or `group-host-conflict`. No raw error text, path, title, argv or native
+payload is accepted. Capacity exhausted/unproved requires selection_proved=false and reports
+`saved-store-capacity-exhausted` / `saved-store-capacity-unproved`, rather than disguising a store
+capacity refusal as failed identity proof. Available capacity alone never grants admission.
+
+Present projections are included unchanged in every **non-initial** Admitted object. Initial
+observe still contains no projections; the source-owned producer supplies them. Exact admission
+reobservation, plan digest and approval digest bind them; the adapter must reject projection drift
+against its retained manifest. They are also exposed in plan JSON, reconstructed receipts, fresh
+verification and canonical inspect when plan accounting is valid. Inspect labels them historical
+admission context, not fresh native grouping proof. Absent projections add no fields to canonical
+old receipts. The offline preview lists desired groups/provenance/member sequence and reason codes,
+without reading private manifests. Existing-window movement/termination authority is unchanged.
+
+`tests/test_saved_reopen_projections.py` supplies handwritten group/member-order and diagnostic
+oracles, malformed/unknown/overclaim rejection, projection drift refusal, and the actual CLI path.
+Historical projection-free plans/receipts remain readable without upgrading their authority.
+
+### 9.2 Correlated pending keepalive (A only)
+
+Outside a pending effect, heartbeat body remains exactly `{}` and continue body exactly `{}`.
+For A only, while one effect is pending, heartbeat body must be exactly
+`{sequence:integer,intent_ref:H}` matching that pending effect; coordinator continue echoes that
+same body. Empty, wrong-sequence, boolean-sequence, wrong-intent and extra-field frames refuse.
+The coordinator retains the pending effect, its launch/focus accounting and its journal event.
+A keepalive neither grants another permit nor completes an effect; another effect/final result
+still refuses until a matching observed effect-result has received continue. V/V2 continue to
+reject every pending heartbeat. Historical workers that never emit this frame remain valid.
+
+Both sides must reject elapsed/revoked leases **before** accepting replies or advancing timestamps.
+The coordinator checks elapsed monotonic time when each complete frame arrives, so partial-frame
+trickles or a patient socket do not resurrect a five-second lease. It rechecks after journaling/
+encoding, bounds reply sending by the remaining lease and absolute deadline, and checks again
+before renewing its timestamp. Slow fsync or blocked send cannot renew an expired lease. For A,
+absolute approval expiry is checked for heartbeats, effects, effect results and final results;
+keepalives cannot extend it. Frozen V/V2 retain final-observation completion after expiry once
+effects have ended, with liveness still required; no further effect is thereby authorized.
+Long cooperative pre-effect observations may renew liveness through matching heartbeats, but each
+suboperation still needs a bounded wait and its own fresh effect fence. A stuck/noncooperative
+operation is not permission for retry, kill, rollback or speculative cleanup.
+
+`tests/test_recovery_pending_heartbeat.py` uses real elapsed-time scratch workers to exceed five
+seconds with correlated keepalives, then prove exact original permit counts; it also exercises
+stall, wrong correlation, attempted second effect, disconnect and absolute expiry refusal.
+`tests/test_recovery_adapter_deadlines.py` independently exercises slow journals, remaining-budget
+sends and V/V2 final-observation compatibility. Machine-specific producers and long-query polling
+require independent owner-side tests.
+
+### 9.3 Failure guidance
+
+Failure can leave new windows open and focus changed. Zero restored-count is not zero-effect proof.
+Inspect canonical intent/result and native evidence before separately reviewed operator
+reconciliation. Do not delete the ledger, switch state roots or retry unresolved history. This
+mode preserves existing sessions: it cannot regroup sessions already open across windows, and
+closing them to make them missing is not an authorized workaround. Preview warnings and additive
+inspect `recovery_guidance` expose these limits; no automatic reconciliation is introduced.

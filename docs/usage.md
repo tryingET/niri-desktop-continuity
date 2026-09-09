@@ -233,6 +233,14 @@ The offline HTML preview includes a saved-scope ledger with the complete saved-s
 exact opaque ref and its disposition/count. It distinguishes a missing-session plan from a zero-launch
 already-present plan without exposing native paths or adapter-private manifests. The map remains a
 schematic; the scope ledger, not inferred tabs or unchanged topology, identifies planned launches.
+When a reviewed owner profile projects desired grouping, the same preview shows each proposed
+shared-window group, exact member creation sequence and grouping provenance. Plan JSON, receipts
+and inspect retain those closed projections. **Desired creation order is not captured native tab
+order**, and shared-window recovery does not certify tab-versus-split structure. Older observations
+without grouping remain explicitly ungrouped/unknown; no retrospective grouping is inferred.
+Privacy-safe per-ref reason codes and a separate capacity diagnostic explain refusals when supplied;
+no native paths, exception text or transcripts are displayed.
+
 Unresolved refs block that exact selection rather than silently disappear or acquire loss approval.
 A revised owner-selected subset requires a new saved-set digest, plan and exact approval; it cannot
 bypass unresolved effects. At execution the coordinator permits each admitted missing ref once, then
@@ -253,8 +261,22 @@ unsupported/unverified. Ordinary capture/preview never launches anything.
 
 All exact profile/source pins, native identity checks, expiry, focus revalidation, per-compositor
 writer exclusion, canonical prepare/consume/ready fencing and no-retry/no-cleanup rules remain.
+A correlated pending-effect heartbeat can keep a cooperative long preflight alive without granting
+another effect or extending the absolute plan expiry. The five-second liveness lease still expires
+on missed/late replies; disconnect or expiry cancels new effects without killing applications.
+
+**Failed does not mean nothing happened:** partial recovery can leave new windows open and focus
+changed. Inspect the canonical attempt before any separately reviewed operator reconciliation.
+Never delete receipts/the ledger, change state roots or retry to hide unresolved effects. Additive
+inspect includes this guidance. There is no automatic repair or cleanup. This mode cannot regroup
+already-open sessions across windows; do not close them merely to make them eligible for reopening.
+
+The portable contract permits at most 256 selected refs and 255 missing refs (one effect slot is
+reserved for focus). Private adapters may have smaller persistent-store capacities; exhaustion
+requires owner-managed retention/disposition, not automatic pruning. The portable tool remains
+Python 3.11+; a private adapter can require a different pinned interpreter and must disclose it.
 This is a bounded source-owned recovery mode, not a general application launcher or a workaround
-for the independent requirements of destructive reconstruction.
+for the independent requirements of destructive reconstruction. Native qualification is separate.
 
 ## Privacy and trust model
 

@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import socket
 import subprocess
+import time
 from datetime import datetime, timezone
 
 from . import recovery_additive as additive
@@ -30,6 +31,17 @@ LIVENESS_SECONDS = 5
 def unexpired(expires_at):
     expires = datetime.fromisoformat(expires_at)
     require(expires.tzinfo is not None and datetime.now(timezone.utc) < expires)
+
+
+def heartbeat_reply(body, pending):
+    """A correlated keepalive retains one pending permit; it grants no further effect."""
+    if pending is None:
+        fields(body, ())
+        return {}
+    fields(body, ("sequence", "intent_ref"))
+    require(type(body["sequence"]) is int and body["sequence"] == pending["sequence"])
+    require(hexkey(body["intent_ref"]) == pending["intent_ref"])
+    return body
 
 
 class Adapter:
@@ -80,12 +92,22 @@ class Adapter:
             )
             child.close()
             parent.sendall(encode(request))
+            last_reply = time.monotonic()
             with parent.makefile("rb") as reader:
                 pending = None
                 launched, focus_issued = set(), False
                 while True:
                     raw = reader.readline(LIMIT + 2)
                     kind, body = envelope(decode_frame(raw), request)
+                    # Socket timeouts alone can be extended by partial-frame trickles.
+                    # A late complete heartbeat/result never resurrects an expired lease.
+                    require(time.monotonic() - last_reply < LIVENESS_SECONDS)
+                    if expires_at is not None and (
+                        kind != "result" or self.profile["schema"] == ADDITIVE
+                    ):
+                        # Frozen replacement V/V2 may finish final observation after expiry,
+                        # provided all effects already ended. Additive keeps its explicit gate.
+                        unexpired(expires_at)
                     reply = {
                         "protocol": self.profile["schema"],
                         "request_digest": digest(request),
@@ -101,8 +123,9 @@ class Adapter:
                         require(reader.read(1) == b"")
                         break
                     if kind == "heartbeat":
-                        require(pending is None)
-                        fields(body, ())
+                        # Replacement v1/v2 wire behavior remains frozen.
+                        require(pending is None or self.profile["schema"] == ADDITIVE)
+                        reply["body"] = heartbeat_reply(body, pending)
                     elif kind == "effect":
                         require(phase == "execute" and pending is None)
                         if self.profile["schema"] == ADDITIVE:
@@ -140,7 +163,24 @@ class Adapter:
                         require(body["outcome"] == "observed")
                     if expires_at is not None:
                         unexpired(expires_at)
-                    parent.sendall(encode(reply))
+                    packet = encode(reply)
+                    remaining = LIVENESS_SECONDS - (time.monotonic() - last_reply)
+                    if expires_at is not None:
+                        remaining = min(
+                            remaining,
+                            (
+                                datetime.fromisoformat(expires_at) - datetime.now(timezone.utc)
+                            ).total_seconds(),
+                        )
+                    require(remaining > 0)  # Journaling/fsync may have consumed the whole lease.
+                    parent.settimeout(remaining)
+                    parent.sendall(packet)
+                    replied_at = time.monotonic()
+                    require(replied_at - last_reply < LIVENESS_SECONDS)
+                    if expires_at is not None:
+                        unexpired(expires_at)
+                    last_reply = replied_at
+                    parent.settimeout(LIVENESS_SECONDS)
             require(process.wait() == 0)
             return body
         except (OSError, ValueError, KeyError, TypeError, RecursionError):

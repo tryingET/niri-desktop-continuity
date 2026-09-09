@@ -1,5 +1,6 @@
 """Closed additive saved-set contract; no invented former processes or destructive proofs."""
 
+from . import recovery_projection as projection
 from .model import digest
 from .recovery_protocol import ADDITIVE as SCHEMA
 from .recovery_protocol import (
@@ -43,6 +44,15 @@ def prepare_plan(plan, saved_set):
     require(len(plan["focus_pin"]["windows"]) == 1)
 
 
+def failure_guidance():
+    return [
+        "failed does not mean zero effects: new windows and changed focus may remain",
+        "inspect canonical attempt evidence before any operator reconciliation; no automatic cleanup",
+        "do not delete the ledger, change state roots, or retry an unresolved attempt",
+        "existing sessions are protected; this mode cannot regroup already-open sessions",
+    ]
+
+
 def warnings():
     return [
         "additive saved-set only; no shutdown, service actions, or existing-window movement",
@@ -50,6 +60,7 @@ def warnings():
         "all current windows protected; normal tiling insertion may change their geometry",
         "saved refs, not former live windows or inferred tabs, define selection",
         "focus restoration is non-atomic; operator must remain idle",
+        *failure_guidance(),
     ]
 
 
@@ -79,7 +90,8 @@ def observation(value, legacy_digest):
             "saved_set",
             "saved_selection",
             "selection_proved",
-        ),
+        )
+        + tuple(projection.optional_fields(value)),
     )
     for name in (
         "identity_digest",
@@ -95,6 +107,13 @@ def observation(value, legacy_digest):
     keys(value["session_refs"])
     require(selection(value["saved_selection"]) == value["session_refs"])
     legacy(value["legacy"], legacy_digest)
+    projection.validate(
+        value,
+        value["saved_set"],
+        value["session_refs"],
+        value["saved_selection"],
+        value["selection_proved"],
+    )
     return value
 
 
@@ -105,7 +124,14 @@ def coverage(value, omissions):
     if not value["supported"]:
         blockers.append("unsupported-additive-recovery-profile")
     if not value["selection_proved"]:
-        blockers.append("saved-selection-identity-absence-or-protection-unproved")
+        capacity = value.get("diagnostics", {}).get("capacity")
+        blockers.append(
+            "saved-store-capacity-exhausted"
+            if capacity == "exhausted"
+            else "saved-store-capacity-unproved"
+            if capacity == "unproved"
+            else "saved-selection-identity-absence-or-protection-unproved"
+        )
     if not value["session_refs"]:
         blockers.append("empty-saved-selection")
     if selected["unresolved_refs"]:
@@ -202,6 +228,7 @@ def payload_fields(plan):
         "mode": "additive",
         "saved_set": hexkey(recovery["saved_set"]),
         "saved_selection": recovery.get("observation", {}).get("saved_selection"),
+        **projection.optional_fields(recovery.get("observation", {})),
     }
 
 
@@ -217,6 +244,7 @@ def receipt_fields(recovery, complete):
         "saved_conversations_unresolved": len(value["saved_selection"]["unresolved_refs"]),
         "layout": "not-reconstructed; ordinary-tiling-insertion-may-change-geometry",
         "destructive_effects": "not-authorized",
+        **projection.optional_fields(value),
     }
 
 

@@ -1,5 +1,6 @@
 """Closed coordinator request schemas, shared with reviewed endpoint implementations."""
 
+from . import recovery_projection as projection
 from .model import digest
 from .recovery_protocol import (
     ADDITIVE,
@@ -39,7 +40,8 @@ def admitted(value, *, initial=False, schema=VERSION):
             "omission_pins",
             "private_ref",
         )
-        + (("mode", "saved_set", "saved_selection") if schema == ADDITIVE else ()),
+        + (("mode", "saved_set", "saved_selection") if schema == ADDITIVE else ())
+        + (tuple(projection.optional_fields(value)) if schema == ADDITIVE and not initial else ()),
     )
     for name in ("snapshot_digest", "identity_digest", "state_fingerprint", "focus_digest"):
         hexkey(value[name])
@@ -60,7 +62,8 @@ def admitted(value, *, initial=False, schema=VERSION):
         if initial:
             require(value["saved_selection"] is None)
         else:
-            saved_selection(value["saved_selection"])
+            refs = saved_selection(value["saved_selection"])
+            projection.validate(value, value["saved_set"], refs, value["saved_selection"])
     if initial:
         require(value["private_ref"] is None)
     else:

@@ -39,8 +39,15 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   never shutdown/service/layout. Already-present-only execution has a canonical zero-effect
   receipt. Its proofs concern native identities/images, focus and protected preservation,
   not old-tree exit, services or reconstructed geometry. V1/v2 replacement behavior is unchanged.
+- `recovery_projection`: optional closed additive grouping/diagnostics projected by a reviewed
+  source owner, bound to saved set/private manifest/plan and retained unchanged through admission.
+  Desired group/member sequence is visible in plan/preview/inspect, not inferred native topology.
+  Absent historical projections never gain defaults or new meaning.
 - `recovery_profile` / `recovery_adapter`: account-home owner trust anchor, closed recovery-control and critical platform pins,
   explicit isolated JSON socketpair IPC, per-effect permits, liveness and cancellation without kill.
+  Additive-only pending keepalives correlate the exact existing intent; they cannot grant another
+  effect or extend absolute expiry. Replacement v1/v2 pending-heartbeat behavior remains frozen.
+  Monotonic complete-frame checks reject late renewal even with a patient/trickled socket.
 - `recovery_ledger`: fixed owner-profile canonical Store, prepare/CLI-consume/ready crash fence,
   cross-root replay refusal and retained indeterminate history. Worker inherits the compositor
   lock; applications must not. An unresolved attempt blocks new reconstruction, not automatic repair.

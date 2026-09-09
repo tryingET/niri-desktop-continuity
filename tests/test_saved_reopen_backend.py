@@ -4,6 +4,7 @@ import hashlib
 import json
 import os
 import socket
+import time
 from pathlib import Path
 
 SCHEMA = "desktop-continuity.saved-reopen.v1"
@@ -112,11 +113,19 @@ def backend_main():
         return reply
 
     try:
+        if phase in ("verify", "inspect"):
+            for name in ("grouping", "diagnostics"):
+                assert request["payload"]["admitted"].get(name) == settings["observation"].get(name)
         if phase in ("observe", "admit"):
             payload = request["payload"]
             assert payload["mode"] == "additive" and payload["saved_set"] == SAVED_SET
             assert all(not value for value in payload["selection"].values())
             assert payload["omission_pins"] == []
+            for name in ("grouping", "diagnostics"):
+                if phase == "observe":
+                    assert name not in payload
+                else:
+                    assert payload.get(name) == settings["observation"].get(name)
             send("result", settings["observation"])
         elif phase == "inspect":
             send(
@@ -134,6 +143,8 @@ def backend_main():
             assert payload["approval"]["mode"] == "additive"
             assert payload["approval"]["saved_set"] == SAVED_SET
             assert address(payload["approval"]) == payload["attempt_digest"]
+            for name in ("grouping", "diagnostics"):
+                assert payload["admitted"].get(name) == settings["observation"].get(name)
             ledger = Path(profile["ledger_root"])
             attempt = payload["attempt_digest"]
             prepared = json.loads((ledger / "recovery-prepared" / (attempt + ".json")).read_text())
@@ -182,6 +193,35 @@ def backend_main():
                 }
                 if mode == "disconnect":
                     return 7
+                if mode.startswith("pending-") and index == 0:
+                    beat = {"sequence": index, "intent_ref": intent["intent_ref"]}
+                    if mode == "pending-empty":
+                        beat = {}
+                    elif mode == "pending-wrong-sequence":
+                        beat["sequence"] = 1
+                    elif mode == "pending-bool-sequence":
+                        beat["sequence"] = False
+                    elif mode == "pending-wrong-intent":
+                        beat["intent_ref"] = "0" * 64
+                    elif mode == "pending-extra":
+                        beat["target_ref"] = target
+                    if mode == "pending-stall":
+                        time.sleep(5.2)
+                    repetitions = 7 if mode == "pending-long" else 1
+                    if mode == "pending-expiry":
+                        repetitions = 40
+                    for _ in range(repetitions):
+                        if mode in {"pending-long", "pending-expiry"}:
+                            time.sleep(0.8)
+                        answer = exchange("heartbeat", beat)
+                        assert answer["type"] == "continue" and answer["body"] == beat
+                    if mode == "pending-second-effect":
+                        exchange("effect", {**intent, "sequence": 1})
+                    if mode == "pending-disconnect":
+                        return 7
+                    assert datetime.now(timezone.utc) < datetime.fromisoformat(
+                        request["expires_at"]
+                    )
                 with (root / "effects.jsonl").open("a") as stream:
                     stream.write(json.dumps({"kind": kind, "target_ref": target}) + "\n")
                 reply = exchange(

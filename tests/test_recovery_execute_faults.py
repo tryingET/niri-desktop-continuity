@@ -25,6 +25,7 @@ from niri_desktop_continuity.store import Store
         ("execute-out-of-order", []),
         ("execute-duplicate-intent", []),
         ("execute-pending-heartbeat", []),
+        ("execute-correlated-pending-heartbeat", []),
         ("execute-dispatched-heartbeat", ["shutdown"]),
         ("execute-bad-result", ["shutdown"]),
         ("execute-duplicate-result", ["shutdown"]),

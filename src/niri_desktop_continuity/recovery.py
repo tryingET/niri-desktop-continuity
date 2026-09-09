@@ -12,6 +12,7 @@ from .planner import build_plan
 from .recovery_adapter import Adapter
 from .recovery_ledger import Ledger
 from .recovery_profile import identify_profile, load_profile
+from .recovery_projection import optional_fields
 from .recovery_protocol import (
     ADDITIVE,
     CONTRACT,
@@ -175,6 +176,7 @@ def propose(
             digest(item["pin"]) for item in value["processes"] if item["session_ref"] is None
         ],
         "runtime_effects": "none",
+        **(optional_fields(value) if mode == "additive" else {}),
     }
 
 
@@ -379,6 +381,14 @@ def inspect_attempt(profile, attempt):
             "fresh_native_verification": False,
             "runtime_effects": "none",
             "retry_authorized": False,
+            **(
+                {
+                    **optional_fields(plan["recovery"]["observation"]),
+                    "recovery_guidance": additive.failure_guidance(),
+                }
+                if plan is not None and plan["recovery"]["schema"] == ADDITIVE
+                else {}
+            ),
         }
 
 

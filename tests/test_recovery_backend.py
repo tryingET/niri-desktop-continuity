@@ -498,6 +498,8 @@ def backend_main():
                     exchange("effect", intent)
                 if mode == "execute-pending-heartbeat":
                     exchange("heartbeat", {})
+                if mode == "execute-correlated-pending-heartbeat":
+                    exchange("heartbeat", {"sequence": index, "intent_ref": intent["intent_ref"]})
                 if mode == "execute-worker-lease":
                     # A permit is not evergreen, even if the coordinator has not closed IPC.
                     time.sleep(request["liveness_seconds"] + 0.2)

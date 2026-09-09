@@ -88,6 +88,10 @@ already-present refs, and may launch each missing ref once while preserving curr
 It cannot shut down processes/services or move existing windows; already-present-only sets perform
 zero effects. Exact native identity, expiry, approval and replay gates remain. Layout/tab and memory
 reconstruction are not claimed. See [additive reopening](docs/usage.md#additive-saved-session-reopening).
+Reviewed owner profiles can project desired shared-window groups/member sequence and privacy-safe
+admission reasons into the existing plan/preview/inspect flow. This is requested grouping, not exact
+original tab-order proof or a way to move sessions already open in separate windows. Failed attempts
+can leave new windows/focus changes: inspect first, never erase evidence or retry unresolved history.
 This portable contract is covered by fabricated installed-CLI tests, not live native qualification.
 
 There is an experimental, separately approved **within-workspace single-tile column reorder**

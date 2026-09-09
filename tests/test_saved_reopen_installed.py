@@ -8,6 +8,7 @@ from pathlib import Path
 
 import pytest
 from test_recovery_backend import installation_hook
+from test_recovery_review_regressions import repin
 from test_saved_reopen_backend import REF, SAVED_SET, provision
 
 
@@ -48,10 +49,36 @@ def installed(tmp_path_factory):
 
 
 @pytest.mark.parametrize("present", [False, True])
-def test_installed_capture_through_verify_and_noop(installed, present):
+@pytest.mark.parametrize("projected", [False, True])
+def test_installed_capture_through_verify_and_noop(installed, present, projected):
     root, venv, site = installed
-    data = provision(root / ("present" if present else "missing"), present=present)
+    name = ("present" if present else "missing") + ("-projected" if projected else "")
+    data = provision(root / name, present=present)
     private = data["root"]
+    projection = {}
+    if projected:
+        projection = {
+            "grouping": {
+                "schema": "desktop-continuity.saved-grouping.v1",
+                "saved_set": SAVED_SET,
+                "groups": [
+                    {
+                        "session_refs": [REF],
+                        "provenance": "requested",
+                        "reviewed": True,
+                        "sequence": "desired-creation",
+                    }
+                ],
+            },
+            "diagnostics": {
+                "schema": "desktop-continuity.saved-diagnostics.v1",
+                "reasons": [],
+                "capacity": "available",
+            },
+        }
+        settings = json.loads((private / "settings.json").read_text())
+        settings["observation"].update(projection)
+        repin(data, settings)
     hook = site / "sitecustomize.py"
     hook.write_text(installation_hook(private))
     env = {
@@ -89,7 +116,10 @@ def test_installed_capture_through_verify_and_noop(installed, present):
             "--adapter-config",
             str(private / "config.json"),
         )["plan_digest"]
-        assert run("preview", key, "--kind", "plans")["runtime_effects"] == "none"
+        preview = run("preview", key, "--kind", "plans")
+        assert preview["runtime_effects"] == "none"
+        rendered = Path(preview["html"]).read_text()
+        assert ("Desired shared-window groups" in rendered) is projected
         approval = run(
             "approve", key, "--confirm", key, "--accept-losses", "saved-conversations-v1"
         )["approval_digest"]
@@ -106,8 +136,15 @@ def test_installed_capture_through_verify_and_noop(installed, present):
             assert events[0]["target_ref"] == REF
         else:
             assert not (private / "effects.jsonl").exists()
-        assert run("verify", approval, "--kind", "reconstruction")["status"] == "verified"
-        assert run("inspect", approval, "--kind", "reconstruction")["status"] == "verified"
+        verified = run("verify", approval, "--kind", "reconstruction")
+        inspected = run("inspect", approval, "--kind", "reconstruction")
+        assert verified["status"] == inspected["status"] == "verified"
+        for field in ("grouping", "diagnostics"):
+            for output in (report, verified, inspected):
+                assert (field in output) is projected
+                if projected:
+                    assert output[field] == projection[field]
+        assert "failed does not mean zero effects" in inspected["recovery_guidance"][0]
         run("reconstruct", approval, "--apply", "--acknowledge-non-atomic-focus", expected=2)
     finally:
         hook.unlink()
