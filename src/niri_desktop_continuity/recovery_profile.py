@@ -83,7 +83,13 @@ def pin_file(value):
 
 def load_profile(config=None, *, expected=None):
     try:
-        return _load_profile(config, expected=expected)
+        from .recovery_resolution import admission_gate
+        from .resolution_lock import owner_guard
+
+        with owner_guard():
+            profile = _load_profile(config, expected=expected)
+            admission_gate(profile)
+            return profile
     except FileNotFoundError:
         raise RecoveryRefusal("reconstruction-adapter-unavailable") from None
 
@@ -94,7 +100,11 @@ def identify_profile():
     No caller root/config fallback; pin specifications remain strictly validated data.
     Every actual adapter invocation must separately pass load_profile().
     """
-    profile = read_private(profile_path())
+    return validate_profile(read_private(profile_path()))
+
+
+def validate_profile(profile):
+    """Validate profile data and root safety without reading executable pins."""
     schema = version(profile["schema"])
     fields(
         profile,

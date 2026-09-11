@@ -94,6 +94,15 @@ original tab-order proof or a way to move sessions already open in separate wind
 can leave new windows/focus changes: inspect first, never erase evidence or retry unresolved history.
 This portable contract is covered by fabricated installed-CLI tests, not live native qualification.
 
+The CLI also has an experimental **abandonment and same-ledger profile-transition** lifecycle.
+It preserves failed history and never grants replay or native effects. Candidate admission and
+activation require separate exact approvals. Exact retained owner-history decoding is implemented
+and tested with fabricated historical-byte specimens; **native qualification remains unperformed**.
+Unsupported history blocks, and the separate prospective test codec cannot manufacture historical
+authority. The observer/native producer and machine integration remain separately owned and are
+not shipped here. See the checkout-only [resolution contract](docs/project/resolution-protocol.md)
+for supported history, settlement decisions and limits.
+
 There is an experimental, separately approved **within-workspace single-tile column reorder**
 path. It uses immutable plans, expiring exact-digest approvals, per-compositor writer exclusion,
 fresh-state checks, one-use consumption and effect receipts. Cross-workspace moves, resizing,

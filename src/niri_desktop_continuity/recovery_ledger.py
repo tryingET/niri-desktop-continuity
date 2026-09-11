@@ -9,6 +9,7 @@ from . import recovery_additive as additive
 from .model import digest
 from .recovery_profile import read_private
 from .recovery_protocol import ADDITIVE, VERSION, fields, hexkey, require, successes, version
+from .resolution_lock import serialized
 from .store import HEX, Store, private_directory
 
 
@@ -106,7 +107,7 @@ class Ledger:
                 require(bool(evidence) and all(item["outcome"] == "observed" for item in evidence))
         return terminal["status"]
 
-    def disposition(self):
+    def disposition(self, *, resolution=None):
         # Admission/verification remains strict. Only absent completion of a known
         # prepared attempt is classified; malformed/inconsistent accounting raises.
         prepared = bounded_names(self.store.root / "recovery-prepared")
@@ -115,15 +116,43 @@ class Ledger:
         attempts = []
         for key in sorted(prepared):
             try:
-                status = self.attempt_status(key)
+                reader = self
+                if resolution is not None and key == resolution["attempt_digest"]:
+                    reader = self.historical(key)
+                    require(reader.profile_digest == resolution["old_profile_digest"])
+                status = reader.attempt_status(key)
             except FileNotFoundError:
                 status = "indeterminate"
             attempts.append({"attempt_digest": key, "status": status})
         return attempts
 
-    def available(self):
-        require(all(item["status"] in successes(self.schema) for item in self.disposition()))
+    @serialized
+    def admission_disposition(self):
+        from .recovery_profile import identify_profile
+        from .recovery_resolution import admission_gate
 
+        profile = identify_profile()
+        require(digest(profile) == self.profile_digest)
+        resolution = admission_gate(profile)
+        attempts = self.disposition(resolution=resolution)
+        return [
+            {
+                **item,
+                "admissible": item["status"] in successes(self.schema)
+                or (
+                    resolution is not None
+                    and item["attempt_digest"] == resolution["attempt_digest"]
+                    and item["status"] == "indeterminate"
+                ),
+            }
+            for item in attempts
+        ]
+
+    @serialized
+    def available(self):
+        require(all(item["admissible"] for item in self.admission_disposition()))
+
+    @serialized
     def prepare(self, cli, approval_key, plan_key):
         self.available()
         pair = binding(approval_key, plan_key, self.profile_digest, self.schema)

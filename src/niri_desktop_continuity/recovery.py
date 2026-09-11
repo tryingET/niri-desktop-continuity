@@ -28,6 +28,7 @@ from .recovery_protocol import (
 )
 from .recovery_utilities import utility_limits
 from .recovery_verification import receipt
+from .resolution_lock import serialized
 
 
 def lifetime(plan):
@@ -92,7 +93,13 @@ def observe(adapter, plan, phase):
     return value
 
 
-def propose(
+@serialized
+def propose(store, snapshot_key, config, current, **options):
+    with operation_lock(current["identity"]):
+        return _propose(store, snapshot_key, config, current, **options)
+
+
+def _propose(
     store,
     snapshot_key,
     config,
@@ -139,9 +146,7 @@ def propose(
     counts, decisions, blockers = coverage(value, omission_keys, profile["schema"])
     if not legacy(value["legacy"], digest(profile["legacy_locations"])):
         blockers.append("legacy-attempt-coverage-incomplete-or-unresolved")
-    if any(
-        item["status"] not in successes(profile["schema"]) for item in Ledger(profile).disposition()
-    ):
+    if any(not item["admissible"] for item in Ledger(profile).admission_disposition()):
         blockers.append("canonical-attempt-unresolved")
     blockers += plan["admission"]["blockers"]
     plan["recovery"].update(observation=value, coverage=counts, omissions=decisions)
@@ -180,7 +185,13 @@ def propose(
     }
 
 
+@serialized
 def validate(store, key, current, adapter):
+    with operation_lock(current["identity"]):
+        return _validate(store, key, current, adapter)
+
+
+def _validate(store, key, current, adapter):
     plan = store.get("plans", key)
     require(
         plan.get("intent") == "reconstruct"
@@ -246,6 +257,7 @@ def approval_record(plan, key):
     }
 
 
+@serialized
 def approve(store, key, capture, *, confirmation, losses, omissions, utility_limits_accepted=()):
     require(confirmation == key and losses == CONTRACT)
     plan = store.get("plans", key)
@@ -258,7 +270,7 @@ def approve(store, key, capture, *, confirmation, losses, omissions, utility_lim
     )
     profile = load_profile(expected=plan["recovery"]["profile_digest"])
     with operation_lock(plan["source_identity"]):
-        plan = validate(store, key, capture(), Adapter(profile))
+        plan = _validate(store, key, capture(), Adapter(profile))
         record = approval_record(plan, key)
         approval_key = digest(record)
         require(
@@ -268,6 +280,7 @@ def approve(store, key, capture, *, confirmation, losses, omissions, utility_lim
         return {"approval_digest": store.put("approvals", record), "runtime_effects": "none"}
 
 
+@serialized
 def execute(store, key, capture):
     approval = store.get("approvals", key)
     plan = store.get("plans", approval["plan_digest"])
@@ -275,7 +288,7 @@ def execute(store, key, capture):
     profile = load_profile(expected=plan["recovery"]["profile_digest"])
     adapter, ledger = Adapter(profile), Ledger(profile)
     with operation_lock(plan["source_identity"]) as fd:
-        plan = validate(store, approval["plan_digest"], capture(), adapter)
+        plan = _validate(store, approval["plan_digest"], capture(), adapter)
         require(
             not store.path("used", key).exists()
             and not ledger.store.path("recovery-prepared", key).exists()
@@ -312,6 +325,7 @@ def execute(store, key, capture):
         return {"receipt_digest": receipt_key, **report}
 
 
+@serialized
 def inspect_attempt(profile, attempt):
     from contextlib import nullcontext
 
@@ -392,6 +406,7 @@ def inspect_attempt(profile, attempt):
         }
 
 
+@serialized
 def inspect_or_verify(store, attempt, *, verify=False):
     if not verify:
         # Canonical evidence is readable despite executable drift. Adapter.call still
@@ -408,7 +423,12 @@ def inspect_or_verify(store, attempt, *, verify=False):
     )
     # Inspection/verification are read-only wrt physical effects, serialized against writers.
     with operation_lock(plan["source_identity"]):
-        dispositions = ledger.disposition()
+        from .recovery_resolution import durable_view
+
+        # Route only the exact validated historical edge through its old profile.
+        # Admission eligibility is not successful history: the target still needs
+        # its own current-profile terminal accounting and fresh native proof.
+        dispositions = ledger.disposition(resolution=durable_view(profile))
         history = next(item["status"] for item in dispositions if item["attempt_digest"] == attempt)
         adapter = Adapter(profile)
         value = adapter.call(

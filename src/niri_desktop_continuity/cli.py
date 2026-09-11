@@ -24,10 +24,15 @@ def parser():
         "--include-titles", action="store_true", help="private labels; never publish"
     )
     plan = commands.add_parser("plan", help="prepare proposal, never apply it")
-    plan.add_argument("snapshot")
+    plan.add_argument("snapshot", nargs="?")
+    plan.add_argument("--candidate-profile", type=Path)
+    plan.add_argument("--observer-config", type=Path)
+    plan.add_argument("--source-contract", type=Path)
+    plan.add_argument("--attempt")
+    plan.add_argument("--candidate")
     plan.add_argument(
         "--intent",
-        choices=["inspect", "reconcile", "restart", "migrate", "reconstruct"],
+        choices=["inspect", "reconcile", "restart", "migrate", "reconstruct", "profile", "abandon"],
         default="inspect",
     )
     plan.add_argument("--desired", help="desired stored snapshot digest")
@@ -43,17 +48,22 @@ def parser():
     plan.add_argument("--omit-association", action="append", default=[])
     preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
     preview.add_argument("digest")
-    preview.add_argument("--kind", choices=["snapshots", "plans"], default="snapshots")
+    preview.add_argument(
+        "--kind", choices=["snapshots", "plans", "profile", "resolution"], default="snapshots"
+    )
     check = commands.add_parser("verify", help="compare with a fresh read-only observation")
     check.add_argument("desired")
     check.add_argument("--kind", choices=["snapshots", "reconstruction"], default="snapshots")
     inspect = commands.add_parser("inspect", help="inspect reconstruction history without effects")
     inspect.add_argument("attempt")
-    inspect.add_argument("--kind", choices=["reconstruction"], required=True)
+    inspect.add_argument("--kind", choices=["reconstruction", "resolution"], required=True)
     approval = commands.add_parser(
         "approve", help="write exact one-use layout or reconstruction approval"
     )
     approval.add_argument("plan")
+    approval.add_argument("--kind", choices=["profile", "resolution"])
+    approval.add_argument("--accept-profile-admission", choices=["resolution-observe-only"])
+    approval.add_argument("--accept-abandonment", choices=["abandon-without-retry-or-success"])
     approval.add_argument("--confirm", required=True, help="repeat the entire reviewed plan digest")
     approval.add_argument("--accept-losses", choices=["saved-conversations-v1"])
     approval.add_argument("--accept-omission", action="append", default=[])
@@ -64,6 +74,7 @@ def parser():
     reconstruct.add_argument("--acknowledge-non-atomic-focus", action="store_true")
     apply = commands.add_parser("reconcile", help="explicitly apply approved supported layout only")
     apply.add_argument("approval")
+    apply.add_argument("--kind", choices=["resolution"])
     apply.add_argument("--apply", action="store_true")
     apply.add_argument(
         "--acknowledge-non-atomic-focus",
@@ -77,6 +88,26 @@ def parser():
 
 
 def run(args):
+    from .resolution_cli import run as run_resolution
+    from .resolution_cli import selected
+
+    if selected(args):
+        return run_resolution(args)
+    if args.command == "plan" and (
+        args.snapshot is None
+        or any(
+            (
+                args.candidate_profile,
+                args.observer_config,
+                args.source_contract,
+                args.attempt,
+                args.candidate,
+            )
+        )
+    ):
+        raise ValueError("snapshot required; candidate options are resolution-only")
+    if args.command == "approve" and (args.accept_profile_admission or args.accept_abandonment):
+        raise ValueError("explicit profile or resolution kind required")
     if args.command == "inspect":
         # Inspection identifies its canonical source only through the fixed owner
         # profile. Never create caller-root children, even if it aliases the ledger.
@@ -165,6 +196,13 @@ def run(args):
 
 
 def run_recovery(args, store):
+    from .resolution_lock import owner_guard
+
+    with owner_guard():
+        return _run_recovery(args, store)
+
+
+def _run_recovery(args, store):
     from . import recovery
     from .recovery_protocol import RecoveryRefusal
 

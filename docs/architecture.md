@@ -52,6 +52,24 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   cross-root replay refusal and retained indeterminate history. Worker inherits the compositor
   lock; applications must not. An unresolved attempt blocks new reconstruction, not automatic repair.
 
+## Resolution implementation boundary
+
+`resolution_candidate`, `resolution_graph`, `resolution_evidence`, `resolution_observer`,
+`recovery_transition`, and `recovery_resolution` add exact candidate admission, observation-only
+settlement proposals and append-only profile activation. `resolution_io` isolates bounded canonical
+objects; `resolution_lock` establishes anchor → ledger → compositor ordering. `resolution_cli`
+routes new offline previews/inspection before Store construction. Normal admission consumes one
+shared explicit old-to-new edge without relabelling historical indeterminate accounting as success.
+
+Exact retained owner-history decoding and its configuration binding are implemented here, with
+fabricated oracles for original and later completed record shapes. This is **not native
+qualification**. The native producer and closed owner loader are separately owned and are not
+shipped here. Unknown formats block; the separate prospective codec must never be written beside
+old records to manufacture settlement evidence. The detailed
+[checkout-only owner contract](project/resolution-protocol.md) lists supported history, APIs and
+wire fields.
+That new document is not in the current sdist allowlist; runtime modules do not depend on it.
+
 ## Evidence model
 
 Observed is not desired; desired is not approved; approved is not executed; acknowledged is not

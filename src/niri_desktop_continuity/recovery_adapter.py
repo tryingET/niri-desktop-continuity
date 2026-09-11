@@ -23,6 +23,7 @@ from .recovery_protocol import (
     require,
 )
 from .recovery_requests import request_payload
+from .resolution_lock import serialized
 
 # This is a protocol liveness lease, not a subprocess execution timeout.
 LIVENESS_SECONDS = 5
@@ -50,6 +51,7 @@ class Adapter:
         self.key = digest(profile)
         self.events = []
 
+    @serialized
     def call(self, phase, payload, *, lock_fd=None, expires_at=None, journal=None):
         require(phase in PHASES)
         require((phase == "execute") == (lock_fd is not None))
