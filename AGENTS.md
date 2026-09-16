@@ -22,6 +22,8 @@ This boundary permits implementation, not unreviewed or automatically authorized
 ## Safety and privacy
 
 - Capture/preview never moves windows, runs discovered app binaries or grants approval.
+- `restore --apply` spawns recorded recipes and moves only the windows it spawned; live windows are
+  protected and nothing is ever closed. Login/timer units exist only after `autostart --enable`.
 - All restart/migration remains blocked until an independently tested exact recovery adapter exists.
 - Live layout actions require explicit operator approval; synthetic tests do not authorize them.
 - Never put real desktop snapshots, titles, executable paths, environment dumps or session logs in Git.

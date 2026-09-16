@@ -26,6 +26,32 @@ observable layout predicates match. Exit 2 means mismatch, unavailable output, i
 or another refusal. Focus is reported separately. Native application state stays unverified.
 `history --kind snapshots|plans|receipts --limit 20` lists artifact identities, not private labels.
 
+## Save and reopen
+
+`capture` attaches a reopen recipe to every window (`reopen`): kind `app` (process argv and cwd),
+`claude` (`claude --resume <id>` inside the same terminal, from `~/.claude/sessions/<pid>.json`),
+`pi` (the presence directory's `resumeArgv`), `command` (the terminal's leaf process), `shell`
+(terminal in the same directory) or `unknown` with a reason. Titles are used only to match a
+session to its window when one terminal process owns several windows; they are not stored unless
+`--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
+
+`restore [digest]` builds a placement plan from a snapshot (default: the latest capture) and prints
+it. `--apply` executes it: for each entry `niri msg action spawn`, wait for the new window (up to
+`--spawn-timeout`, default 25 s), `move-window-to-workspace --focus false`, then per workspace
+`move-column-to-index`, `set-column-width` and `consume-window-into-column` in saved order.
+Saved workspace names are re-applied. Windows present before the run are protected: never
+moved, and reopened columns are placed after them. Sessions already open (same resume argv) are
+skipped. Exit 0 means every entry was placed; exit 2 means a partial result, recorded in the
+receipt (`history --kind receipts`). The operator should stay idle during the run: column
+arrangement uses focus and Niri has no atomic focus-plus-move.
+
+`restore --at-login` first waits up to 60 s for Niri and does nothing when the saved identity
+matches the running compositor instance. `autostart --enable [--interval-minutes N]` installs
+`niri-desktop-continuity-capture.timer` and `niri-desktop-continuity-restore.service` (wanted by
+`graphical-session.target`); `autostart --disable` removes them; `autostart` alone reports status.
+Recipes are launch commands, not process memory: unsaved drafts, scrollback and hidden tab order
+are not recovered, and applications restore their own content.
+
 ## Planning
 
 `plan <snapshot-digest>` defaults to review-only inspection. Optional `--window-id`, `--pid`,

@@ -10,6 +10,7 @@ import stat
 import subprocess
 from pathlib import Path
 
+from .launch import window_recipes
 from .model import normalized_snapshot, now, process_pin
 
 READ_COMMANDS = {"outputs", "windows", "workspaces", "layers", "version"}
@@ -181,6 +182,12 @@ def capture(*, include_titles: bool = False, transport=None) -> dict:
     final_layers = ipc.query("layers")
     final_processes, final_warnings = window_processes(final_windows)
     warnings.extend(final_warnings)
+    # Reopen recipes are derived from the observed process tree; raw titles are only used to
+    # match sessions to windows and are redacted below unless explicitly included.
+    titles = {item["id"]: str(item.get("title") or "") for item in final_windows}
+    recipes = window_recipes(final_windows, final_processes, inventory, titles)
+    for item in windows:
+        item["reopen"] = recipes.get(item["id"])
     coherent = (
         spatial_sample(windows, workspaces, outputs)
         == spatial_sample(final_windows, final_workspaces, final_outputs)

@@ -28,6 +28,11 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   rollback after indeterminate effects. Niri focus/move remains non-atomic against external input.
 - `map_preview`: escaped offline schematic and complete HTML ledger. CSS is packaged beside the
   module; no access to a source checkout or external design service is needed after installation.
+- `launch`: per-window reopen recipes from the same-user process tree (argv, cwd, Claude session
+  registry, Pi presence, leaf command). Titles match sessions to windows and are never stored.
+- `restore`: placement plan (workspace compaction, unknowns last, protected live windows) and the
+  spawn → detect → move → arrange executor with a receipt per run. No window is ever closed.
+- `autostart`: opt-in systemd user units (periodic capture, reopen at login) and their removal.
 - `cli` / `__main__`: console script and `python -m` entrypoints; no private infrastructure imports.
 - `recovery` / `recovery_verification`: fresh proposal/admission, exact losses and typed process-pin
   omissions, deterministic approval, execution and non-upgrading fresh native verification.

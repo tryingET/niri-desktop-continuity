@@ -11,9 +11,12 @@ read_when:
 A small, private-by-default CLI for **Niri on Linux**. Capture windows and workspaces, render an
 offline map, compare observations, and inspect the consequences of a proposed operation.
 
-**Alpha:** this is not a process backup or a solution for a frozen terminal. Restart and migration
-are deliberately blocked: knowing where a window belongs does not prove its tabs, drafts or jobs
-can be recovered. No other compositor or platform is planned.
+**Alpha:** this is not a process backup or a solution for a frozen terminal. Exact restart and
+migration of a *running* window remain blocked: knowing where a window belongs does not prove its
+tabs, drafts or jobs can be recovered. What the tool does do, on explicit opt-in, is **reopen** a
+saved desktop after a reboot: every captured window is launched again from its recorded command
+(Claude and Pi sessions are resumed by ID), placed on its workspace in its column order, and
+windows already open are left untouched. No other compositor or platform is planned.
 
 ## Install
 
@@ -27,7 +30,8 @@ python -m pip install .
 niri-desktop-continuity --help
 ```
 
-Nothing installs a service, edits desktop configuration, starts an application or runs at login.
+By default nothing installs a service, edits desktop configuration, starts an application or runs
+at login. `autostart --enable` is the single opt-in that changes this (see below).
 No public package registry release has been made by this repository bootstrap.
 
 ## Capture → inspect → verify
@@ -52,6 +56,30 @@ Titles are redacted by default. `capture --include-titles` opts into private lab
 
 Even redacted captures contain process paths and desktop metadata. **Do not publish real state
 files or previews.** The repository and packages contain synthetic tests, not anyone's desktop.
+
+## Save and reopen (opt-in)
+
+```sh
+niri-desktop-continuity restore                  # dry-run plan from the latest capture
+niri-desktop-continuity restore --apply          # reopen every saved window now
+niri-desktop-continuity restore <digest> --apply # reopen an older capture
+niri-desktop-continuity autostart --enable       # capture every 15 min, reopen at login
+niri-desktop-continuity autostart --disable
+```
+
+Every capture records a private *reopen recipe* per window: the process argv and working
+directory, or for terminals the session running inside (Claude Code via its per-PID session
+registry, Pi via its presence directory, otherwise the leaf command). `restore` spawns each recipe
+through Niri, waits for the window, moves it to its workspace and rebuilds the saved column order
+and widths. Windows that exist before the run are never moved; reopened columns follow them.
+Saved workspaces compact to consecutive indices; windows without a usable recipe go to a new
+last workspace. Browsers, Obsidian and terminals restore their own contents; the tool only
+reopens them. See [usage](docs/usage.md#save-and-reopen).
+
+`autostart --enable` writes three user units under `~/.config/systemd/user`: a capture timer, and
+a `graphical-session.target` service that runs `restore --apply --at-login`, which reopens only
+when the latest capture came from a different compositor instance. Both are removed by
+`--disable`. Recipes contain command lines and working directories: keep the state root private.
 
 ## Proposals are not permissions
 

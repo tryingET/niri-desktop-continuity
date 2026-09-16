@@ -81,6 +81,19 @@ def parser():
         action="store_true",
         help="operator must remain idle; Niri focus+move cannot be atomic",
     )
+    reopen = commands.add_parser("restore", help="reopen every window of a saved desktop")
+    reopen.add_argument("snapshot", nargs="?", help="snapshot digest; default latest capture")
+    reopen.add_argument("--apply", action="store_true", help="without it: dry-run plan only")
+    reopen.add_argument(
+        "--at-login",
+        action="store_true",
+        help="wait for Niri, skip when the capture came from this compositor instance",
+    )
+    reopen.add_argument("--spawn-timeout", type=float, default=25.0)
+    autostart = commands.add_parser("autostart", help="opt-in systemd user units (capture+reopen)")
+    autostart.add_argument("--enable", action="store_true")
+    autostart.add_argument("--disable", action="store_true")
+    autostart.add_argument("--interval-minutes", type=int, default=15)
     history = commands.add_parser("history", help="private stored artifact identities only")
     history.add_argument("--kind", choices=["snapshots", "plans", "receipts"], default="snapshots")
     history.add_argument("--limit", type=int, default=20)
@@ -180,6 +193,20 @@ def run(args):
     if args.command == "approve":
         key = approve(store, args.plan, capture(), confirmation=args.confirm)
         return {"approval_digest": key, "runtime_effects": "none"}, 0
+    if args.command == "restore":
+        return run_restore(args, store)
+    if args.command == "autostart":
+        from . import autostart as units
+
+        if args.enable and args.disable:
+            raise ValueError("choose --enable or --disable")
+        if args.enable:
+            return units.enable(
+                interval_minutes=args.interval_minutes, state_root=args.state_root
+            ), 0
+        if args.disable:
+            return units.disable(), 0
+        return units.status(), 0
     if args.command == "reconcile":
         if not args.apply or not args.acknowledge_non_atomic_focus:
             raise ValueError("requires --apply and --acknowledge-non-atomic-focus; no action taken")
@@ -193,6 +220,32 @@ def run(args):
         (store.root / args.kind).glob("*.json"), key=lambda p: p.stat().st_mtime, reverse=True
     )
     return {"kind": args.kind, "digests": [path.stem for path in paths[: args.limit]]}, 0
+
+
+def run_restore(args, store):
+    from .probe import compositor_identity
+    from .restore import LiveDesktop, restore
+
+    desktop = LiveDesktop()
+    key = args.snapshot or store.pointer("latest-observed")
+    if key is None:
+        raise ValueError("no saved desktop to reopen")
+    if args.at_login:
+        deadline = desktop.monotonic() + 60
+        while not desktop.ready():
+            if desktop.monotonic() >= deadline:
+                raise ValueError("Niri did not become ready; nothing reopened")
+            desktop.sleep(1.0)
+        if store.get("snapshots", key)["identity"] == compositor_identity():
+            return {
+                "status": "same-compositor-instance",
+                "snapshot_digest": key,
+                "skipped": True,
+            }, 0
+    if not 1 <= args.spawn_timeout <= 300:
+        raise ValueError("spawn timeout must be 1..300 seconds")
+    result = restore(store, key, desktop, apply=args.apply, spawn_timeout=args.spawn_timeout)
+    return result, 0 if result["status"] in {"dry-run", "reopened"} else 2
 
 
 def run_recovery(args, store):

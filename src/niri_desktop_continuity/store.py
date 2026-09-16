@@ -122,7 +122,12 @@ class Store:
         return value
 
     def pointer(self, name: str, key: str | None = None) -> str | None:
-        if name not in {"latest-observed", "last-display-valid", "last-layout-verified"}:
+        if name not in {
+            "latest-observed",
+            "last-display-valid",
+            "last-layout-verified",
+            "last-reopened",
+        }:
             raise ValueError("invalid state pointer")
         path = self.root / f"{name}.json"
         if key is None:
