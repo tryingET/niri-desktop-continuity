@@ -392,6 +392,37 @@ def test_mismatched_app_id_is_accepted_only_after_timeout(tmp_path):
     assert desktop.clock >= 1
 
 
+def test_self_restoring_app_is_launched_once_then_awaited(tmp_path):
+    store = Store(tmp_path / "state")
+    snapshot = saved(
+        [
+            window(1, 1, 1, app="brave-browser", reopen=recipe("app", "brave")),
+            window(2, 1, 2, app="brave-browser", reopen=recipe("app", "brave")),
+            window(3, 1, 3, app="brave-browser", reopen=recipe("app", "brave")),
+        ]
+    )
+    key = store.put("snapshots", snapshot)
+
+    class Browser(FakeDesktop):
+        def spawn(self, argv):
+            super().spawn(argv)
+            # One launch restores two windows by itself.
+            self.next_id += 1
+            self.live.append(window(self.next_id, 1, len(self.live) + 1, app="brave-browser"))
+
+    desktop = Browser([])
+    result = restore.restore(
+        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=2
+    )
+    assert [a for a in desktop.actions if a[0] == "spawn"] == [
+        ("spawn", ("brave",)),
+        ("spawn", ("brave",)),
+    ]
+    assert [w["status"] for w in result["windows"]] == ["placed"] * 3
+    assert result["windows"][1]["awaited_self_restore"] is True
+    assert result["windows"][2]["awaited_self_restore"] is False
+
+
 def test_dry_run_has_no_effects_and_refuses_headless_snapshot(tmp_path):
     store = Store(tmp_path / "state")
     key = store.put("snapshots", saved([window(1, 1, 1, reopen=recipe("app", "x"))]))

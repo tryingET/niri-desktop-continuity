@@ -39,6 +39,8 @@ session to its window when one terminal process owns several windows; they are n
 it. `--apply` executes it: for each entry `niri msg action spawn`, wait for the new window (up to
 `--spawn-timeout`, default 25 s), `move-window-to-workspace --focus false`, then per workspace
 `move-column-to-index`, `set-column-width` and `consume-window-into-column` in saved order.
+Browsers, Thunderbird and Obsidian reopen their own windows: their launch is spawned once and
+further saved windows of the same launch are awaited first, spawned only if none appears.
 Saved workspace names are re-applied. Windows present before the run are protected: never
 moved, and reopened columns are placed after them. Sessions already open (same resume argv) are
 skipped. Exit 0 means every entry was placed; exit 2 means a partial result, recorded in the

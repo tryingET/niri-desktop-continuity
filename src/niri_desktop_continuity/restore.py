@@ -12,6 +12,17 @@ from .operation_lock import operation_lock
 from .probe import compositor_identity
 
 RESTORE_SCHEMA = "desktop-continuity.restore-receipt.v1"
+# Applications that reopen their own windows when launched once. A second saved window of the
+# same launch waits for the application to bring it back and is spawned only if it does not.
+SELF_RESTORING_APP_IDS = {
+    "brave-browser",
+    "chromium",
+    "firefox",
+    "org.mozilla.firefox",
+    "org.mozilla.Thunderbird",
+    "obsidian",
+    "md.Obsidian",
+}
 SPAWN_TIMEOUT = 25.0
 POLL_INTERVAL = 0.4
 
@@ -275,6 +286,7 @@ def _restore_locked(store, snapshot_key, snapshot, desktop, observe, apply, spaw
     original_focus = next((w["id"] for w in current_windows if w.get("is_focused")), None)
     known = {w["id"] for w in current_windows}
     placed_by_workspace: dict[int, list[dict]] = {}
+    launched: set[tuple] = set()
     failures = 0
     try:
         for entry in plan["entries"]:
@@ -291,9 +303,19 @@ def _restore_locked(store, snapshot_key, snapshot, desktop, observe, apply, spaw
                 receipt["windows"].append(record)
                 continue
             target = entry["target_workspace_idx"]
-            desktop.spawn(entry["recipe"]["argv"])
-            receipt["effects"].append({"action": "spawn", "kind": record["kind"], "at": now()})
-            window = wait_for_window(desktop, known, entry.get("app_id"), spawn_timeout)
+            launch_key = (entry.get("app_id"), json.dumps(entry["recipe"]["argv"]))
+            window = None
+            if entry.get("app_id") in SELF_RESTORING_APP_IDS and launch_key in launched:
+                # The application may already have reopened this window itself.
+                window = wait_for_window(
+                    desktop, known, entry.get("app_id"), min(spawn_timeout, 8.0)
+                )
+                record["awaited_self_restore"] = window is not None
+            if window is None:
+                desktop.spawn(entry["recipe"]["argv"])
+                launched.add(launch_key)
+                receipt["effects"].append({"action": "spawn", "kind": record["kind"], "at": now()})
+                window = wait_for_window(desktop, known, entry.get("app_id"), spawn_timeout)
             if window is None:
                 record["status"] = "spawned-window-not-detected"
                 failures += 1
