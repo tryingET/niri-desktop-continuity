@@ -83,7 +83,7 @@ fallbacks only. Full identifiers remain available as text even if a compact tile
 ## Layout
 
 Read top to bottom: capture timestamp and privacy; admission warning; current map; desired map
-when supplied; process/version/scope ledger; limitations. Horizontal overflow is explicit, not
+when supplied, otherwise the after-reboot reopen ledger; process/version/scope ledger; limitations. Horizontal overflow is explicit, not
 silently dropped. SVG is a schematic, not a screenshot or pixel-perfect viewport reconstruction.
 
 ## Elevation and Depth
@@ -100,6 +100,10 @@ Small-radius cards and square coordinate labels. No decorative circular gauges.
 A workspace header gives stable ID, current index, output and window count. Column headers
 show position, not guessed application tab state. Admission has text status plus blockers;
 status must not rely on color. HTML has a full private inventory; SVG includes every window.
+On snapshot previews each tile states its reopen outcome in text (`reopens as <kind>` or
+`not reopened (<reason>)`), and the after-reboot ledger lists every window and tab session with
+a count summary, the exact recorded command and a plain-language reason for each miss. A miss is
+amber (caution); a reopen is plain text, never teal, because a recipe is not verified state.
 
 ## Do's and Don'ts
 

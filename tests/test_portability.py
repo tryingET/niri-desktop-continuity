@@ -6,7 +6,9 @@ import errno
 import importlib.util
 import os
 import runpy
+import struct
 import subprocess
+import zlib
 from pathlib import Path
 
 import pytest
@@ -284,3 +286,58 @@ def test_export_rejects_symlinks_and_binary_payload(tmp_path, monkeypatch):
     errors = module.check()
     assert any("binary artifact" in error for error in errors)
     assert any("symlink" in error for error in errors)
+
+
+def png(*chunks, crc_offset=0):
+    """Handwritten 1x1 greyscale PNG: signature, then length/type/data/CRC chunks."""
+
+    def chunk(kind, data):
+        crc = (zlib.crc32(kind + data) + crc_offset) & 0xFFFFFFFF
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", crc)
+
+    body = [(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 0, 0, 0, 0)), *chunks]
+    body += [(b"IDAT", zlib.compress(b"\x00\x00")), (b"IEND", b"")]
+    return b"\x89PNG\r\n\x1a\n" + b"".join(chunk(kind, data) for kind, data in body)
+
+
+def test_reviewed_screenshot_png_is_the_only_admitted_binary(tmp_path, monkeypatch):
+    module = checker()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    put(tmp_path, "docs/assets/preview.png", png((b"sRGB", b"\x00"), (b"pHYs", bytes(9))))
+    assert module.check() == []
+    put(tmp_path, "docs/preview.png", png())
+    put(tmp_path, "docs/assets/nested/preview.png", png())
+    put(tmp_path, "docs/assets/preview.bin", png())
+    put(tmp_path, "docs/assets/fake.png", b"\xff\xfe not a png")
+    put(tmp_path, "docs/assets/corrupt.png", png(crc_offset=1))
+    put(tmp_path, "docs/assets/truncated.png", png()[:-3])
+    put(tmp_path, "docs/assets/trailing.png", png() + b"\x00")
+    assert module.check() == [
+        "docs/assets/corrupt.png: invalid PNG asset",
+        "docs/assets/fake.png: invalid PNG asset",
+        "docs/assets/nested/preview.png: unreviewed binary artifact",
+        "docs/assets/preview.bin: unreviewed binary artifact",
+        "docs/assets/trailing.png: invalid PNG asset",
+        "docs/assets/truncated.png: invalid PNG asset",
+        "docs/preview.png: unreviewed binary artifact",
+    ]
+
+
+@pytest.mark.parametrize("kind", [b"tEXt", b"zTXt", b"iTXt", b"eXIf", b"tIME", b"iCCP", b"teXt"])
+def test_png_metadata_chunks_are_refused(tmp_path, monkeypatch, kind):
+    module = checker()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    private = "/".join(["", "home", "example", "capture.html"]).encode()
+    put(tmp_path, "docs/assets/preview.png", png((kind, b"Comment\x00" + private)))
+    assert module.check() == [
+        f"docs/assets/preview.png: PNG chunk {kind.decode()} not allowed "
+        "(metadata can carry private text)"
+    ]
+
+
+def test_png_asset_size_is_bounded(tmp_path, monkeypatch):
+    module = checker()
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    put(tmp_path, "docs/assets/preview.png", png())
+    monkeypatch.setattr(module, "MAX_PNG_BYTES", len(png()) - 1)
+    assert module.check() == [f"docs/assets/preview.png: PNG asset exceeds {len(png()) - 1} bytes"]

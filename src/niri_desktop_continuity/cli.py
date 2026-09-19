@@ -47,7 +47,7 @@ def parser():
     plan.add_argument("--saved-set", help="owner-private saved-set digest; additive mode only")
     plan.add_argument("--omit-association", action="append", default=[])
     preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
-    preview.add_argument("digest")
+    preview.add_argument("digest", nargs="?", help="default: the latest capture (snapshots only)")
     preview.add_argument(
         "--kind", choices=["snapshots", "plans", "profile", "resolution"], default="snapshots"
     )
@@ -121,6 +121,8 @@ def run(args):
                 raise ValueError("--clear takes no command")
             return {"cleared": launch.clear_declaration(args.pid), "pid": args.pid}, 0
         return {"declared": launch.declare(args.pid, argv, cwd=args.cwd, label=args.label)}, 0
+    if args.command == "preview" and args.digest is None and args.kind != "snapshots":
+        raise ValueError(f"--kind {args.kind} preview: digest required")
     if selected(args):
         return run_resolution(args)
     if args.command == "plan" and (
@@ -193,6 +195,10 @@ def run(args):
     if args.command == "preview":
         from .map_preview import render_html, render_svg
 
+        if args.digest is None:
+            args.digest = store.pointer("latest-observed")
+            if args.digest is None:
+                raise ValueError("nothing captured yet; run capture first")
         value = store.get(args.kind, args.digest)
         plan = value if args.kind == "plans" else None
         snapshot = store.get("snapshots", plan["snapshot_digest"]) if plan else value

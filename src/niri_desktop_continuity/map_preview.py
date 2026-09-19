@@ -4,7 +4,8 @@ from __future__ import annotations
 
 import html
 import re
-from collections import defaultdict
+import shlex
+from collections import Counter, defaultdict
 from pathlib import Path
 
 from .model import readiness, require_snapshot
@@ -16,6 +17,26 @@ LIMITATIONS = (
     "Schematic layout, not a desktop screenshot. Hidden application tabs/splits, drafts and "
     "process memory are NOT captured. Restart/migration is blocked. This page grants no approval."
 )
+# How `restore --apply` reopens each recipe kind (see launch.py), and why some windows cannot be.
+REOPENS_AS = {
+    "claude": "Claude Code session, resumed by id",
+    "pi": "Pi session, resumed",
+    "declared": "your declared command (declare)",
+    "app": "application, relaunched from its command line",
+    "command": "terminal running its last command again",
+    "shell": "terminal in the same directory",
+}
+NOT_REOPENED = {
+    "xwayland-client": "X11 window: Niri reports the xwayland-satellite bridge, not the application",
+    "claude-session-unregistered": "Claude process without a session registry entry; "
+    "its command line would start the work over",
+    "appimage-mount-unresolved": "AppImage temporary mount not traced to its image file",
+    "process-title-unresolved": "the program rewrote its command line and no program file "
+    "matches it",
+    "process-unavailable": "the window's process was not observed",
+    "cmdline-unavailable": "the process command line was unreadable",
+    "no-recipe": "captured without a reopen recipe",
+}
 
 
 def escape(value) -> str:
@@ -87,7 +108,20 @@ def workspace_label(workspace):
     return f"{workspace.get('output', 'unknown')} / workspace {workspace.get('idx', '?')} · id {workspace['id']} · {workspace.get('name') or 'unnamed'}"
 
 
-def map_html(snapshot, title, selected):
+def recipe_of(window) -> dict:
+    """The saved reopen recipe; like restore, a window without one has nothing to launch."""
+    recipe = window.get("reopen")
+    return recipe if isinstance(recipe, dict) else {"kind": "unknown", "reason": "no-recipe"}
+
+
+def reopen_badge(recipe) -> str:
+    if recipe.get("argv"):
+        return f'<small class="reopen">reopens as {escape(recipe.get("kind"))}</small>'
+    reason = recipe.get("reason") or "no-launch-command"
+    return f'<small class="reopen not-reopened">not reopened ({escape(reason)})</small>'
+
+
+def map_html(snapshot, title, selected, *, reopen=False):
     rows = [f"<h2>{escape(title)}</h2>"]
     for workspace, columns in groups(snapshot):
         rows.append(
@@ -102,11 +136,101 @@ def map_html(snapshot, title, selected):
                 rows.append(
                     f'<article class="{cls}"><small>WINDOW {window["id"]} / PID {escape(window.get("pid"))}</small>'
                     f"<p>{escape(label(snapshot, window))}</p>"
-                    f"<small>{escape(window.get('app_id'))} · {'focused' if window.get('is_focused') else 'unfocused'}</small></article>"
+                    f"<small>{escape(window.get('app_id'))} · {'focused' if window.get('is_focused') else 'unfocused'}</small>"
+                    f"{reopen_badge(recipe_of(window)) if reopen else ''}</article>"
                 )
             rows.append("</div>")
         rows.append("</div></section>")
     return "".join(rows)
+
+
+def plural(count: int, noun: str) -> str:
+    return f"{count} {noun}{'' if count == 1 else 's'}"
+
+
+def reopen_html(snapshot):
+    """What `restore --apply` would launch from this capture: every window, in map order."""
+    titles = snapshot.get("privacy", {}).get("titles_included") is True
+    rows, kinds, missing, extras = [], Counter(), 0, 0
+    for workspace, columns in groups(snapshot):
+        name = f" · {workspace['name']}" if workspace.get("name") else ""
+        for col, windows in columns:
+            where = (
+                f"<td>workspace {escape(workspace.get('idx', '?'))}{escape(name)}<br>"
+                f"<small>{escape(workspace.get('output'))} · column {escape(col)}</small></td>"
+            )
+            for window in windows:
+                recipe = recipe_of(window)
+                shown = label(snapshot, window)
+                session = recipe.get("label") if titles else None
+                who = escape(shown) + (
+                    f"<br><small>session: {escape(session)}</small>"
+                    if session and session not in shown
+                    else ""
+                )
+                tabs = [(recipe, f"{who}<br><small>WINDOW {window['id']}</small>")]
+                for extra in recipe.get("extra") or []:
+                    extras += 1
+                    session = extra.get("label") if titles else None
+                    tabs.append(
+                        (
+                            extra,
+                            f"{escape(session or 'Session in a terminal tab')}<br>"
+                            f"<small>TAB OF WINDOW {window['id']} · reopens as its own window</small>",
+                        )
+                    )
+                for item, who_cell in tabs:
+                    if item.get("argv"):
+                        kind = str(item.get("kind"))
+                        kinds[kind] += 1
+                        status = f"<td>Reopens<br><small>{escape(REOPENS_AS.get(kind, kind))}</small></td>"
+                        where_run = (
+                            f"<br><small>in {escape(item['cwd'])}</small>"
+                            if item.get("cwd")
+                            else ""
+                        )
+                        if item.get("argv_from_process_title"):
+                            where_run += (
+                                "<br><small>arguments split from the process title; "
+                                "check any that contained spaces</small>"
+                            )
+                        command = (
+                            f"<td><code>{escape(shlex.join(map(str, item['argv'])))}</code>"
+                            f"{where_run}</td>"
+                        )
+                    else:
+                        missing += 1
+                        reason = item.get("reason") or "no-launch-command"
+                        status = (
+                            f'<td class="not-reopened">Not reopened<br><small>'
+                            f"{escape(NOT_REOPENED.get(reason, 'no launch command recorded'))}"
+                            f"</small> <code>{escape(reason)}</code></td>"
+                        )
+                        command = '<td class="muted">nothing is launched</td>'
+                    rows.append(f"<tr>{where}<td>{who_cell}</td>{status}{command}</tr>")
+    total = len(rows)
+    by_kind = " · ".join(f"{kind} {kinds[kind]}" for kind in REOPENS_AS if kinds[kind])
+    by_kind += "".join(
+        f" · {kind} {n}" for kind, n in sorted(kinds.items()) if kind not in REOPENS_AS
+    )
+    saved = plural(len(snapshot["windows"]), "window")
+    if extras:
+        saved += f" + {plural(extras, 'session')} found in terminal tabs, which reopen as separate windows"
+    return (
+        '<section class="workspace" id="after-reboot" aria-labelledby="after-reboot-title">'
+        '<h2 id="after-reboot-title">02 / After a reboot</h2>'
+        f'<p class="reopen-summary"><strong>{total - missing} of {total} reopen after a reboot</strong>'
+        f" · {f'{missing} will not' if missing else 'none left out'}</p>"
+        f'<p class="muted">{escape(by_kind or "nothing to reopen")}</p>'
+        f'<p class="note">Saved: {escape(saved)}. This is what <code>restore --apply</code> would '
+        "launch from this capture: each command is spawned through Niri, and the new window is "
+        "moved to its saved workspace and column. Windows already open are never moved or closed, "
+        "and a Claude or Pi session that is already open is skipped. Applications restore their "
+        "own content; unsaved drafts, scrollback and hidden tab order are not recovered.</p>"
+        '<div class="table-scroll"><table><thead><tr><th>Saved place</th><th>Window</th>'
+        "<th>After a reboot</th><th>Command</th></tr></thead><tbody>"
+        f"{''.join(rows)}</tbody></table></div></section>"
+    )
 
 
 def saved_projection_html(observed):
@@ -205,7 +329,7 @@ def render_html(snapshot, *, plan=None, plan_digest=None):
 *{box-sizing:border-box}body{margin:0;background:var(--colors-neutral);color:var(--colors-on-surface);font-family:var(--typography-body-md-font-family);line-height:1.5}
 main{padding:var(--spacing-xl);max-width:1800px;margin:auto}h1,h2{font-family:var(--typography-display-font-family);font-weight:400}h1{font-size:clamp(32px,5vw,48px);margin:8px 0}h2{font-size:32px;margin-top:40px}h3{font-size:16px;font-weight:400}
 .kicker,small,.coordinate,code{font-family:var(--typography-label-caps-font-family)}.kicker{color:var(--colors-success);letter-spacing:.12em}.muted,small{color:var(--colors-secondary)}.warning{color:var(--colors-warning);border-left:4px solid var(--colors-warning);padding:16px;background:var(--colors-surface)}
-.workspace{border-top:1px solid var(--colors-muted);padding:8px 0 24px}.columns{display:flex;gap:16px;overflow:auto;padding-bottom:8px}.column{flex:0 0 240px}.coordinate{color:var(--colors-secondary);font-size:12px}.tile{padding:16px;background:var(--colors-surface);border:1px solid var(--colors-muted);border-radius:var(--rounded-sm);margin-bottom:8px;overflow-wrap:anywhere}.selected{border-color:var(--colors-success)}.tile p{margin:8px 0}small{font-size:11px}.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{padding:8px 16px;border-bottom:1px solid var(--colors-muted);text-align:left;vertical-align:top}td{overflow-wrap:anywhere}code{overflow-wrap:anywhere}.note{max-width:90ch}footer{margin-top:40px;border-top:1px solid var(--colors-muted);padding-top:16px}@media(max-width:600px){main{padding:16px}.column{flex-basis:210px}}
+.workspace{border-top:1px solid var(--colors-muted);padding:8px 0 24px}.columns{display:flex;gap:16px;overflow:auto;padding-bottom:8px}.column{flex:0 0 240px}.coordinate{color:var(--colors-secondary);font-size:12px}.tile{padding:16px;background:var(--colors-surface);border:1px solid var(--colors-muted);border-radius:var(--rounded-sm);margin-bottom:8px;overflow-wrap:anywhere}.selected{border-color:var(--colors-success)}.tile p{margin:8px 0}small{font-size:11px}.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{padding:8px 16px;border-bottom:1px solid var(--colors-muted);text-align:left;vertical-align:top}td{overflow-wrap:anywhere}code{overflow-wrap:anywhere}.note{max-width:90ch}.reopen{display:block;margin-top:8px;color:var(--colors-primary)}.not-reopened{color:var(--colors-warning)}.reopen-summary{font-size:20px}#after-reboot td:first-child{white-space:nowrap}#after-reboot td code{font-size:13px}footer{margin-top:40px;border-top:1px solid var(--colors-muted);padding-top:16px}@media(max-width:600px){main{padding:16px}.column{flex-basis:210px}}
 """
     body = [
         f'<p class="kicker">NIRI / DESKTOP CONTINUITY</p><h1>Your work, where you left it.</h1>'
@@ -227,9 +351,11 @@ main{padding:var(--spacing-xl);max-width:1800px;margin:auto}h1,h2{font-family:va
             f"Dependent processes: {len(affected.get('pids', []))}</p>"
         )
     body.append(saved_scope_html(plan))
-    body.append(map_html(snapshot, "01 / Current observation", selected))
+    body.append(map_html(snapshot, "01 / Current observation", selected, reopen=plan is None))
     if plan:
         body.append(map_html(plan["desired"], "02 / Desired topology (proposal only)", selected))
+    else:
+        body.append(reopen_html(snapshot))
     body.append(
         '<h2>Process &amp; capability ledger</h2><div class="table-scroll"><table><thead><tr><th>PID</th><th>Executable / version</th><th>Identity</th><th>Continuity</th></tr></thead><tbody>'
     )

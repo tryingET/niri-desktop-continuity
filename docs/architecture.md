@@ -26,8 +26,9 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
 - `operation_lock`: one cooperating writer per boot/compositor inode/device across state roots.
 - `reconcile`: predict, lock/revalidate, consume, persist intent, act, observe, compare. No retry or
   rollback after indeterminate effects. Niri focus/move remains non-atomic against external input.
-- `map_preview`: escaped offline schematic and complete HTML ledger. CSS is packaged beside the
-  module; no access to a source checkout or external design service is needed after installation.
+- `map_preview`: escaped offline schematic and complete HTML ledger, including the per-window
+  reopen ledger read from saved recipes (it never imports or runs `restore`). CSS is packaged beside
+  the module; no access to a source checkout or external design service is needed after installation.
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd, Claude session
   registry, Pi presence, leaf command). Titles match sessions to windows and are never stored.
 - `restore`: placement plan (workspace compaction, unknowns last, protected live windows) and the

@@ -18,11 +18,11 @@ check:
 
 # Non-formatting linter over the same scope as the check gate.
 lint:
-    uv run --frozen ruff check src tests scripts/check-portability.py scripts/ci/package-smoke.py
+    uv run --frozen ruff check src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py
 
 # Apply formatting to the same scope as the check gate.
 fmt:
-    uv run --frozen ruff format src tests scripts/check-portability.py scripts/ci/package-smoke.py
+    uv run --frozen ruff format src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py
 
 # Build distributable artifacts (wheel + sdist).
 build:
@@ -41,6 +41,10 @@ doctor:
 # One-shot execution of the primary CLI entrypoint (truthful --help smoke).
 run:
     uv run --frozen niri-desktop-continuity --help
+
+# Re-render the README screenshots from the fabricated demo desktop (needs chromium + ImageMagick).
+screenshots:
+    ./scripts/docs-screenshots.sh
 
 # NOTE: no `dev` target: this repo has no long-running dev/watch surface
 # (standard-library CLI; iteration is edit + `just run`/`just test`).
