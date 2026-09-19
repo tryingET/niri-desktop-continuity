@@ -24,16 +24,19 @@ release workflow refuses a tag that does not match.
 
 ## Steps
 
-1. Move the user-facing changes into a new `## [X.Y.Z] - YYYY-MM-DD` entry in `CHANGELOG.md`, set
-   the version in `pyproject.toml` and `src/niri_desktop_continuity/__init__.py`, and run `uv lock`.
+1. Move the user-facing changes into a new `## [X.Y.Z] - YYYY-MM-DD` entry in `CHANGELOG.md` (it
+   becomes the release notes), set the version in `pyproject.toml` and
+   `src/niri_desktop_continuity/__init__.py`, and run `uv lock`.
 2. Run `just ci` on a clean tree. Commit, push `main`, and wait for the `ci` workflow to pass.
-3. Tag that commit: `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
-4. `gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-file <notes>`. The notes state
-   what changed, compatibility, privacy relevance and known issues.
-5. The `release` workflow then builds once from the tag, runs `just ci`, attaches the wheel, sdist
-   and `SHA256SUMS` to the release and uploads the same files to PyPI through trusted publishing
-   in the `pypi` environment (deployable from `v*` tags only).
-6. Verify: download the release assets and run `sha256sum -c SHA256SUMS`; install with
+3. Tag that commit and push the tag: `git tag -a vX.Y.Z -m "vX.Y.Z"` and
+   `git push origin vX.Y.Z`. That is the release decision; nothing else is published by hand.
+4. The `release` workflow builds once from the tag, checks that the tag names the packaged
+   version, runs `just ci`, uploads the wheel and sdist to PyPI through trusted publishing in the
+   `pypi` environment (deployable from `v*` tags only), and then creates the GitHub Release with
+   the same files, `SHA256SUMS` and notes generated from the version's `CHANGELOG.md` entry
+   (`scripts/release-notes.py`). Releases in this repository are immutable: files cannot be added
+   after publishing, which is why the release is created together with its files.
+5. Verify: download the release assets and run `sha256sum -c SHA256SUMS`; install with
    `pipx install niri-desktop-continuity==X.Y.Z` and run `niri-desktop-continuity --version`.
 
 One-time setup, done by the PyPI account owner: a trusted publisher for project

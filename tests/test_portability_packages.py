@@ -160,3 +160,46 @@ def test_one_release_version_across_metadata_package_changelog_and_cli(capsys):
         cli.main(["--version"])
     assert stopped.value.code == 0
     assert capsys.readouterr().out == f"niri-desktop-continuity {version}\n"
+
+
+def release_notes():
+    path = Path(__file__).resolve().parents[1] / "scripts/release-notes.py"
+    spec = importlib.util.spec_from_file_location("release_notes", path)
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_release_notes_are_the_versions_changelog_entry_with_pinned_links():
+    changelog = """# Changelog
+
+See [docs/release.md](docs/release.md).
+
+## [0.2.0] - 2026-10-01
+
+### Added
+
+- A thing, see [usage](docs/usage.md#save) and [niri](https://github.com/YaLTeR/niri).
+
+## [0.1.1] - 2026-09-19
+
+### Changed
+
+- Older.
+"""
+    notes = release_notes().notes(changelog, "v0.2.0")
+    base = "https://github.com/tryingET/niri-desktop-continuity/blob/v0.2.0/"
+    assert "pipx install niri-desktop-continuity==0.2.0" in notes
+    assert "## Added\n\n- A thing, see [usage](" + base + "docs/usage.md#save)" in notes
+    assert "[niri](https://github.com/YaLTeR/niri)" in notes and "Older." not in notes
+    assert "sha256sum -c SHA256SUMS" in notes and "docs/release.md" not in notes
+    with pytest.raises(SystemExit, match="no entry for 9.9.9"):
+        release_notes().notes(changelog, "v9.9.9")
+
+
+def test_current_version_has_release_notes():
+    from niri_desktop_continuity import __version__
+
+    root = Path(__file__).resolve().parents[1]
+    notes = release_notes().notes((root / "CHANGELOG.md").read_text(), f"v{__version__}")
+    assert f"niri-desktop-continuity=={__version__}" in notes

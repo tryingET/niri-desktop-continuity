@@ -18,11 +18,11 @@ check:
 
 # Non-formatting linter over the same scope as the check gate.
 lint:
-    uv run --frozen ruff check src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py
+    uv run --frozen ruff check src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py scripts/release-notes.py
 
 # Apply formatting to the same scope as the check gate.
 fmt:
-    uv run --frozen ruff format src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py
+    uv run --frozen ruff format src tests scripts/check-portability.py scripts/ci/package-smoke.py scripts/demo-desktop.py scripts/release-notes.py
 
 # Build distributable artifacts (wheel + sdist).
 build:

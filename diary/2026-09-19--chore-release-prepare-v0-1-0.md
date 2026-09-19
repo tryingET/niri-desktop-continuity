@@ -26,6 +26,11 @@ read_when:
   through trusted publishing in a `pypi` environment limited to `v*` tags. README links became
   absolute so the PyPI page renders.
 
+- v0.1.1 reached PyPI through trusted publishing, but the workflow could not attach files to the
+  GitHub Release: releases here are immutable (HTTP 422 on upload after publishing). Its notes were
+  corrected to list the PyPI files and digests. The workflow now runs on the tag push and creates
+  the release together with its files and CHANGELOG-derived notes (`scripts/release-notes.py`).
+
 ## What Surprised Me
 
 - The PyPI name was still free, but trusted publishing needs a one-time owner step on pypi.org;

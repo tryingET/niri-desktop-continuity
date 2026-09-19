@@ -1,11 +1,12 @@
 name: release
 
-# Publishing a GitHub Release (tag vX.Y.Z) builds once from the tag, validates it, attaches the
-# wheel, sdist and SHA256SUMS to that release and uploads the same files to PyPI through trusted
-# publishing (no stored token; PyPI records provenance attestations). See docs/release.md.
+# Pushing a tag vX.Y.Z builds once from it, validates it, uploads the wheel and sdist to PyPI
+# through trusted publishing (no stored token) and then creates the GitHub Release together with
+# the same files, SHA256SUMS and notes from CHANGELOG.md. Releases here are immutable, so files
+# cannot be attached after a release is published. See docs/release.md.
 on:
-  release:
-    types: [published]
+  push:
+    tags: ["v*"]
 
 permissions: {}
 
@@ -25,7 +26,8 @@ jobs:
       - name: The tag names the packaged version
         run: test "v$(uv run --frozen niri-desktop-continuity --version | cut -d' ' -f2)" = "$GITHUB_REF_NAME"
       - run: just ci
-      - run: cd dist && sha256sum *.whl *.tar.gz > SHA256SUMS
+      - run: cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS
+      - run: python3 scripts/release-notes.py "$GITHUB_REF_NAME" > dist/RELEASE_NOTES.md
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: dist
@@ -33,21 +35,8 @@ jobs:
             dist/*.whl
             dist/*.tar.gz
             dist/SHA256SUMS
+            dist/RELEASE_NOTES.md
           if-no-files-found: error
-
-  attach:
-    needs: build
-    runs-on: ubuntu-latest
-    permissions:
-      contents: write
-    steps:
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: dist
-          path: dist
-      - run: gh release upload "$GITHUB_REF_NAME" dist/* --repo "$GITHUB_REPOSITORY" --clobber
-        env:
-          GH_TOKEN: ${{ github.token }}
 
   pypi:
     needs: build
@@ -62,5 +51,22 @@ jobs:
         with:
           name: dist
           path: dist
-      - run: rm dist/SHA256SUMS # PyPI takes distributions only; checksums live on the release
+      - run: rm dist/SHA256SUMS dist/RELEASE_NOTES.md # PyPI takes distributions only
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
+
+  github-release:
+    needs: pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: dist
+          path: dist
+      - run: >-
+          gh release create "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz dist/SHA256SUMS
+          --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME"
+          --notes-file dist/RELEASE_NOTES.md
+        env:
+          GH_TOKEN: ${{ github.token }}
