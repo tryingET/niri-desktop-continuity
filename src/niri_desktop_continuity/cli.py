@@ -8,6 +8,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+from . import __version__
 from .approval import approve
 from .model import readiness
 from .planner import build_plan
@@ -17,6 +18,9 @@ from .store import Store
 
 def parser():
     root = argparse.ArgumentParser(description=__doc__)
+    root.add_argument(
+        "--version", action="version", version=f"niri-desktop-continuity {__version__}"
+    )
     root.add_argument("--state-root", type=Path)
     commands = root.add_subparsers(dest="command", required=True)
     observe = commands.add_parser("capture", help="read Niri and same-user process metadata")

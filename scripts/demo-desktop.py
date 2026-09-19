@@ -2,7 +2,8 @@
 """Fabricated demo desktop for documentation screenshots. Never render a real capture for docs.
 
 Usage: demo-desktop.py OUTPUT_DIRECTORY
-Writes preview.html (the page `preview` writes) and after-reboot.html (only its reopen ledger).
+Writes preview.html (the page `preview` writes), after-reboot.html (only its reopen ledger) and
+social.html (a 2:1 link-preview card of its heading and first workspace).
 """
 
 from __future__ import annotations
@@ -254,4 +255,11 @@ if __name__ == "__main__":
     # The same page with every other section hidden, so a viewport screenshot shows the ledger.
     only = "main>:not(#after-reboot){display:none}#after-reboot{border-top:0;padding-top:0}"
     (out / "after-reboot.html").write_text(markup.replace("</style>", only + "</style>", 1))
+    # A 2:1 link-preview card: the page's own heading and first workspace, nothing else.
+    card = (
+        "main>*{display:none}main>.kicker,main>h1,main>section.workspace:first-of-type"
+        "{display:block}main{padding:32px 40px}main>h1{margin-bottom:0}"
+        "main>section.workspace:first-of-type{border-top:0}"
+    )
+    (out / "social.html").write_text(markup.replace("</style>", card + "</style>", 1))
     print(out / "preview.html")

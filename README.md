@@ -1,5 +1,9 @@
 # niri-desktop-continuity
 
+[![ci](https://github.com/tryingET/niri-desktop-continuity/actions/workflows/ci.yml/badge.svg)](https://github.com/tryingET/niri-desktop-continuity/actions/workflows/ci.yml)
+[![release](https://img.shields.io/github/v/release/tryingET/niri-desktop-continuity?include_prereleases)](https://github.com/tryingET/niri-desktop-continuity/releases)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+
 **Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
 reopen on their workspaces in their column order, Claude Code and Pi sessions resume by id, and
 anything that cannot be reopened safely is reported, never guessed.
@@ -36,6 +40,10 @@ release yet, so install from GitHub:
 pipx install git+https://github.com/tryingET/niri-desktop-continuity
 # or: uv tool install git+https://github.com/tryingET/niri-desktop-continuity
 ```
+
+To pin a release, append its tag (`…@v0.1.0`) or install the wheel from
+[Releases](https://github.com/tryingET/niri-desktop-continuity/releases); what changed is in the
+[changelog](CHANGELOG.md).
 
 Save your desktop and check what would come back:
 
@@ -157,7 +165,8 @@ just ci            # check + build
 just screenshots   # re-render docs/assets from the fabricated demo desktop (Chromium + ImageMagick)
 ```
 
-Tests never contact a real compositor. [Architecture](docs/architecture.md) explains the module
+Tests never contact a real compositor; [releasing](docs/release.md) describes versions, tags and
+rollback. [Architecture](docs/architecture.md) explains the module
 boundaries, [DESIGN.md](DESIGN.md) is the preview's visual contract and [usage](docs/usage.md) has
 every command's details. Screenshots come only from `scripts/demo-desktop.py`, and
 `just check` refuses PNG metadata that could carry private text.

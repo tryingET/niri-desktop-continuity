@@ -1,0 +1,21 @@
+name: Feature request
+description: An application, terminal or session kind that should come back after a reboot.
+labels: [enhancement]
+body:
+  - type: textarea
+    id: want
+    attributes:
+      label: What should come back, and how do you start it today?
+      placeholder: "Zellij sessions inside Ghostty; I start them with `zellij attach work`."
+    validations:
+      required: true
+  - type: textarea
+    id: why
+    attributes:
+      label: Why does it matter to you?
+  - type: markdown
+    attributes:
+      value: |
+        The tool reopens what it can prove and reports the rest; it will not guess a command
+        from a window title. Say what reliable signal (a registry, a presence file, a process
+        property) identifies the session, if you know one.

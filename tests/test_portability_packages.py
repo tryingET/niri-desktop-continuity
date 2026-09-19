@@ -76,6 +76,7 @@ def test_sdist_uses_exact_portable_paths_not_recursive_basename_patterns():
         "tests/",
         "scripts/",
         "README.md",
+        "CHANGELOG.md",
         "LICENSE",
         "DESIGN.md",
         "Justfile",
@@ -142,3 +143,20 @@ def test_distribution_links_and_special_entries_rejected(tmp_path, kind, link):
 def test_archive_parent_escape_rejected(tmp_path, kind):
     with pytest.raises(AssertionError, match="unsafe archive path"):
         smoke().distribution_paths(package(tmp_path, kind, extra=["../escape"]))
+
+
+def test_one_release_version_across_metadata_package_changelog_and_cli(capsys):
+    # A release claims one version: package metadata, __version__, the newest changelog entry
+    # and `--version` must agree, or README, changelog and artifacts drift apart.
+    from niri_desktop_continuity import __version__, cli
+
+    root = Path(__file__).resolve().parents[1]
+    version = tomllib.loads((root / "pyproject.toml").read_text())["project"]["version"]
+    newest = next(
+        line for line in (root / "CHANGELOG.md").read_text().splitlines() if line.startswith("## [")
+    )
+    assert __version__ == version and newest.startswith(f"## [{version}] - ")
+    with pytest.raises(SystemExit) as stopped:
+        cli.main(["--version"])
+    assert stopped.value.code == 0
+    assert capsys.readouterr().out == f"niri-desktop-continuity {version}\n"

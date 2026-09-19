@@ -1,0 +1,55 @@
+name: Bug report
+description: A window did not come back, came back wrong, or a command failed.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Captures, previews and receipts are private: they contain command lines, working
+        directories and, with `--include-titles`, window titles. Paste only what is needed and
+        replace paths, titles and session ids you do not want public.
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened, and what did you expect?
+      placeholder: "After a reboot, my Firefox window reopened on workspace 1 instead of 3."
+    validations:
+      required: true
+  - type: dropdown
+    id: command
+    attributes:
+      label: Command
+      options:
+        - capture
+        - preview
+        - restore (dry run)
+        - restore --apply
+        - restore --apply --at-login (autostart)
+        - autostart
+        - declare
+        - other
+    validations:
+      required: true
+  - type: textarea
+    id: reboot-ledger
+    attributes:
+      label: What the tool reported
+      description: |
+        For a missing or misplaced window: its row from the preview's "After a reboot" section
+        (kind, status, reason), or its entry from `restore` output (`status`, `kind`, `reason`).
+      render: text
+  - type: input
+    id: versions
+    attributes:
+      label: Versions
+      description: "`niri-desktop-continuity --version`, `niri --version`, and your terminal."
+      placeholder: "niri-desktop-continuity 0.1.0, niri 25.08, Ghostty 1.2"
+    validations:
+      required: true
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy
+      options:
+        - label: I removed paths, titles and session ids I do not want to publish.
+          required: true

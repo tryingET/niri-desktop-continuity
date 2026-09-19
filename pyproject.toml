@@ -39,6 +39,7 @@ only-include = [
     "tests/",
     "scripts/",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE",
     "DESIGN.md",
     "Justfile",
