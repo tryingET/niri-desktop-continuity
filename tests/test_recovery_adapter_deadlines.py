@@ -5,11 +5,13 @@ import os
 import socket
 import threading
 import time
+from contextlib import nullcontext
 from datetime import datetime, timedelta, timezone
 
 import pytest
 
 from niri_desktop_continuity import recovery_adapter as transport
+from niri_desktop_continuity import resolution_lock
 from niri_desktop_continuity.model import digest
 from niri_desktop_continuity.recovery_protocol import ADDITIVE, VERSION, VERSION2
 
@@ -98,8 +100,10 @@ def peer_fixture(monkeypatch, scenario, *, schema=VERSION, send_delay=False):
     monkeypatch.setattr(transport.socket, "socketpair", sockets)
     monkeypatch.setattr(transport.subprocess, "Popen", Process)
     monkeypatch.setattr(transport, "load_profile", lambda **_: profile)
-    # Request parsing is independently tested; this fixture isolates transport deadlines.
+    # Request parsing and owner-anchor locking are independently tested (test_resolution*);
+    # this fixture isolates transport deadlines and must not lock the operator's owner anchor.
     monkeypatch.setattr(transport, "request_payload", lambda *a, **kw: None)
+    monkeypatch.setattr(resolution_lock, "owner_guard", nullcontext)
     return transport.Adapter(profile), received, errors, budgets
 
 

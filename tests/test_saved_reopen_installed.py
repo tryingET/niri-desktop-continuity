@@ -7,7 +7,7 @@ import sys
 from pathlib import Path
 
 import pytest
-from test_recovery_backend import installation_hook
+from test_recovery_backend import install_hook, install_startup_code
 from test_recovery_review_regressions import repin
 from test_saved_reopen_backend import REF, SAVED_SET, provision
 
@@ -79,8 +79,7 @@ def test_installed_capture_through_verify_and_noop(installed, present, projected
         settings = json.loads((private / "settings.json").read_text())
         settings["observation"].update(projection)
         repin(data, settings)
-    hook = site / "sitecustomize.py"
-    hook.write_text(installation_hook(private))
+    hooks = install_hook(site, private)
     env = {
         key: value for key, value in os.environ.items() if key not in ("PYTHONPATH", "PYTHONHOME")
     }
@@ -147,4 +146,36 @@ def test_installed_capture_through_verify_and_noop(installed, present, projected
         assert "failed does not mean zero effects" in inspected["recovery_guidance"][0]
         run("reconstruct", approval, "--apply", "--acknowledge-non-atomic-focus", expected=2)
     finally:
-        hook.unlink()
+        for path in hooks:
+            path.unlink()
+
+
+def test_injected_fixtures_load_even_behind_a_system_sitecustomize(tmp_path):
+    # Debian/Ubuntu Pythons ship /usr/lib/python3.x/sitecustomize.py; PYTHONPATH reproduces it.
+    venv = tmp_path / "venv"
+    subprocess.run(
+        [sys.executable, "-m", "venv", "--without-pip", str(venv)], check=True, capture_output=True
+    )
+    python = str(venv / "bin/python")
+    site = Path(
+        subprocess.check_output(
+            [python, "-c", "import sysconfig; print(sysconfig.get_path('purelib'))"], text=True
+        ).strip()
+    )
+    system = tmp_path / "system"
+    system.mkdir()
+    (system / "sitecustomize.py").write_text("")
+    probe = "import builtins; print(getattr(builtins, 'NDC_HOOK', 'missing'))"
+    env = {"PATH": os.environ["PATH"], "PYTHONPATH": str(system)}
+
+    def loaded():
+        return subprocess.run(
+            [python, "-c", probe], env=env, capture_output=True, text=True, check=True
+        ).stdout
+
+    code = "import builtins\nbuiltins.NDC_HOOK = 'loaded'\n"
+    (site / "sitecustomize.py").write_text(code)
+    assert loaded() == "missing\n"  # the old injection: shadowed, the CLI would run for real
+    (site / "sitecustomize.py").unlink()
+    install_startup_code(site, code)
+    assert loaded() == "loaded\n"

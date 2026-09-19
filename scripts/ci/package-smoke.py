@@ -107,7 +107,7 @@ def reconstruction_smoke(scratch, python, env):
             saved_refs=saved_refs,
         )
         root = fake["root"]
-        (site / "sitecustomize.py").write_text(fixture.installation_hook(root))
+        hooks = fixture.install_hook(site, root)  # .pth: a system sitecustomize shadows one
 
         def invoke(*args, status=0):
             result = subprocess.run(
@@ -211,7 +211,8 @@ def reconstruction_smoke(scratch, python, env):
             invoke("verify", approval, "--kind", "reconstruction", status=2)
             assert damaged.read_text() == "{"
 
-    (site / "sitecustomize.py").unlink()
+    for path in hooks:
+        path.unlink()
 
 
 def main():
@@ -225,7 +226,8 @@ def main():
     distribution_paths(sdists[0])
     names = distribution_paths(wheel)
     with zipfile.ZipFile(wheel) as archive:
-        assert "niri_desktop_continuity/assets/tokens.css" in names
+        if "niri_desktop_continuity/assets/tokens.css" not in names:
+            raise SystemExit("wheel is missing the packaged map stylesheet")
         metadata = archive.read(
             next(n for n in names if n.endswith(".dist-info/METADATA"))
         ).decode()

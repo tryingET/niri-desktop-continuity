@@ -294,6 +294,23 @@ cli.capture = lambda **kw: json.loads((_root / "snapshot.json").read_text())
 """
 
 
+def install_startup_code(site, code, name="ndc_test_hook"):
+    """Run test-only code at interpreter start through a .pth file in site-packages.
+
+    Not sitecustomize.py: a system one (Debian and Ubuntu ship it in the standard library)
+    comes first on sys.path and silently shadows it, and the installed CLI would then run
+    unpatched against the real desktop. Returns the files to remove afterwards.
+    """
+    module, pth = site / f"{name}.py", site / f"{name}.pth"
+    module.write_text(code)
+    pth.write_text(f"import {name}\n")
+    return [pth, module]
+
+
+def install_hook(site, root):
+    return install_startup_code(site, installation_hook(root))
+
+
 def backend_main():
     root = Path(__file__).resolve().parent
     settings = json.loads((root / "settings.json").read_text())

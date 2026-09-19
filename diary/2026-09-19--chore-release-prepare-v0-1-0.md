@@ -25,7 +25,17 @@ read_when:
   it waits for a patch release.
 - Writing the promotion copy exposed that recipes pass Ghostty-style `--working-directory`/`-e`
   to every terminal; kitty and WezTerm take other flags.
+- The first GitHub CI run failed 9 of 665 tests that always pass locally, and both causes were
+  isolation leaks. Five transport-deadline tests went through `owner_guard()`, locking the real
+  `~/.config` owner anchor and reading the real recovery profile. Four installed-CLI tests injected
+  their fakes via `sitecustomize.py`, which a system `sitecustomize` (Debian/Ubuntu ship one)
+  shadows; the installed CLI then ran real `capture`, and on a Debian machine running niri it would
+  have contacted the compositor. Fixed with a `tests/conftest.py` that unsets `NIRI_SOCKET` and
+  points the owner profile at an empty temp path for every test, a `.pth` injection (tested
+  against a shadowing `sitecustomize`), and a deadline fixture that no longer takes the owner lock.
 
 ## Crystallization Candidates
 
 - → docs/learnings: promotion drafts are a good audit of claims, like the README's "never" list.
+- → docs/learnings: a suite that only ever ran on the maintainer's desktop cannot show it is
+  hermetic; the first clean runner is the test. Default every test to fail closed on live state.
