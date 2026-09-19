@@ -65,11 +65,14 @@ niri-desktop-continuity restore --apply          # reopen every saved window now
 niri-desktop-continuity restore <digest> --apply # reopen an older capture
 niri-desktop-continuity autostart --enable       # capture every 15 min, reopen at login
 niri-desktop-continuity autostart --disable
+niri-desktop-continuity declare --pid <pid> -- claude "Continue from docs/handoff.md"
 ```
 
 Every capture records a private *reopen recipe* per window: the process argv and working
 directory, or for terminals the session running inside (Claude Code via its per-PID session
-registry, Pi via its presence directory, otherwise the leaf command). `restore` spawns each recipe
+registry, Pi via its presence directory, an operator `declare`d command, otherwise the leaf
+command). A Claude process that cannot be resumed is never replayed from its command line.
+`restore` spawns each recipe
 through Niri, waits for the window, moves it to its workspace and rebuilds the saved column order
 and widths. Windows that exist before the run are never moved; reopened columns follow them.
 Saved workspaces compact to consecutive indices; windows without a usable recipe go to a new

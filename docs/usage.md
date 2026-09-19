@@ -54,6 +54,21 @@ matches the running compositor instance. `autostart --enable [--interval-minutes
 Recipes are launch commands, not process memory: unsaved drafts, scrollback and hidden tab order
 are not recovered, and applications restore their own content.
 
+What is never replayed: a Claude process without a registry entry (for example one started from
+inside another Claude session, which inherits its child-session environment and keeps no
+transcript) is `unknown` (`claude-session-unregistered`); its command line is often an opening
+prompt, and running it again would start the same work over. A window reported by the X11 bridge
+`xwayland-satellite` is `unknown` (`xwayland-client`). An AppImage program running from its
+temporary `.mount_*` directory is recorded as the AppImage file that serves the mount (the
+runtime's own launch path when absolute), or `unknown` (`appimage-mount-unresolved`).
+
+`declare --pid PID [--cwd DIR] [--label TEXT] -- COMMAND [ARG...]` tells the next captures how to
+reopen the terminal surface that runs PID when nothing can resume it, e.g. a fresh session started
+from a handoff: `declare --pid 4242 -- claude "Continue from docs/handoff.md"`. The declaration
+lives in the per-boot runtime directory (`/run/user/<uid>/niri-desktop-continuity-declared`, 0600),
+is pinned to the process start time so a reused pid never matches, applies only when no native
+Claude or Pi session is found, and becomes kind `declared`. `declare --pid PID --clear` removes it.
+
 ## Planning
 
 `plan <snapshot-digest>` defaults to review-only inspection. Optional `--window-id`, `--pid`,

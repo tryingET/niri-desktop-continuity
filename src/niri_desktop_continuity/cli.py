@@ -90,6 +90,14 @@ def parser():
         help="wait for Niri, skip when the capture came from this compositor instance",
     )
     reopen.add_argument("--spawn-timeout", type=float, default=25.0)
+    declared = commands.add_parser(
+        "declare", help="how to reopen a live terminal process that cannot be resumed"
+    )
+    declared.add_argument("--pid", type=int, required=True)
+    declared.add_argument("--cwd", help="default: the process's working directory")
+    declared.add_argument("--label")
+    declared.add_argument("--clear", action="store_true", help="remove the declaration")
+    declared.add_argument("launch", nargs=argparse.REMAINDER, help="-- COMMAND [ARG...]")
     autostart = commands.add_parser("autostart", help="opt-in systemd user units (capture+reopen)")
     autostart.add_argument("--enable", action="store_true")
     autostart.add_argument("--disable", action="store_true")
@@ -104,6 +112,15 @@ def run(args):
     from .resolution_cli import run as run_resolution
     from .resolution_cli import selected
 
+    if args.command == "declare":
+        from . import launch
+
+        argv = args.launch[1:] if args.launch[:1] == ["--"] else args.launch
+        if args.clear:
+            if argv:
+                raise ValueError("--clear takes no command")
+            return {"cleared": launch.clear_declaration(args.pid), "pid": args.pid}, 0
+        return {"declared": launch.declare(args.pid, argv, cwd=args.cwd, label=args.label)}, 0
     if selected(args):
         return run_resolution(args)
     if args.command == "plan" and (

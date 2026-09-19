@@ -11,6 +11,10 @@ RECIPE_SCHEMA = "desktop-continuity.launch-recipe.v1"
 SHELLS = {"bash", "zsh", "fish", "sh", "dash", "nu", "xonsh"}
 TERMINAL_MARKERS = ("ghostty", "foot", "alacritty", "kitty", "wezterm")
 CLAUDE_TITLE_PREFIX = "✳ "
+# Niri reports this X11 bridge, not the X11 application, as the owner of every X11 window.
+XWAYLAND_BRIDGE = "xwayland-satellite"
+# A type-2 AppImage runs its payload from a temporary FUSE mount named .mount_<name><random>.
+APPIMAGE_MOUNT_PREFIX = ".mount_"
 
 
 def read_cmdline(pid: int) -> list[str]:
@@ -26,6 +30,33 @@ def read_cwd(pid: int) -> str | None:
         return os.readlink(Path("/proc") / str(pid) / "cwd")
     except OSError:
         return None
+
+
+def read_exe(pid: int) -> str | None:
+    try:
+        return os.readlink(Path("/proc") / str(pid) / "exe")
+    except OSError:
+        return None
+
+
+def _unescape_mount_field(value: str) -> str:
+    return re.sub(r"\\([0-7]{3})", lambda match: chr(int(match.group(1), 8)), value)
+
+
+def mount_table(path: Path | None = None) -> list[tuple[str, str, str]]:
+    """(mount point, filesystem type, source) rows of this process's mount namespace."""
+    try:
+        text = (path or Path("/proc/self/mountinfo")).read_text()
+    except OSError:
+        return []
+    rows = []
+    for line in text.splitlines():
+        head, separator, tail = line.partition(" - ")
+        fields, rest = head.split(), tail.split()
+        if not separator or len(fields) < 5 or len(rest) < 2:
+            continue
+        rows.append((_unescape_mount_field(fields[4]), rest[0], _unescape_mount_field(rest[1])))
+    return rows
 
 
 def children_index(inventory: list[dict]) -> dict[int, list[int]]:
@@ -60,6 +91,11 @@ def pi_presence_root() -> Path:
     if runtime:
         return Path(runtime) / "pi-session-presence"
     return Path.home() / ".local" / "state" / "pi-session-presence"
+
+
+def declaration_root() -> Path:
+    # Per boot, like the processes it names: the runtime directory is emptied at reboot.
+    return Path(f"/run/user/{os.getuid()}") / "niri-desktop-continuity-declared"
 
 
 def _private_json(path: Path) -> dict | None:
@@ -139,6 +175,63 @@ def pi_session(pid: int) -> dict | None:
     }
 
 
+def declared_session(pid: int, start_ticks: int | None) -> dict | None:
+    """An operator-declared launch for a process that cannot be resumed natively."""
+    if start_ticks is None:
+        return None
+    value = _private_json(declaration_root() / f"{pid}.json")
+    # The start time pins the declaration to one process: a reused pid never matches.
+    if not value or value.get("pid") != pid or value.get("start_ticks") != start_ticks:
+        return None
+    argv, cwd, label = value.get("argv"), value.get("cwd"), value.get("label")
+    if not (isinstance(argv, list) and argv and all(isinstance(a, str) for a in argv)):
+        return None
+    if not (isinstance(cwd, str) and cwd.startswith("/")):
+        return None
+    return {
+        "kind": "declared",
+        "argv": list(argv),
+        "cwd": cwd,
+        "label": label if isinstance(label, str) else None,
+    }
+
+
+def declare(pid: int, argv: list[str], *, cwd: str | None = None, label: str | None = None) -> dict:
+    """Record how to reopen one live process's surface, e.g. a fresh session from a handoff."""
+    from .probe import proc_stat
+    from .store import private_directory
+
+    if not argv or not all(isinstance(a, str) and a for a in argv):
+        raise ValueError("a non-empty launch command is required")
+    process = proc_stat(pid)  # same-user processes only
+    cwd = cwd or read_cwd(pid)
+    if not cwd or not cwd.startswith("/"):
+        raise ValueError("working directory must be absolute")
+    value = {
+        "pid": pid,
+        "start_ticks": process["start_ticks"],
+        "argv": list(argv),
+        "cwd": cwd,
+        "label": label,
+    }
+    root = declaration_root()
+    private_directory(root)
+    temporary = root / f".{pid}.{os.getpid()}.tmp"
+    fd = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_EXCL | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "w") as stream:
+        json.dump(value, stream)
+    os.replace(temporary, root / f"{pid}.json")
+    return value
+
+
+def clear_declaration(pid: int) -> bool:
+    try:
+        (declaration_root() / f"{pid}.json").unlink()
+    except FileNotFoundError:
+        return False
+    return True
+
+
 def is_terminal(app_id: str, comm: str) -> bool:
     haystack = f"{app_id} {comm}".lower()
     return any(marker in haystack for marker in TERMINAL_MARKERS)
@@ -155,9 +248,23 @@ def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
         tree = [shell, *descendants(shell, children)]
         found = None
         for candidate in tree:
-            found = claude_session(candidate) or pi_session(candidate)
+            found = (
+                claude_session(candidate)
+                or pi_session(candidate)
+                or declared_session(candidate, by_pid.get(candidate, {}).get("start_ticks"))
+            )
             if found:
                 break
+        if found is None and any(by_pid.get(p, {}).get("comm") == "claude" for p in tree):
+            # No registry entry means no resumable session. Its command line (often the opening
+            # prompt) or a child's would start new work, so this surface is not reopened.
+            found = {
+                "kind": "unknown",
+                "argv": [],
+                "cwd": None,
+                "label": None,
+                "reason": "claude-session-unregistered",
+            }
         if found is None:
             leaves = [p for p in tree if not children.get(p) and p not in claimed]
             leaf = next((p for p in leaves if by_pid.get(p, {}).get("comm") not in SHELLS), None)
@@ -195,6 +302,8 @@ def matches_title(session: dict, title: str) -> bool:
 
 
 def terminal_recipe(cmdline: list[str], session: dict | None) -> dict:
+    if session and session["kind"] == "unknown":
+        return unknown_recipe(session["reason"])
     argv = terminal_base_argv(cmdline)
     cwd = session.get("cwd") if session else None
     if cwd:
@@ -231,6 +340,46 @@ def unknown_recipe(reason: str) -> dict:
     }
 
 
+def appimage_launcher(executable: str, inventory: list[dict]) -> str | None:
+    """The AppImage file whose runtime serves the temporary mount `executable` runs from."""
+    mount = next(
+        (
+            (point, fstype, source)
+            for point, fstype, source in mount_table()
+            if Path(point).name.startswith(APPIMAGE_MOUNT_PREFIX)
+            and executable.startswith(point.rstrip("/") + "/")
+        ),
+        None,
+    )
+    if mount is None or not mount[1].startswith("fuse."):
+        return None
+    image_name = mount[2]
+    for item in inventory:
+        image = read_exe(item["pid"])
+        if not image or Path(image).name != image_name:
+            continue
+        try:
+            launched = read_cmdline(item["pid"])[0]
+        except (OSError, IndexError):
+            launched = ""
+        # Prefer the path the operator launched (often a stable, version-free symlink).
+        return launched if launched.startswith("/") else image
+    return None
+
+
+def app_window_recipe(
+    cmdline: list[str], comm: str, cwd: str | None, inventory: list[dict]
+) -> dict:
+    if comm.startswith(XWAYLAND_BRIDGE[:15]) or Path(cmdline[0]).name == XWAYLAND_BRIDGE:
+        return unknown_recipe("xwayland-client")
+    if f"/{APPIMAGE_MOUNT_PREFIX}" in cmdline[0]:
+        launcher = appimage_launcher(cmdline[0], inventory)
+        if launcher is None:
+            return unknown_recipe("appimage-mount-unresolved")
+        return app_recipe([launcher, *cmdline[1:]], cwd)
+    return app_recipe(cmdline, cwd)
+
+
 def window_recipes(
     windows: list[dict], processes: list[dict], inventory: list[dict], titles: dict[int, str]
 ) -> dict[int, dict]:
@@ -256,9 +405,9 @@ def window_recipes(
             continue
         group = sorted(group, key=lambda item: item["id"])
         if not is_terminal(group[0]["app_id"], process.get("comm", "")):
-            cwd = read_cwd(pid)
+            recipe = app_window_recipe(cmdline, process.get("comm", ""), read_cwd(pid), inventory)
             for window in group:
-                recipes[window["id"]] = app_recipe(cmdline, cwd)
+                recipes[window["id"]] = dict(recipe)
             continue
         sessions = terminal_sessions(pid, inventory)
         assigned: dict[int, dict] = {}

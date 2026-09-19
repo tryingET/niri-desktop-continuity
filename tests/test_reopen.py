@@ -2,13 +2,21 @@
 
 from __future__ import annotations
 
+import json
 import sys
 from pathlib import Path
 
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from niri_desktop_continuity import autostart, launch, operation_lock, restore  # noqa: E402
+from niri_desktop_continuity import (  # noqa: E402
+    autostart,
+    cli,
+    launch,
+    operation_lock,
+    probe,
+    restore,
+)
 from niri_desktop_continuity.model import normalized_snapshot  # noqa: E402
 from niri_desktop_continuity.store import Store  # noqa: E402
 
@@ -20,6 +28,7 @@ def isolated(tmp_path, monkeypatch):
     runtime = tmp_path / "runtime"
     runtime.mkdir(mode=0o700)
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: runtime)
+    monkeypatch.setattr(launch, "declaration_root", lambda: runtime / "declared")
     monkeypatch.setattr(restore, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
 
 
@@ -170,6 +179,243 @@ def test_direct_child_command_without_shell_is_a_command(monkeypatch):
     assert launch.terminal_sessions(10, inventory) == [
         {"kind": "command", "argv": ["btop"], "cwd": "/h", "label": None}
     ]
+
+
+def test_unregistered_claude_session_is_never_replayed_from_its_prompt(monkeypatch):
+    # A Claude process with no registry entry (e.g. one started with its prompt as argv) cannot
+    # be resumed; replaying its command line would start the same task over as a new session.
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "ghostty"},
+        {"pid": 11, "ppid": 10, "comm": "claude"},
+        {"pid": 20, "ppid": 1, "comm": "ghostty"},
+        {"pid": 21, "ppid": 20, "comm": "bash"},
+        {"pid": 22, "ppid": 21, "comm": "claude"},
+        {"pid": 23, "ppid": 22, "comm": "node"},
+    ]
+    cmdlines = {
+        10: ["ghostty", "-e", "/opt/claude-code/bin/claude", "Work task 7. Claim it first."],
+        11: ["/opt/claude-code/bin/claude", "Work task 7. Claim it first."],
+        20: ["ghostty"],
+        23: ["node", "/srv/mcp-server.js"],
+    }
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: cmdlines[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/w")
+    monkeypatch.setattr(launch, "claude_session", lambda pid: None)
+    monkeypatch.setattr(launch, "pi_session", lambda pid: None)
+    windows = [
+        {"id": 1, "pid": 10, "app_id": "com.mitchellh.ghostty"},
+        {"id": 2, "pid": 20, "app_id": "com.mitchellh.ghostty"},
+    ]
+    processes = [{"pid": 10, "comm": "ghostty"}, {"pid": 20, "comm": "ghostty"}]
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    unresumable = {
+        "schema": launch.RECIPE_SCHEMA,
+        "kind": "unknown",
+        "argv": [],
+        "cwd": None,
+        "label": None,
+        "reason": "claude-session-unregistered",
+    }
+    # Directly under the terminal, and under a shell with a child of its own (whose command
+    # line is not the session either).
+    assert recipes == {1: unresumable, 2: unresumable}
+
+
+def test_unregistered_claude_tab_is_an_unknown_extra(monkeypatch):
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "ghostty"},
+        {"pid": 11, "ppid": 10, "comm": "bash"},
+        {"pid": 12, "ppid": 11, "comm": "btop"},
+        {"pid": 13, "ppid": 10, "comm": "claude"},
+    ]
+    cmdlines = {10: ["ghostty"], 12: ["btop"], 13: ["claude", "do it"]}
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: cmdlines[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/w")
+    monkeypatch.setattr(launch, "claude_session", lambda pid: None)
+    monkeypatch.setattr(launch, "pi_session", lambda pid: None)
+    windows = [{"id": 1, "pid": 10, "app_id": "com.mitchellh.ghostty"}]
+    recipes = launch.window_recipes(windows, [{"pid": 10, "comm": "ghostty"}], inventory, {})
+    assert recipes[1]["kind"] == "command"
+    assert recipes[1]["argv"] == ["ghostty", "--working-directory=/w", "-e", "btop"]
+    assert recipes[1]["extra"] == [launch.unknown_recipe("claude-session-unregistered")]
+
+
+def unresumable_claude_tree(monkeypatch):
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "ghostty", "start_ticks": 100},
+        {"pid": 11, "ppid": 10, "comm": "claude", "start_ticks": 500},
+    ]
+    cmdlines = {10: ["ghostty", "--working-directory=/w", "-e", "claude", "Work task 7."]}
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: cmdlines[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/w")
+    monkeypatch.setattr(launch, "claude_session", lambda pid: None)
+    monkeypatch.setattr(launch, "pi_session", lambda pid: None)
+
+    def proc_stat(pid):
+        match = next((item for item in inventory if item["pid"] == pid), None)
+        if match is None:
+            raise FileNotFoundError(pid)  # like /proc for a process that is gone
+        return dict(match)
+
+    monkeypatch.setattr(probe, "proc_stat", proc_stat)
+    windows = [{"id": 1, "pid": 10, "app_id": "com.mitchellh.ghostty"}]
+    return windows, [{"pid": 10, "comm": "ghostty"}], inventory
+
+
+def test_declared_reopen_starts_a_fresh_session_from_a_handoff(monkeypatch):
+    windows, processes, inventory = unresumable_claude_tree(monkeypatch)
+    written = launch.declare(
+        11, ["claude", "Resume task 7. Read /w/docs/handoff.md first."], cwd="/w", label="task 7"
+    )
+    path = launch.declaration_root() / "11.json"
+    assert written == {
+        "pid": 11,
+        "start_ticks": 500,
+        "argv": ["claude", "Resume task 7. Read /w/docs/handoff.md first."],
+        "cwd": "/w",
+        "label": "task 7",
+    }
+    assert path.stat().st_mode & 0o777 == 0o600
+    assert launch.declaration_root().stat().st_mode & 0o777 == 0o700
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    assert recipes == {
+        1: {
+            "schema": launch.RECIPE_SCHEMA,
+            "kind": "declared",
+            "argv": [
+                "ghostty",
+                "--working-directory=/w",
+                "-e",
+                "claude",
+                "Resume task 7. Read /w/docs/handoff.md first.",
+            ],
+            "cwd": "/w",
+            "label": "task 7",
+        }
+    }
+    # A declared recipe reopens on its saved workspace like any other known recipe.
+    plan = restore.plan_restore(saved([window(1, 2, 1, reopen=recipes[1])]), [], [])
+    assert plan["entries"][0]["target_workspace_idx"] == 1
+    assert plan["unknown_workspace_idx"] is None
+    assert launch.clear_declaration(11) is True
+    assert not path.exists()
+    assert launch.clear_declaration(11) is False
+
+
+def test_declaration_for_a_reused_pid_is_ignored(monkeypatch):
+    windows, processes, inventory = unresumable_claude_tree(monkeypatch)
+    launch.declare(11, ["claude", "Resume task 7."], cwd="/w")
+    inventory[1]["start_ticks"] = 501  # same pid, another process
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    assert recipes[1] == launch.unknown_recipe("claude-session-unregistered")
+
+
+def test_declare_refuses_what_it_could_not_reopen(monkeypatch):
+    unresumable_claude_tree(monkeypatch)
+    with pytest.raises(ValueError, match="command"):
+        launch.declare(11, [], cwd="/w")
+    with pytest.raises(ValueError, match="absolute"):
+        launch.declare(11, ["claude"], cwd="relative/dir")
+    with pytest.raises(OSError):
+        launch.declare(12, ["claude"], cwd="/w")  # no such same-user process
+    assert not (launch.declaration_root() / "11.json").exists()
+
+
+def test_declare_cli_defaults_the_directory_to_the_process(monkeypatch, capsys):
+    unresumable_claude_tree(monkeypatch)
+    assert cli.main(["declare", "--pid", "11", "--", "claude", "Resume task 7."]) == 0
+    assert json.loads(capsys.readouterr().out)["declared"] == {
+        "pid": 11,
+        "start_ticks": 500,
+        "argv": ["claude", "Resume task 7."],
+        "cwd": "/w",
+        "label": None,
+    }
+    assert cli.main(["declare", "--pid", "11", "--clear"]) == 0
+    assert json.loads(capsys.readouterr().out) == {"cleared": True, "pid": 11}
+
+
+def test_mountinfo_parser_reads_point_type_and_source(tmp_path):
+    table = tmp_path / "mountinfo"
+    table.write_text(
+        "22 1 0:21 / /proc rw,nosuid shared:5 - proc proc rw\n"
+        "111 61 0:189 / /var/tmp/.mount_Obsid\\040X ro,nosuid shared:752 - "
+        "fuse.Obsidian-1.13.4.AppImage Obsidian-1.13.4.AppImage ro,user_id=1000\n"
+        "garbage line\n"
+    )
+    assert launch.mount_table(table) == [
+        ("/proc", "proc", "proc"),
+        (
+            "/var/tmp/.mount_Obsid X",
+            "fuse.Obsidian-1.13.4.AppImage",
+            "Obsidian-1.13.4.AppImage",
+        ),
+    ]
+
+
+def appimage_fixture(monkeypatch, *, runtime_argv0="/opt/o/Obsidian.AppImage"):
+    mounts = [
+        ("/", "ext4", "/dev/nvme0n1p2"),
+        (
+            "/var/tmp/.mount_ObsidiqoUV",
+            "fuse.Obsidian-1.13.4.AppImage",
+            "Obsidian-1.13.4.AppImage",
+        ),
+    ]
+    monkeypatch.setattr(launch, "mount_table", lambda path=None: mounts)
+    cmdlines = {5: ["/var/tmp/.mount_ObsidiqoUV/obsidian", "--flag"], 40: [runtime_argv0]}
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: cmdlines[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/srv/work")
+    exes = {
+        5: "/var/tmp/.mount_ObsidiqoUV/obsidian",
+        40: "/opt/o/Obsidian-1.13.4.AppImage",
+        41: "/usr/bin/bash",
+    }
+    monkeypatch.setattr(launch, "read_exe", lambda pid: exes.get(pid))  # None, like a gone pid
+    windows = [{"id": 1, "pid": 5, "app_id": "md.Obsidian"}]
+    processes = [{"pid": 5, "comm": "obsidian"}]
+    return windows, processes
+
+
+def test_appimage_app_reopens_from_its_image_not_its_temporary_mount(monkeypatch):
+    windows, processes = appimage_fixture(monkeypatch)
+    inventory = [
+        {"pid": 5, "ppid": 1, "comm": "obsidian"},
+        {"pid": 40, "ppid": 1, "comm": "Obsidian.AppIma"},
+        {"pid": 41, "ppid": 1, "comm": "bash"},
+    ]
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    # The runtime's own argv[0] is the path the operator launched (a stable symlink here).
+    assert recipes[1] == launch.app_recipe(["/opt/o/Obsidian.AppImage", "--flag"], "/srv/work")
+
+
+def test_appimage_relative_launch_falls_back_to_the_image_file(monkeypatch):
+    windows, processes = appimage_fixture(monkeypatch, runtime_argv0="./Obsidian.AppImage")
+    inventory = [{"pid": 5, "ppid": 1, "comm": "obsidian"}, {"pid": 40, "ppid": 1, "comm": "x"}]
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    assert recipes[1]["argv"] == ["/opt/o/Obsidian-1.13.4.AppImage", "--flag"]
+
+
+def test_appimage_without_its_runtime_process_is_unknown(monkeypatch):
+    windows, processes = appimage_fixture(monkeypatch)
+    inventory = [{"pid": 5, "ppid": 1, "comm": "obsidian"}, {"pid": 41, "ppid": 1, "comm": "bash"}]
+    recipes = launch.window_recipes(windows, processes, inventory, {})
+    assert recipes[1] == launch.unknown_recipe("appimage-mount-unresolved")
+
+
+def test_xwayland_bridge_is_not_the_application(monkeypatch):
+    # Niri reports the X11 bridge as the owner of every X11 window; relaunching it opens nothing.
+    monkeypatch.setattr(
+        launch, "read_cmdline", lambda pid: ["xwayland-satellite", ":0", "-listenfd", "102"]
+    )
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/")
+    windows = [{"id": 1, "pid": 6, "app_id": "AGNT"}, {"id": 2, "pid": 6, "app_id": "xterm"}]
+    processes = [{"pid": 6, "comm": "xwayland-satell"}]
+    recipes = launch.window_recipes(windows, processes, [], {})
+    assert recipes == {
+        1: launch.unknown_recipe("xwayland-client"),
+        2: launch.unknown_recipe("xwayland-client"),
+    }
 
 
 def test_app_windows_share_the_process_command(monkeypatch):
