@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import time
 from copy import deepcopy
@@ -25,6 +26,17 @@ SELF_RESTORING_APP_IDS = {
 }
 SPAWN_TIMEOUT = 25.0
 POLL_INTERVAL = 0.4
+# niri spawns from its own working directory. An application captured with a relative path
+# (`electron .`) starts in its saved one; `exec` keeps its command line exactly as recorded.
+CHDIR_EXEC = 'cd -- "$1" && shift && exec "$@"'
+
+
+def spawn_argv(recipe: dict) -> list[str]:
+    """Terminal recipes carry their directory in their own argv; applications need it applied."""
+    argv, cwd = list(recipe["argv"]), recipe.get("cwd")
+    if recipe.get("kind") == "app" and isinstance(cwd, str) and os.path.isdir(cwd):
+        return ["sh", "-c", CHDIR_EXEC, "sh", cwd, *argv]
+    return argv
 
 
 class LiveDesktop:
@@ -312,7 +324,7 @@ def _restore_locked(store, snapshot_key, snapshot, desktop, observe, apply, spaw
                 )
                 record["awaited_self_restore"] = window is not None
             if window is None:
-                desktop.spawn(entry["recipe"]["argv"])
+                desktop.spawn(spawn_argv(entry["recipe"]))
                 launched.add(launch_key)
                 receipt["effects"].append({"action": "spawn", "kind": record["kind"], "at": now()})
                 window = wait_for_window(desktop, known, entry.get("app_id"), spawn_timeout)

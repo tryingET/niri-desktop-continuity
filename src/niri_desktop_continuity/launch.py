@@ -5,6 +5,7 @@ from __future__ import annotations
 import json
 import os
 import re
+import shutil
 from pathlib import Path
 
 RECIPE_SCHEMA = "desktop-continuity.launch-recipe.v1"
@@ -367,17 +368,42 @@ def appimage_launcher(executable: str, inventory: list[dict]) -> str | None:
     return None
 
 
+def process_title_argv(cmdline: list[str]) -> list[str] | None:
+    """Chromium and Electron overwrite /proc/PID/cmdline with one space-joined process title.
+
+    Split such a title only where a leading part names a real program (whose path may itself
+    contain spaces); arguments that contained spaces cannot be recovered. None: no program found.
+    """
+    if len(cmdline) != 1 or " " not in cmdline[0] or os.path.exists(cmdline[0]):
+        return cmdline
+    words = cmdline[0].split(" ")
+    for end in range(1, len(words)):
+        head = " ".join(words[:end])
+        if (os.path.isfile(head) and os.access(head, os.X_OK)) or (
+            os.sep not in head and shutil.which(head)
+        ):
+            return [head, *(word for word in words[end:] if word)]
+    return None
+
+
 def app_window_recipe(
     cmdline: list[str], comm: str, cwd: str | None, inventory: list[dict]
 ) -> dict:
     if comm.startswith(XWAYLAND_BRIDGE[:15]) or Path(cmdline[0]).name == XWAYLAND_BRIDGE:
         return unknown_recipe("xwayland-client")
-    if f"/{APPIMAGE_MOUNT_PREFIX}" in cmdline[0]:
-        launcher = appimage_launcher(cmdline[0], inventory)
+    argv = process_title_argv(cmdline)
+    if argv is None:
+        return unknown_recipe("process-title-unresolved")
+    split_title = argv is not cmdline  # process_title_argv returns an intact argv unchanged
+    if f"/{APPIMAGE_MOUNT_PREFIX}" in argv[0]:
+        launcher = appimage_launcher(argv[0], inventory)
         if launcher is None:
             return unknown_recipe("appimage-mount-unresolved")
-        return app_recipe([launcher, *cmdline[1:]], cwd)
-    return app_recipe(cmdline, cwd)
+        argv = [launcher, *argv[1:]]
+    recipe = app_recipe(argv, cwd)
+    if split_title:
+        recipe["argv_from_process_title"] = True
+    return recipe
 
 
 def window_recipes(

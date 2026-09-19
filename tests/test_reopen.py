@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 from pathlib import Path
 
@@ -429,6 +430,37 @@ def test_app_windows_share_the_process_command(monkeypatch):
     assert recipes[1] == recipes[2] == launch.app_recipe(["nautilus", "--new-window"], "/srv/x")
 
 
+def program(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text("#!/bin/sh\n")
+    path.chmod(0o755)
+    return str(path)
+
+
+def test_rewritten_process_title_is_split_at_a_real_program(tmp_path, monkeypatch):
+    # Chromium/Electron overwrite /proc/PID/cmdline with one space-joined title.
+    electron = program(tmp_path / "agnt/node_modules/electron/dist/electron")
+    spaced = program(tmp_path / "My Apps/tool")
+    titles = {
+        1: [f"{electron} --ozone-platform=wayland ."],
+        2: [f"{spaced} --silent"],
+        3: [f"{tmp_path}/missing --silent"],
+        4: [spaced],  # a real path that contains a space is not a title
+        5: ["nautilus", "--new-window"],  # an intact argv is left alone
+    }
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: titles[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/srv/agnt")
+    windows = [{"id": pid, "pid": pid, "app_id": f"app{pid}"} for pid in titles]
+    processes = [{"pid": pid, "comm": "electron"} for pid in titles]
+    recipes = launch.window_recipes(windows, processes, [], {})
+    assert recipes[1]["argv"] == [electron, "--ozone-platform=wayland", "."]
+    assert recipes[1]["argv_from_process_title"] is True and recipes[1]["cwd"] == "/srv/agnt"
+    assert recipes[2]["argv"] == [spaced, "--silent"]
+    assert recipes[3] == launch.unknown_recipe("process-title-unresolved")
+    assert recipes[4] == launch.app_recipe([spaced], "/srv/agnt")
+    assert recipes[5] == launch.app_recipe(["nautilus", "--new-window"], "/srv/agnt")
+
+
 def test_claude_registry_and_title_scan(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     sessions = tmp_path / ".claude" / "sessions"
@@ -461,6 +493,32 @@ def test_pi_presence_entry(tmp_path, monkeypatch):
     assert launch.pi_session(7)["argv"] == ["pi", "--session", "/s.jsonl"]
     assert launch.pi_session(7)["label"] == "tok"
     assert launch.pi_session(8) is None
+
+
+def test_recipe_labels_are_redacted_with_titles():
+    # A Claude label is the session's AI title, which is also its terminal's window title.
+    labelled = dict(
+        recipe("claude", "ghostty", "-e", "claude", "--resume", "id"),
+        label="Fix the private billing bug",
+        extra=[dict(recipe("pi", "ghostty", "-e", "pi"), label="private pi session")],
+    )
+    raw = {
+        "identity": IDENTITY,
+        "coherent": True,
+        "outputs": [{"name": "DP-1", "logical": {"w": 1}, "current_mode": 0}],
+        "workspaces": [{"id": 1, "idx": 1, "output": "DP-1", "is_focused": True}],
+        "windows": [window(1, 1, 1, reopen=labelled), window(2, 1, 2, reopen=None)],
+    }
+    redacted = normalized_snapshot(raw)
+    assert "private" not in json.dumps(redacted)
+    reopen = redacted["windows"][0]["reopen"]
+    assert reopen["label"] is None and reopen["extra"][0]["label"] is None
+    assert reopen["argv"] == ["ghostty", "-e", "claude", "--resume", "id"]
+    assert redacted["windows"][1]["reopen"] is None
+    kept = normalized_snapshot(raw, include_titles=True)["windows"][0]["reopen"]
+    assert kept["label"] == "Fix the private billing bug"
+    assert kept["extra"][0]["label"] == "private pi session"
+    assert raw["windows"][0]["reopen"]["label"] == "Fix the private billing bug"  # input unchanged
 
 
 # --- placement plan ------------------------------------------------------------------------
@@ -667,6 +725,43 @@ def test_self_restoring_app_is_launched_once_then_awaited(tmp_path):
     assert [w["status"] for w in result["windows"]] == ["placed"] * 3
     assert result["windows"][1]["awaited_self_restore"] is True
     assert result["windows"][2]["awaited_self_restore"] is False
+
+
+def test_app_reopens_in_its_saved_directory(tmp_path):
+    # niri spawns from its own directory; `electron .` must start where it was captured.
+    checkout = tmp_path / "checkout"
+    checkout.mkdir()
+    electron = ("/opt/agnt/electron", "--ozone-platform=wayland", ".")
+    store = Store(tmp_path / "state")
+    snapshot = saved(
+        [
+            window(1, 1, 1, app="AGNT", reopen={**recipe("app", *electron), "cwd": str(checkout)}),
+            window(
+                2, 1, 2, app="gone", reopen={**recipe("app", "gone", "."), "cwd": "/no/such/dir"}
+            ),
+            window(3, 1, 3, reopen={**recipe("pi", "ghostty", "-e", "pi"), "cwd": str(checkout)}),
+        ]
+    )
+    key = store.put("snapshots", snapshot)
+    desktop = FakeDesktop([])
+    restore.restore(store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1)
+    chdir = 'cd -- "$1" && shift && exec "$@"'
+    assert [a[1] for a in desktop.actions if a[0] == "spawn"] == [
+        ("sh", "-c", chdir, "sh", str(checkout), *electron),
+        ("gone", "."),  # a vanished directory falls back to niri's, as before
+        ("ghostty", "-e", "pi"),  # terminals carry their directory in their own argv
+    ]
+
+
+def test_saved_directory_wrapper_changes_directory_without_reinterpreting_arguments(tmp_path):
+    argv = ["printf", "%s|", "a b", "$HOME", "`id`", "."]
+    wrapped = restore.spawn_argv({"kind": "app", "argv": argv, "cwd": str(tmp_path)})
+    shown = subprocess.run(wrapped, capture_output=True, text=True, check=True).stdout
+    assert shown == "a b|$HOME|`id`|.|"
+    wrapped = restore.spawn_argv({"kind": "app", "argv": ["pwd", "-P"], "cwd": str(tmp_path)})
+    assert subprocess.run(wrapped, capture_output=True, text=True, check=True).stdout == (
+        f"{tmp_path.resolve()}\n"
+    )
 
 
 def test_dry_run_has_no_effects_and_refuses_headless_snapshot(tmp_path):

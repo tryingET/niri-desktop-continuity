@@ -183,6 +183,12 @@ def normalized_snapshot(raw: dict, *, include_titles: bool = False) -> dict:
         window["title"] = (
             str(window.get("title") or "") if include_titles else f"{app} · {window['id']}"
         )
+        reopen = window.get("reopen")
+        if not include_titles and isinstance(reopen, dict):
+            # A session label (e.g. Claude's AI title) is the window title under another name.
+            for recipe in [reopen, *(reopen.get("extra") or [])]:
+                if isinstance(recipe, dict):
+                    recipe["label"] = None
         window["layout"] = window.get("layout") or {}
         window["capabilities"] = capability(app)
     require_snapshot(snapshot)
