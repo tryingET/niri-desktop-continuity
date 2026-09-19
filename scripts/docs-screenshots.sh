@@ -14,6 +14,6 @@ shot() { # page, CSS height, output name
     magick "$work/$3" -strip -define png:exclude-chunks=all -colors 96 "PNG8:docs/assets/$3"
 }
 mkdir -p docs/assets
-shot preview.html 1010 preview-map.png
-shot after-reboot.html 1446 preview-after-reboot.png
+shot preview.html 1312 preview-map.png
+shot after-reboot.html 1219 preview-after-reboot.png
 uv run --frozen python scripts/check-portability.py

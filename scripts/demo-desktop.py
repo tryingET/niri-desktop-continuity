@@ -17,6 +17,8 @@ from niri_desktop_continuity.model import normalized_snapshot
 GHOSTTY = 2210  # one single-instance terminal process owns every terminal window
 TERMINAL = "com.mitchellh.ghostty"
 API, NOTES, INFRA = "/work/garden-api", "/work/notes", "/work/infra"
+BRAVE, FIREFOX, X11_BRIDGE = 1874, 1902, 1702
+WORKSPACES = ("garden-api", "web", "notes", "chat", "ops")
 
 
 def recipe(kind, argv=(), cwd=None, label=None, reason=None):
@@ -35,147 +37,174 @@ def claude(cwd, session_id, title):
     return terminal("claude", cwd, "claude", "--resume", session_id, label=title)
 
 
-# (workspace id, column, tile, pid, app id, title, reopen recipe)
-WINDOWS = [
-    (
-        1,
-        1,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "✳ Fix flaky login test",
-        claude(API, "7c1e2f0a-3b5d-4e8f-9a61-2d4c8b7e5f13", "Fix flaky login test"),
-    ),
-    (
-        1,
-        2,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "pi · rate-limiter refactor",
-        terminal("pi", API, "pi", "--session", "3f9a1c7e", label="rate-limiter refactor"),
-    ),
-    (1, 2, 2, GHOSTTY, TERMINAL, API, terminal("shell", API)),
-    (1, 3, 1, GHOSTTY, TERMINAL, "npm run dev", terminal("command", API, "npm", "run", "dev")),
-    # Started from inside another Claude session's shell: no registry entry, so never replayed.
-    (
-        1,
-        4,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "✳ Draft release notes",
-        recipe("unknown", reason="claude-session-unregistered"),
-    ),
-    (
-        2,
-        1,
-        1,
-        1990,
-        "md.Obsidian",
-        "Weekly review - notes - Obsidian",
-        recipe("app", ["/opt/obsidian/Obsidian.AppImage"]),
-    ),
-    (
-        2,
-        2,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "✳ Search index handoff",
-        terminal(
-            "declared",
-            NOTES,
-            "claude",
-            "Continue from docs/handoff.md",
-            label="search index, fresh session",
-        ),
-    ),
-    (
-        2,
-        3,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "✳ Review PR 142",
-        claude(NOTES, "0b8d4a6e-91f2-4c37-b5e0-6a2f9d1c8e74", "Review PR 142"),
-    ),
-    # Niri reports only the xwayland-satellite bridge as the owner of an X11 window.
-    (
-        2,
-        4,
-        1,
-        1702,
-        "jetbrains-idea",
-        "garden-api – IntelliJ IDEA",
-        recipe("unknown", reason="xwayland-client"),
-    ),
-    (3, 1, 1, 1874, "brave-browser", "Niri wiki: Configuration — Brave", recipe("app", ["brave"])),
-    (
-        3,
-        2,
-        1,
-        1874,
-        "brave-browser",
-        "Pull requests · garden-api — Brave",
-        recipe("app", ["brave"]),
-    ),
-    (
-        3,
-        3,
-        1,
-        1920,
-        "org.mozilla.Thunderbird",
-        "Inbox — Thunderbird",
-        recipe("app", ["thunderbird"]),
-    ),
-    (4, 1, 1, GHOSTTY, TERMINAL, "btop", terminal("command", INFRA, "btop")),
-    (
-        4,
-        2,
-        1,
-        GHOSTTY,
-        TERMINAL,
-        "pi · deploy checklist",
-        terminal("pi", INFRA, "pi", "--session", "a41d0b92", label="deploy checklist"),
-    ),
-    (
-        4,
-        None,
-        None,
-        2305,
-        "org.gnome.Calculator",
-        "Calculator",
-        recipe("app", ["gnome-calculator"]),
-    ),
-]
+def pi(cwd, session, title):
+    return terminal("pi", cwd, "pi", "--session", session, label=title)
+
+
+def app(*argv):
+    return recipe("app", argv)
+
+
+# workspace -> columns -> tiles of (pid, app id, title, reopen recipe)
+DESKTOP = {
+    "garden-api": [
+        [
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Fix flaky login test",
+                claude(API, "7c1e2f0a-3b5d-4e8f-9a61-2d4c8b7e5f13", "Fix flaky login test"),
+            ),
+            # Started from inside the Claude session above: no registry entry, so never replayed.
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Draft release notes",
+                recipe("unknown", reason="claude-session-unregistered"),
+            ),
+        ],
+        [
+            (
+                GHOSTTY,
+                TERMINAL,
+                "pi · rate-limiter refactor",
+                pi(API, "3f9a1c7e", "rate-limiter refactor"),
+            ),
+            (GHOSTTY, TERMINAL, API, terminal("shell", API)),
+        ],
+        [
+            (GHOSTTY, TERMINAL, "npm run dev", terminal("command", API, "npm", "run", "dev")),
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Audit-log migration",
+                claude(API, "5d2b8e41-0c7a-4f96-8e13-b4a9c6d2f071", "Audit-log migration"),
+            ),
+        ],
+        # Niri reports only the xwayland-satellite bridge as the owner of an X11 window.
+        [
+            (
+                X11_BRIDGE,
+                "jetbrains-idea",
+                "garden-api – IntelliJ IDEA",
+                recipe("unknown", reason="xwayland-client"),
+            )
+        ],
+    ],
+    "web": [
+        [(BRAVE, "brave-browser", "Niri wiki: Configuration — Brave", app("brave"))],
+        [(BRAVE, "brave-browser", "Pull requests · garden-api — Brave", app("brave"))],
+        [(BRAVE, "brave-browser", "Grafana: API latency — Brave", app("brave"))],
+        [(FIREFOX, "org.mozilla.firefox", "structuredClone() — MDN — Firefox", app("firefox"))],
+    ],
+    "notes": [
+        [
+            (
+                1990,
+                "md.Obsidian",
+                "Weekly review - notes - Obsidian",
+                app("/opt/obsidian/Obsidian.AppImage"),
+            )
+        ],
+        [
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Search index handoff",
+                terminal(
+                    "declared",
+                    NOTES,
+                    "claude",
+                    "Continue from docs/handoff.md",
+                    label="search index, fresh session",
+                ),
+            )
+        ],
+        [
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Review PR 142",
+                claude(NOTES, "0b8d4a6e-91f2-4c37-b5e0-6a2f9d1c8e74", "Review PR 142"),
+            ),
+            (GHOSTTY, TERMINAL, "pi · restore guide", pi(NOTES, "c07e5a19", "restore guide")),
+        ],
+    ],
+    "chat": [
+        [(1920, "org.mozilla.Thunderbird", "Inbox — Thunderbird", app("thunderbird"))],
+        # Electron rewrote its command line into one title; capture split it at the program.
+        [
+            (
+                2044,
+                "signal",
+                "Signal",
+                {
+                    **app("/usr/lib/signal-desktop/signal-desktop", "--use-tray-icon"),
+                    "argv_from_process_title": True,
+                },
+            )
+        ],
+        [(2101, "org.gnome.Nautilus", "garden-api — Files", app("nautilus", "--new-window"))],
+    ],
+    "ops": [
+        [(GHOSTTY, TERMINAL, "btop", terminal("command", INFRA, "btop"))],
+        [
+            (GHOSTTY, TERMINAL, "pi · deploy checklist", pi(INFRA, "a41d0b92", "deploy checklist")),
+            (
+                GHOSTTY,
+                TERMINAL,
+                "✳ Investigate 502s on staging",
+                claude(
+                    INFRA, "9e4f7a20-6b1d-4c58-a3e2-17d0c5b8f936", "Investigate 502s on staging"
+                ),
+            ),
+        ],
+        [(GHOSTTY, TERMINAL, "ssh staging-1", terminal("command", INFRA, "ssh", "staging-1"))],
+    ],
+}
+FLOATING = {"ops": (2305, "org.gnome.Calculator", "Calculator", app("gnome-calculator"))}
 EXECUTABLES = {
-    1874: "/opt/brave-bin/brave",
+    BRAVE: "/opt/brave-bin/brave",
+    FIREFOX: "/usr/lib/firefox/firefox",
     1920: "/usr/lib/thunderbird/thunderbird",
     1990: "/opt/obsidian/Obsidian.AppImage",
+    2044: "/usr/lib/signal-desktop/signal-desktop",
+    2101: "/usr/bin/nautilus",
     GHOSTTY: "/usr/bin/ghostty",
-    1702: "/usr/bin/xwayland-satellite",
+    X11_BRIDGE: "/usr/bin/xwayland-satellite",
     2305: "/usr/bin/gnome-calculator",
 }
 
 
-def window(wid, workspace, column, tile, pid, app_id, title, reopen):
-    layout = {"tile_size": [1264.0, 1384.0], "window_size": [1264, 1384]}
-    if column is None:
-        layout = {"tile_pos_in_workspace_view": [1840.0, 96.0], "tile_size": [420.0, 560.0]}
-    else:
-        layout["pos_in_scrolling_layout"] = [column, tile]
-    return {
-        "id": wid,
-        "pid": pid,
-        "app_id": app_id,
-        "title": title,
-        "workspace_id": workspace,
-        "is_floating": column is None,
-        "is_focused": wid == 1,
-        "layout": layout,
-        "reopen": reopen,
-    }
+TILED = {"tile_size": [1264.0, 1384.0], "window_size": [1264, 1384]}
+FLOATED = {"tile_pos_in_workspace_view": [1840.0, 96.0], "tile_size": [420.0, 560.0]}
+
+
+def windows() -> list[dict]:
+    rows = []
+    for workspace, name in enumerate(WORKSPACES, 1):
+        placed = [
+            (tile, {**TILED, "pos_in_scrolling_layout": [column, index]})
+            for column, tiles in enumerate(DESKTOP[name], 1)
+            for index, tile in enumerate(tiles, 1)
+        ]
+        if name in FLOATING:
+            placed.append((FLOATING[name], FLOATED))
+        for (pid, app_id, title, reopen), layout in placed:
+            rows.append(
+                {
+                    "id": len(rows) + 1,
+                    "pid": pid,
+                    "app_id": app_id,
+                    "title": title,
+                    "workspace_id": workspace,
+                    "is_floating": layout is FLOATED,
+                    "is_focused": not rows,
+                    "layout": layout,
+                    "reopen": reopen,
+                }
+            )
+    return rows
 
 
 def demo_snapshot() -> dict:
@@ -194,9 +223,9 @@ def demo_snapshot() -> dict:
             ],
             "workspaces": [
                 {"id": ws, "idx": ws, "name": name, "output": "DP-1", "is_focused": ws == 1}
-                for ws, name in enumerate(("garden-api", "notes", "web", "ops"), 1)
+                for ws, name in enumerate(WORKSPACES, 1)
             ],
-            "windows": [window(wid, *row) for wid, row in enumerate(WINDOWS, 1)],
+            "windows": windows(),
             "processes": [
                 {
                     "pid": pid,

@@ -4,10 +4,11 @@
 reopen on their workspaces in their column order, Claude Code and Pi sessions resume by id, and
 anything that cannot be reopened safely is reported, never guessed.
 
-![Offline preview of a fabricated demo desktop: workspace 1 with five terminal windows, each tile saying whether it reopens after a reboot](docs/assets/preview-map.png)
+![Offline preview of a fabricated demo desktop: a project workspace with Claude Code and Pi sessions, a dev server and an X11 IDE, then a browser workspace; each tile says whether it reopens after a reboot](docs/assets/preview-map.png)
 
-<sub>The offline preview page, rendered from a fabricated demo desktop (not anyone's real one).
-Every tile says how it comes back after a reboot, or why it will not.</sub>
+<sub>The offline preview page for a fabricated demo desktop (not anyone's real one): the first two
+of its five workspaces, 23 windows in all. Every tile says how it comes back after a reboot, or
+why it will not.</sub>
 
 ## Why
 
@@ -74,9 +75,10 @@ removes it.
 every saved window: whether it reopens, as what, with the exact command and directory, or why it
 will not.
 
-![The "After a reboot" section of the preview for the same demo desktop: 13 of 15 reopen; an unregistered Claude session and an X11 window will not, each with its reason](docs/assets/preview-after-reboot.png)
+![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](docs/assets/preview-after-reboot.png)
 
-<sub>Same fabricated demo desktop. `restore` prints the same plan as JSON.</sub>
+<sub>Same fabricated demo desktop, first workspace's rows. `restore` prints the same plan as
+JSON.</sub>
 
 ## How it works
 

@@ -212,7 +212,9 @@ def test_documentation_demo_desktop_is_fabricated_and_display_valid(tmp_path):
     source = demo.demo_snapshot()
     assert readiness(source)["ready"] and source["identity"]["boot_id"] == "demo"
     after = ledger(render_html(source))
-    assert "13 of 15 reopen after a reboot" in after and "2 will not" in after
+    assert "21 of 23 reopen after a reboot" in after and "2 will not" in after
+    assert "claude 4 · pi 3 · declared 1 · app 9 · command 3 · shell 1" in after
+    assert after.count("split from the process title") == 1
     for reason in ("claude-session-unregistered", "xwayland-client"):
         assert f"<code>{reason}</code>" in after
     assert "reopens as declared" in render_html(source)
