@@ -11,14 +11,20 @@ read_when:
 `capture` observes Niri outputs, workspaces, windows and layer surfaces, plus same-user process
 identity metadata. It samples twice and rejects coherence if topology, focus, active workspace,
 layer list or window-host process identity changes. This is bounded observation, not an atomic
-snapshot across processes. It never reads terminal contents, browser profiles or session logs,
-and never executes a discovered application binary. Niri IPC is the only invoked runtime CLI.
+snapshot across processes. It never reads terminal contents or browser profiles, and never
+executes a discovered application binary. Session identity comes from Claude Code's per-PID
+registry and Pi's presence files; a Claude transcript is scanned only for its title records, to
+match sessions to windows. Niri IPC is the only invoked runtime CLI.
 
-`capture --include-titles` stores private window labels. Default labels identify applications
-and window IDs only. Other process metadata can still be sensitive. Keep all captures private.
+`capture --include-titles` stores private window labels and session titles. Default labels
+identify applications and window IDs only, and reopen recipes carry no session title. Other
+process metadata, including recipe command lines, can still be sensitive. Keep captures private.
 
-`preview <digest>` renders stored snapshots offline; `--kind plans` renders current and desired
-maps plus admission blockers. HTML and SVG escape all observed strings and contain no scripts,
+`preview [digest]` renders a stored snapshot offline (default: the latest capture); `--kind plans`
+renders current and desired maps plus admission blockers and always needs a digest. A snapshot
+preview labels every tile with how it reopens and adds an **After a reboot** ledger: per window
+(and per extra tab session) whether `restore --apply` would reopen it, its kind, exact command and
+directory, or the reason it will not. Recipes are shown as recorded, not re-verified. HTML and SVG escape all observed strings and contain no scripts,
 network assets or working approval buttons. Preview has no application-control backend.
 
 `verify <desired-snapshot-digest>` compares against a fresh live observation. Exit 0 means its
@@ -32,13 +38,16 @@ or another refusal. Focus is reported separately. Native application state stays
 `claude` (`claude --resume <id>` inside the same terminal, from `~/.claude/sessions/<pid>.json`),
 `pi` (the presence directory's `resumeArgv`), `command` (the terminal's leaf process), `shell`
 (terminal in the same directory) or `unknown` with a reason. Titles are used only to match a
-session to its window when one terminal process owns several windows; they are not stored unless
-`--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
+session to its window when one terminal process owns several windows; they, and the session
+titles used for matching, are not stored unless `--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
 
 `restore [digest]` builds a placement plan from a snapshot (default: the latest capture) and prints
 it. `--apply` executes it: for each entry `niri msg action spawn`, wait for the new window (up to
 `--spawn-timeout`, default 25 s), `move-window-to-workspace --focus false`, then per workspace
 `move-column-to-index`, `set-column-width` and `consume-window-into-column` in saved order.
+Niri spawns from its own working directory, so an `app` recipe starts in its saved one (via
+`sh -c 'cd -- DIR && exec …'`, which leaves its command line unchanged) when that still exists;
+terminal recipes carry it as `--working-directory`.
 Browsers, Thunderbird and Obsidian reopen their own windows: their launch is spawned once and
 further saved windows of the same launch are awaited first, spawned only if none appears.
 Saved workspace names are re-applied. Windows present before the run are protected: never
@@ -61,6 +70,9 @@ prompt, and running it again would start the same work over. A window reported b
 `xwayland-satellite` is `unknown` (`xwayland-client`). An AppImage program running from its
 temporary `.mount_*` directory is recorded as the AppImage file that serves the mount (the
 runtime's own launch path when absolute), or `unknown` (`appimage-mount-unresolved`).
+Chromium and Electron overwrite their command line with one space-joined process title. It is
+split where a leading part names a real program file (arguments that contained spaces cannot be
+recovered; the preview marks such commands), otherwise `unknown` (`process-title-unresolved`).
 
 `declare --pid PID [--cwd DIR] [--label TEXT] -- COMMAND [ARG...]` tells the next captures how to
 reopen the terminal surface that runs PID when nothing can resume it, e.g. a fresh session started

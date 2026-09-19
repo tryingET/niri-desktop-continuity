@@ -83,6 +83,7 @@ def test_sdist_uses_exact_portable_paths_not_recursive_basename_patterns():
         "uv.lock",
         "docs/usage.md",
         "docs/architecture.md",
+        "docs/recovery.md",
     }
     assert "include" not in sdist
 

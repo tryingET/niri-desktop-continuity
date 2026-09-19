@@ -1,11 +1,12 @@
 [project]
 name = "niri-desktop-continuity"
 version = "0.1.0"
-description = "Private desktop maps and explicit continuity planning for Niri on Linux"
+description = "Save your niri desktop and reopen it after a reboot: windows on their workspaces, in column order"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
+keywords = ["niri", "wayland", "desktop", "session", "restore", "reboot"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Environment :: Console",
@@ -14,6 +15,10 @@ classifiers = [
     "Topic :: Desktop Environment",
 ]
 dependencies = []
+
+[project.urls]
+Homepage = "https://github.com/tryingET/niri-desktop-continuity"
+Issues = "https://github.com/tryingET/niri-desktop-continuity/issues"
 
 [project.scripts]
 niri-desktop-continuity = "niri_desktop_continuity.cli:main"
@@ -41,6 +46,7 @@ only-include = [
     "uv.lock",
     "docs/usage.md",
     "docs/architecture.md",
+    "docs/recovery.md",
     "docs/project/2026-09-06-integrated-reconstruction-design.md",
     "docs/project/2026-09-06-integrated-reconstruction-plan.md",
     "docs/project/2026-09-06-integrated-reconstruction-protocol.md",

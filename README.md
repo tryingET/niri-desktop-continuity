@@ -1,157 +1,164 @@
----
-summary: "Private maps and explicit continuity planning for Niri on Linux."
-read_when:
-  - "You install, use or contribute to the standalone tool."
----
-
 # niri-desktop-continuity
 
-**See where your work is before changing your desktop.**
+**Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
+reopen on their workspaces in their column order, Claude Code and Pi sessions resume by id, and
+anything that cannot be reopened safely is reported, never guessed.
 
-A small, private-by-default CLI for **Niri on Linux**. Capture windows and workspaces, render an
-offline map, compare observations, and inspect the consequences of a proposed operation.
+![Offline preview of a fabricated demo desktop: workspace 1 with five terminal windows, each tile saying whether it reopens after a reboot](docs/assets/preview-map.png)
 
-**Alpha:** this is not a process backup or a solution for a frozen terminal. Exact restart and
-migration of a *running* window remain blocked: knowing where a window belongs does not prove its
-tabs, drafts or jobs can be recovered. What the tool does do, on explicit opt-in, is **reopen** a
-saved desktop after a reboot: every captured window is launched again from its recorded command
-(Claude and Pi sessions are resumed by ID), placed on its workspace in its column order, and
-windows already open are left untouched. No other compositor or platform is planned.
+<sub>The offline preview page, rendered from a fabricated demo desktop (not anyone's real one).
+Every tile says how it comes back after a reboot, or why it will not.</sub>
 
-## Install
+## Why
 
-Requires Python 3.11+ and a running Niri session for live observation. No Python runtime dependencies.
-From a checkout or locally built wheel:
+niri's scrolling columns make it easy to build a desktop that is worth keeping: a workspace per
+project, terminals running agents and dev servers, a browser and notes beside them. A reboot or a
+crash throws all of it away, and rebuilding it by hand, window by window and column by column, takes
+longer than the reboot did.
+
+This small tool saves the shape of your desktop every 15 minutes and, at your next login, puts it
+back. From a real reboot of the maintainer's desktop:
+
+- **26 windows saved, 25 reopened at login in 49 seconds**, every one on its saved workspace in
+  its saved column order.
+- Claude Code and Pi sessions **resumed by id**.
+- Two sessions that could not be resumed came back as **fresh sessions started from their handoff
+  notes** (`declare`), instead of replaying their opening prompts.
+- The one miss, an X11 app, was **reported in the receipt, not guessed**.
+
+## Quickstart
+
+Requires Linux, niri and Python 3.11+. No runtime dependencies. There is no package-registry
+release yet, so install from GitHub:
 
 ```sh
-pipx install .
-# Or, inside your own virtual environment:
-python -m pip install .
-niri-desktop-continuity --help
+pipx install git+https://github.com/tryingET/niri-desktop-continuity
+# or: uv tool install git+https://github.com/tryingET/niri-desktop-continuity
 ```
 
-By default nothing installs a service, edits desktop configuration, starts an application or runs
-at login. `autostart --enable` is the single opt-in that changes this (see below).
-No public package registry release has been made by this repository bootstrap.
-
-## Capture → inspect → verify
+Save your desktop and check what would come back:
 
 ```sh
-niri-desktop-continuity capture
-# Use the returned snapshot_digest:
-niri-desktop-continuity preview <snapshot-digest>
-niri-desktop-continuity verify <snapshot-digest>
-niri-desktop-continuity history
+niri-desktop-continuity capture    # save windows, workspaces and a reopen recipe per window
+niri-desktop-continuity preview    # write an offline HTML map of the latest capture; open the printed path
+niri-desktop-continuity restore    # dry run: the placement plan, as JSON; nothing is launched
 ```
 
-`preview` writes standalone HTML and SVG and returns their paths. Open the HTML yourself; no
-browser is launched. Columns run horizontally within workspace rows. Floating/unknown placement
-is labelled separately. This is a schematic, not a screenshot. Every observed window remains in
-the map; no guessing about application-internal tabs.
-
-Records are private (0700 directories, 0600 files) under
-`$XDG_STATE_HOME/niri-desktop-continuity`, falling back to `~/.local/state/niri-desktop-continuity`.
-Use `--state-root <private-directory>` before a subcommand for separate storage.
-Titles are redacted by default. `capture --include-titles` opts into private labels.
-
-Even redacted captures contain process paths and desktop metadata. **Do not publish real state
-files or previews.** The repository and packages contain synthetic tests, not anyone's desktop.
-
-## Save and reopen (opt-in)
+Reopen it: automatically at every login, or by hand after a reboot or crash:
 
 ```sh
-niri-desktop-continuity restore                  # dry-run plan from the latest capture
-niri-desktop-continuity restore --apply          # reopen every saved window now
-niri-desktop-continuity restore <digest> --apply # reopen an older capture
-niri-desktop-continuity autostart --enable       # capture every 15 min, reopen at login
-niri-desktop-continuity autostart --disable
+niri-desktop-continuity autostart --enable   # capture every 15 min, reopen at login; --disable removes it
+niri-desktop-continuity restore --apply      # reopen the latest capture now
+```
+
+`restore --apply` launches every reopenable saved window that is not already open as a Claude or
+Pi session, so run it on a desktop that has lost those windows. In the session you just captured,
+it would open second copies. The login service checks this for you: it reopens only when the
+capture came from a different niri instance, such as the one before a reboot.
+
+A session that cannot be resumed (for example, a Claude Code session started from inside another
+one, which keeps no transcript) is not reopened. If you would rather it came back as a fresh
+session, say so while it is still running:
+
+```sh
 niri-desktop-continuity declare --pid <pid> -- claude "Continue from docs/handoff.md"
 ```
 
-Every capture records a private *reopen recipe* per window: the process argv and working
-directory, or for terminals the session running inside (Claude Code via its per-PID session
-registry, Pi via its presence directory, an operator `declare`d command, otherwise the leaf
-command). A Claude process that cannot be resumed is never replayed from its command line.
-`restore` spawns each recipe
-through Niri, waits for the window, moves it to its workspace and rebuilds the saved column order
-and widths. Windows that exist before the run are never moved; reopened columns follow them.
-Saved workspaces compact to consecutive indices; windows without a usable recipe go to a new
-last workspace. Browsers, Obsidian and terminals restore their own contents; the tool only
-reopens them. See [usage](docs/usage.md#save-and-reopen).
+`<pid>` is any process in that terminal (for example from `pgrep -a claude`). The declaration
+lives until the next reboot, applies only to that exact process, and `declare --pid <pid> --clear`
+removes it.
 
-`autostart --enable` writes three user units under `~/.config/systemd/user`: a capture timer, and
-a `graphical-session.target` service that runs `restore --apply --at-login`, which reopens only
-when the latest capture came from a different compositor instance. Both are removed by
-`--disable`. Recipes contain command lines and working directories: keep the state root private.
+## Check before you restart
 
-## Proposals are not permissions
+`preview` writes a standalone HTML page and prints its path. Its **After a reboot** section lists
+every saved window: whether it reopens, as what, with the exact command and directory, or why it
+will not.
 
-```sh
-niri-desktop-continuity plan <snapshot-digest> --intent restart --window-id <id>
-niri-desktop-continuity preview <plan-digest> --kind plans
-```
+![The "After a reboot" section of the preview for the same demo desktop: 13 of 15 reopen; an unregistered Claude session and an X11 window will not, each with its reason](docs/assets/preview-after-reboot.png)
 
-The proposal shows selection, observed shared-process impact and blockers. All restart/migration
-proposals remain blocked because exact application checkpoint/restart adapters are unavailable.
-Application versions remain unknown during capture: discovered binaries are **never executed**.
-A version selector with no matching known version selects nothing, not a guessed application.
+<sub>Same fabricated demo desktop. `restore` prints the same plan as JSON.</sub>
 
-A separate **loss-bounded saved-conversation reconstruction** orchestration path is available
-through the same CLI: `plan --intent reconstruct --adapter-config`, exact loss/omission/utility-limit approval,
-`reconstruct`, and `verify`/`inspect --kind reconstruction`. It requires a separately reviewed,
-owner-established pinned internal adapter profile; **no real machine adapter ships here**.
-This public suite exercises fabricated installed-console-script workflows. Separately owned
-Pi/Claude/Codex/btop support is **implemented and independently reviewed with isolated integration
-tests; native desktop qualification unperformed**. Generic public coverage is not native certification.
-See the [coverage table](docs/usage.md#conversationtool-coverage-and-evidence-limits). Exact restart/migration
-remain blocked; reconstruction never claims prior memory, drafts, scrollback or hidden-tab order.
-See [usage](docs/usage.md) and the [internal protocol](docs/project/2026-09-06-integrated-reconstruction-protocol.md).
-Protocol v2 additionally accounts for btop utilities without inventing conversations or running-image
-pins. Unobservable capability-bearing btop images require exact separate limit acceptance. Reviewed
-recovery code stays pinned; installed OS/Pi/Jiti is an explicitly owner-trusted application platform,
-not a total dependency capsule. V1 history remains readable without upgrading its authority.
-Implementation is not live-effect approval or independent safety certification.
+## How it works
 
-For saved conversations whose old windows/processes are already gone, the same lifecycle also
-supports `plan --intent reconstruct --mode additive --saved-set <digest> --adapter-config ...`.
-A separately pinned owner profile resolves the private saved set, distinguishes missing from
-already-present refs, and may launch each missing ref once while preserving current windows/focus.
-It cannot shut down processes/services or move existing windows; already-present-only sets perform
-zero effects. Exact native identity, expiry, approval and replay gates remain. Layout/tab and memory
-reconstruction are not claimed. See [additive reopening](docs/usage.md#additive-saved-session-reopening).
-Reviewed owner profiles can project desired shared-window groups/member sequence and privacy-safe
-admission reasons into the existing plan/preview/inspect flow. This is requested grouping, not exact
-original tab-order proof or a way to move sessions already open in separate windows. Failed attempts
-can leave new windows/focus changes: inspect first, never erase evidence or retry unresolved history.
-This portable contract is covered by fabricated installed-CLI tests, not live native qualification.
+Each `capture` reads niri's IPC and same-user process metadata, and records a private *reopen
+recipe* per window:
 
-The CLI also has an experimental **abandonment and same-ledger profile-transition** lifecycle.
-It preserves failed history and never grants replay or native effects. Candidate admission and
-activation require separate exact approvals. Exact retained owner-history decoding is implemented
-and tested with fabricated historical-byte specimens; **native qualification remains unperformed**.
-Unsupported history blocks, and the separate prospective test codec cannot manufacture historical
-authority. The observer/native producer and machine integration remain separately owned and are
-not shipped here. See the checkout-only [resolution contract](docs/project/resolution-protocol.md)
-for supported history, settlement decisions and limits.
+| Kind | How it comes back |
+|---|---|
+| `claude` | the terminal, running `claude --resume <id>` in the session's directory (from Claude Code's per-process session registry) |
+| `pi` | the terminal, running Pi's own resume command (from Pi's presence directory) |
+| `declared` | the terminal, running the command you gave `declare` |
+| `app` | the application's command line and working directory |
+| `command` | the terminal, running its last command again (for example `btop` or `npm run dev`) |
+| `shell` | the terminal, opened in the same directory |
+| `unknown` | not reopened. The reason is recorded, for example `xwayland-client` or `claude-session-unregistered` |
 
-There is an experimental, separately approved **within-workspace single-tile column reorder**
-path. It uses immutable plans, expiring exact-digest approvals, per-compositor writer exclusion,
-fresh-state checks, one-use consumption and effect receipts. Cross-workspace moves, resizing,
-multi-tile topology and cross-session restoration are unsupported. Niri's focus-then-move IPC is
-not atomic; concurrent user input remains a risk. See [usage and safety](docs/usage.md).
+`restore --apply` spawns each recipe through niri, waits for its window, moves it to its workspace,
+then rebuilds the saved column order and widths and re-applies workspace names. Browsers,
+Thunderbird and Obsidian restore their own windows, so they are launched once. Every run writes a
+receipt (`history --kind receipts`); exit status 2 means a partial or interrupted run.
+Details: [usage](docs/usage.md#save-and-reopen).
+
+## What it never does
+
+- **Never closes a window, and never moves one that was open before the run.** Reopened columns
+  go after them.
+- **Never replays what it cannot resume.** A Claude process without a session registry entry is
+  not relaunched from its command line, which would start the same work over.
+- **Never guesses.** An X11 window (niri reports only the `xwayland-satellite` bridge), an
+  unresolvable AppImage mount or an unreadable process is reported with a reason, not launched.
+- **Never runs anything at login unless you opt in.** `autostart --enable` writes three systemd user
+  units, `--disable` removes them. Nothing else installs a service or edits your configuration.
+- **Never executes a discovered binary while capturing.** Executables are hashed, not run.
+- **Makes no network requests of its own.** No telemetry, no daemon. The preview is static HTML
+  with no scripts or remote assets, and no browser is launched for you.
+- **Never reads terminal contents or browser profiles.** Session ids come from Claude Code's
+  session registry and Pi's presence files. From a Claude Code transcript it takes only the
+  session title, to tell apart windows of one terminal process.
+
+Records stay private: `0700` directories and `0600` files under
+`$XDG_STATE_HOME/niri-desktop-continuity` (default `~/.local/state/niri-desktop-continuity`, or
+`--state-root <dir>`). Window titles and session titles are redacted unless you
+`capture --include-titles`. Recipes still contain command lines and working directories, so treat
+captures and previews as private and do not publish them.
+
+## Honest limits
+
+- **niri on Linux only.** No other compositor or platform is planned. Alpha software.
+- **Reopening is not restoring memory.** Applications bring back their own content. Unsaved drafts,
+  scrollback, shell state and the order of hidden tabs are not recovered.
+- **X11 applications are not reopened**, because niri does not reveal which X11 program owns a
+  window.
+- **Resume works for Claude Code and Pi.** Other programs in a terminal get their last command
+  run again, or a shell in the same directory. Sessions found in extra tabs of one terminal
+  window reopen as separate windows.
+- **Placement is by workspace index.** Saved workspaces are compacted to consecutive indices, and
+  which monitor a workspace was on is not restored.
+- **Stay idle while it arranges columns** (usually under a minute). niri has no atomic
+  focus-and-move, so input during the run can land in the wrong column.
+- Exact restart or migration of a still-running window is **not** supported and stays blocked.
+
+## Beyond reopening
+
+The same CLI also plans blocked restart proposals and has a loss-bounded saved-conversation
+reconstruction path, which needs a separately owned adapter that does not ship here. It also has
+an experimental single-column reorder. None of these is needed to save and reopen a desktop. See
+[planning, reconstruction and resolution](docs/recovery.md).
 
 ## Develop
 
 ```sh
 uv sync --group dev
-just check         # lint, formatting, tests, portable-source check
+just check         # lint, formatting, tests, portable-source/privacy check
 just build         # wheel + sdist
 just ci            # check + build
+just screenshots   # re-render docs/assets from the fabricated demo desktop (Chromium + ImageMagick)
 ```
 
-Tests never send live compositor actions. [Architecture](docs/architecture.md) explains the
-boundaries; [DESIGN.md](DESIGN.md) defines the static map's visual contract. Package installation,
-tests and builds do not require a private workspace, database, agent harness or company service.
+Tests never contact a real compositor. [Architecture](docs/architecture.md) explains the module
+boundaries, [DESIGN.md](DESIGN.md) is the preview's visual contract and [usage](docs/usage.md) has
+every command's details. Screenshots come only from `scripts/demo-desktop.py`, and
+`just check` refuses PNG metadata that could carry private text.
 
 Scaffolded from `tpl-project-repo`, then adapted for a standalone Python package. Copier answers
 retain relative template provenance only; template updates are a maintainer concern, not an
