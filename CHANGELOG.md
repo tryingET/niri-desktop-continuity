@@ -4,6 +4,15 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.1.2] - 2026-09-19
+
+### Changed
+
+- Releases are built and published by CI from the pushed tag alone: the GitHub Release now carries
+  the wheel, sdist and `SHA256SUMS` from the same build that goes to PyPI. The 0.1.1 GitHub Release
+  has no attached files (releases here are immutable); its notes list the PyPI digests.
+- No change to the tool's behavior.
+
 ## [0.1.1] - 2026-09-19
 
 ### Changed

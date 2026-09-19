@@ -31,6 +31,10 @@ read_when:
   corrected to list the PyPI files and digests. The workflow now runs on the tag push and creates
   the release together with its files and CHANGELOG-derived notes (`scripts/release-notes.py`).
 
+- v0.1.2 exercises that path end to end. `just ci` now builds with `uv build --clear` (a stale
+  0.1.0 wheel beside 0.1.1 had failed the local smoke), and `ci.yml` no longer runs on tags,
+  since `release.yml` runs the same checks before publishing.
+
 ## What Surprised Me
 
 - The PyPI name was still free, but trusted publishing needs a one-time owner step on pypi.org;

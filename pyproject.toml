@@ -1,6 +1,6 @@
 [project]
 name = "niri-desktop-continuity"
-version = "0.1.1"
+version = "0.1.2"
 description = "Save your niri desktop and reopen it after a reboot: windows on their workspaces, in column order"
 readme = "README.md"
 requires-python = ">=3.11"
