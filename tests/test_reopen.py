@@ -430,6 +430,29 @@ def test_app_windows_share_the_process_command(monkeypatch):
     assert recipes[1] == recipes[2] == launch.app_recipe(["nautilus", "--new-window"], "/srv/x")
 
 
+def test_only_ghostty_is_read_as_a_terminal(monkeypatch):
+    # Recipes use Ghostty's --working-directory and -e. Other terminals take other flags, so a
+    # kitty window reopens as the plain application it is, never with Ghostty's arguments.
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "kitty"},
+        {"pid": 11, "ppid": 10, "comm": "bash"},
+        {"pid": 12, "ppid": 11, "comm": "claude"},
+    ]
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: {10: ["kitty"]}[pid])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/w")
+    monkeypatch.setattr(
+        launch,
+        "claude_session",
+        lambda pid: {"kind": "claude", "argv": ["claude", "--resume", "x"], "cwd": "/w"},
+    )
+    windows = [{"id": 1, "pid": 10, "app_id": "kitty"}]
+    recipes = launch.window_recipes(windows, [{"pid": 10, "comm": "kitty"}], inventory, {})
+    assert recipes[1] == launch.app_recipe(["kitty"], "/w")
+    for app_id, comm in (("org.wezfurlong.wezterm", "wezterm-gui"), ("foot", "foot")):
+        assert not launch.is_terminal(app_id, comm)
+    assert launch.is_terminal("com.mitchellh.ghostty", "ghostty")
+
+
 def program(path):
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text("#!/bin/sh\n")

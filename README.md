@@ -1,14 +1,14 @@
 # niri-desktop-continuity
 
 [![ci](https://github.com/tryingET/niri-desktop-continuity/actions/workflows/ci.yml/badge.svg)](https://github.com/tryingET/niri-desktop-continuity/actions/workflows/ci.yml)
-[![release](https://img.shields.io/github/v/release/tryingET/niri-desktop-continuity?include_prereleases)](https://github.com/tryingET/niri-desktop-continuity/releases)
-[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](LICENSE)
+[![PyPI](https://img.shields.io/pypi/v/niri-desktop-continuity)](https://pypi.org/project/niri-desktop-continuity/)
+[![license](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE)
 
 **Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
 reopen on their workspaces in their column order, Claude Code and Pi sessions resume by id, and
 anything that cannot be reopened safely is reported, never guessed.
 
-![Offline preview of a fabricated demo desktop: a project workspace with Claude Code and Pi sessions, a dev server and an X11 IDE, then a browser workspace; each tile says whether it reopens after a reboot](docs/assets/preview-map.png)
+![Offline preview of a fabricated demo desktop: a project workspace with Claude Code and Pi sessions, a dev server and an X11 IDE, then a browser workspace; each tile says whether it reopens after a reboot](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-map.png)
 
 <sub>The offline preview page for a fabricated demo desktop (not anyone's real one): the first two
 of its five workspaces, 23 windows in all. Every tile says how it comes back after a reboot, or
@@ -33,17 +33,16 @@ back. From a real reboot of the maintainer's desktop:
 
 ## Quickstart
 
-Requires Linux, niri and Python 3.11+. No runtime dependencies. There is no package-registry
-release yet, so install from GitHub:
+Requires Linux, niri and Python 3.11+, with [Ghostty](https://ghostty.org) as your terminal. No
+runtime dependencies.
 
 ```sh
-pipx install git+https://github.com/tryingET/niri-desktop-continuity
-# or: uv tool install git+https://github.com/tryingET/niri-desktop-continuity
+pipx install niri-desktop-continuity
+# or: uv tool install niri-desktop-continuity
 ```
 
-To pin a release, append its tag (`…@v0.1.0`) or install the wheel from
-[Releases](https://github.com/tryingET/niri-desktop-continuity/releases); what changed is in the
-[changelog](CHANGELOG.md).
+Every release is also on [GitHub Releases](https://github.com/tryingET/niri-desktop-continuity/releases)
+with checksums; what changed is in the [changelog](https://github.com/tryingET/niri-desktop-continuity/blob/main/CHANGELOG.md).
 
 Save your desktop and check what would come back:
 
@@ -83,7 +82,7 @@ removes it.
 every saved window: whether it reopens, as what, with the exact command and directory, or why it
 will not.
 
-![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](docs/assets/preview-after-reboot.png)
+![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-after-reboot.png)
 
 <sub>Same fabricated demo desktop, first workspace's rows. `restore` prints the same plan as
 JSON.</sub>
@@ -95,19 +94,19 @@ recipe* per window:
 
 | Kind | How it comes back |
 |---|---|
-| `claude` | the terminal, running `claude --resume <id>` in the session's directory (from Claude Code's per-process session registry) |
-| `pi` | the terminal, running Pi's own resume command (from Pi's presence directory) |
-| `declared` | the terminal, running the command you gave `declare` |
+| `claude` | Ghostty, running `claude --resume <id>` in the session's directory (from Claude Code's per-process session registry) |
+| `pi` | Ghostty, running Pi's own resume command (from Pi's presence directory) |
+| `declared` | Ghostty, running the command you gave `declare` |
 | `app` | the application's command line and working directory |
-| `command` | the terminal, running its last command again (for example `btop` or `npm run dev`) |
-| `shell` | the terminal, opened in the same directory |
+| `command` | Ghostty, running its last command again (for example `btop` or `npm run dev`) |
+| `shell` | Ghostty, opened in the same directory |
 | `unknown` | not reopened. The reason is recorded, for example `xwayland-client` or `claude-session-unregistered` |
 
 `restore --apply` spawns each recipe through niri, waits for its window, moves it to its workspace,
 then rebuilds the saved column order and widths and re-applies workspace names. Browsers,
 Thunderbird and Obsidian restore their own windows, so they are launched once. Every run writes a
 receipt (`history --kind receipts`); exit status 2 means a partial or interrupted run.
-Details: [usage](docs/usage.md#save-and-reopen).
+Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md#save-and-reopen).
 
 ## What it never does
 
@@ -139,9 +138,11 @@ captures and previews as private and do not publish them.
   scrollback, shell state and the order of hidden tabs are not recovered.
 - **X11 applications are not reopened**, because niri does not reveal which X11 program owns a
   window.
-- **Resume works for Claude Code and Pi.** Other programs in a terminal get their last command
-  run again, or a shell in the same directory. Sessions found in extra tabs of one terminal
-  window reopen as separate windows.
+- **Ghostty only, by design.** Sessions inside terminals are read and resumed in Ghostty. Other
+  terminals (kitty, WezTerm, foot, Alacritty) reopen as plain applications, without what ran in
+  them; if you use one, fork it. Claude Code and Pi resume by id; other programs in Ghostty get
+  their last command run again, or a shell in the same directory. Sessions found in extra tabs of
+  one Ghostty window reopen as separate windows.
 - **Placement is by workspace index.** Saved workspaces are compacted to consecutive indices, and
   which monitor a workspace was on is not restored.
 - **Stay idle while it arranges columns** (usually under a minute). niri has no atomic
@@ -153,7 +154,7 @@ captures and previews as private and do not publish them.
 The same CLI also plans blocked restart proposals and has a loss-bounded saved-conversation
 reconstruction path, which needs a separately owned adapter that does not ship here. It also has
 an experimental single-column reorder. None of these is needed to save and reopen a desktop. See
-[planning, reconstruction and resolution](docs/recovery.md).
+[planning, reconstruction and resolution](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/recovery.md).
 
 ## Develop
 
@@ -165,13 +166,13 @@ just ci            # check + build
 just screenshots   # re-render docs/assets from the fabricated demo desktop (Chromium + ImageMagick)
 ```
 
-Tests never contact a real compositor; [releasing](docs/release.md) describes versions, tags and
-rollback. [Architecture](docs/architecture.md) explains the module
-boundaries, [DESIGN.md](DESIGN.md) is the preview's visual contract and [usage](docs/usage.md) has
+Tests never contact a real compositor; [releasing](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/release.md) describes versions, tags and
+rollback. [Architecture](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/architecture.md) explains the module
+boundaries, [DESIGN.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/DESIGN.md) is the preview's visual contract and [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md) has
 every command's details. Screenshots come only from `scripts/demo-desktop.py`, and
 `just check` refuses PNG metadata that could carry private text.
 
 Scaffolded from `tpl-project-repo`, then adapted for a standalone Python package. Copier answers
 retain relative template provenance only; template updates are a maintainer concern, not an
 installation prerequisite. Private template snapshot context is excluded from version control
-and distribution. Apache-2.0: see [LICENSE](LICENSE).
+and distribution. Apache-2.0: see [LICENSE](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE).

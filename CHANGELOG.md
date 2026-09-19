@@ -4,6 +4,21 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.1.1] - 2026-09-19
+
+### Changed
+
+- Terminal sessions are read only in Ghostty, by design. Other terminals (kitty, WezTerm, foot,
+  Alacritty) now reopen as plain applications with their own command line, instead of receiving
+  Ghostty's `--working-directory` and `-e`, which they do not accept. Captures made by 0.1.0 keep
+  their old recipes until the next `capture`.
+
+### Added
+
+- On PyPI: `pipx install niri-desktop-continuity`. Each release is built once in CI from its tag,
+  attached to the GitHub Release with `SHA256SUMS` and uploaded to PyPI through trusted publishing.
+- README links and images are absolute, so the page reads the same on PyPI.
+
 ## [0.1.0] - 2026-09-19
 
 First public release. Alpha, for [niri](https://github.com/YaLTeR/niri) on Linux, Python 3.11+,

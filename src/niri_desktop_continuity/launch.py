@@ -10,7 +10,9 @@ from pathlib import Path
 
 RECIPE_SCHEMA = "desktop-continuity.launch-recipe.v1"
 SHELLS = {"bash", "zsh", "fish", "sh", "dash", "nu", "xonsh"}
-TERMINAL_MARKERS = ("ghostty", "foot", "alacritty", "kitty", "wezterm")
+# Ghostty only: recipes use its --working-directory and -e. Other terminals take other flags,
+# so they reopen as plain applications (their own command line), never with Ghostty's.
+TERMINAL_MARKERS = ("ghostty",)
 CLAUDE_TITLE_PREFIX = "✳ "
 # Niri reports this X11 bridge, not the X11 application, as the owner of every X11 window.
 XWAYLAND_BRIDGE = "xwayland-satellite"

@@ -17,23 +17,28 @@ the saved-state layout under the state root, reopen recipes and the systemd unit
 
 ## One authoritative release
 
-The git tag `vX.Y.Z` and the GitHub Release with that name are the release. `pyproject.toml`,
-`niri_desktop_continuity.__version__`, `niri-desktop-continuity --version` and the newest
-`CHANGELOG.md` heading must name the same version; a test enforces it. No package-registry
-release exists yet; PyPI is planned through trusted publishing from CI.
+The git tag `vX.Y.Z` and the GitHub Release with that name are the release; PyPI carries the same
+files. `pyproject.toml`, `niri_desktop_continuity.__version__`, `niri-desktop-continuity --version`
+and the newest `CHANGELOG.md` heading must name the same version; a test enforces it, and the
+release workflow refuses a tag that does not match.
 
 ## Steps
 
-1. Move the user-facing changes into a new `## [X.Y.Z] - YYYY-MM-DD` entry in `CHANGELOG.md` and
-   set the version in `pyproject.toml` and `src/niri_desktop_continuity/__init__.py`.
-2. Run `just ci` on a clean tree (lint, formatting, tests, privacy check, build, installed-wheel
-   smoke). Commit, push `main`, and wait for the `ci` workflow to pass on that commit.
+1. Move the user-facing changes into a new `## [X.Y.Z] - YYYY-MM-DD` entry in `CHANGELOG.md`, set
+   the version in `pyproject.toml` and `src/niri_desktop_continuity/__init__.py`, and run `uv lock`.
+2. Run `just ci` on a clean tree. Commit, push `main`, and wait for the `ci` workflow to pass.
 3. Tag that commit: `git tag -a vX.Y.Z -m "vX.Y.Z"` and `git push origin vX.Y.Z`.
-4. Build from a clean checkout of the tag: `uv build`, then
-   `(cd dist && sha256sum *.whl *.tar.gz > SHA256SUMS)`.
-5. `gh release create vX.Y.Z dist/*.whl dist/*.tar.gz dist/SHA256SUMS --title vX.Y.Z
-   --notes-file <notes>`. The notes state what changed, compatibility, privacy relevance,
-   known issues, the source commit and the build command.
+4. `gh release create vX.Y.Z --verify-tag --title vX.Y.Z --notes-file <notes>`. The notes state
+   what changed, compatibility, privacy relevance and known issues.
+5. The `release` workflow then builds once from the tag, runs `just ci`, attaches the wheel, sdist
+   and `SHA256SUMS` to the release and uploads the same files to PyPI through trusted publishing
+   in the `pypi` environment (deployable from `v*` tags only).
+6. Verify: download the release assets and run `sha256sum -c SHA256SUMS`; install with
+   `pipx install niri-desktop-continuity==X.Y.Z` and run `niri-desktop-continuity --version`.
+
+One-time setup, done by the PyPI account owner: a trusted publisher for project
+`niri-desktop-continuity`, owner `tryingET`, repository `niri-desktop-continuity`, workflow
+`release.yml`, environment `pypi`.
 
 ## Rollback
 

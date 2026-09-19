@@ -19,6 +19,13 @@ read_when:
 - `just screenshots` also renders a 1280×640 social card from the demo desktop; GitHub has no API
   for it, so it is uploaded by hand.
 
+- After v0.1.0: Ghostty is the only supported terminal, by the operator's decision (other
+  terminals fork). Detection now matches it, so kitty/WezTerm windows reopen as plain
+  applications instead of receiving Ghostty's flags. v0.1.1 adds a `release` workflow: one build
+  from the tag, `just ci`, assets and `SHA256SUMS` attached to the release, the same files to PyPI
+  through trusted publishing in a `pypi` environment limited to `v*` tags. README links became
+  absolute so the PyPI page renders.
+
 ## What Surprised Me
 
 - The PyPI name was still free, but trusted publishing needs a one-time owner step on pypi.org;

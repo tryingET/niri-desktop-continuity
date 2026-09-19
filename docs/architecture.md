@@ -29,8 +29,9 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
 - `map_preview`: escaped offline schematic and complete HTML ledger, including the per-window
   reopen ledger read from saved recipes (it never imports or runs `restore`). CSS is packaged beside
   the module; no access to a source checkout or external design service is needed after installation.
-- `launch`: per-window reopen recipes from the same-user process tree (argv, cwd, Claude session
-  registry, Pi presence, leaf command). Titles match sessions to windows and are never stored.
+- `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
+  only: Claude session registry, Pi presence, leaf command). Titles match sessions to windows and
+  are never stored.
 - `restore`: placement plan (workspace compaction, unknowns last, protected live windows) and the
   spawn → detect → move → arrange executor with a receipt per run. No window is ever closed.
 - `autostart`: opt-in systemd user units (periodic capture, reopen at login) and their removal.
