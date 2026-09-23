@@ -10,7 +10,6 @@ import stat
 import subprocess
 from pathlib import Path
 
-from .launch import window_recipes
 from .model import normalized_snapshot, now, process_pin
 
 READ_COMMANDS = {"outputs", "windows", "workspaces", "layers", "version"}
@@ -166,6 +165,10 @@ def spatial_sample(windows: list[dict], workspaces: list[dict], outputs: dict) -
 
 
 def capture(*, include_titles: bool = False, transport=None) -> dict:
+    # Imported here, not at module level: proc_stat and executable_info are imported on their
+    # own by consumers that run under a sealed module list, and only capture needs recipes.
+    from .launch import window_recipes
+
     ipc = transport or Niri()
     identity = compositor_identity()
     started = now()
