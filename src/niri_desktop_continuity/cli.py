@@ -6,26 +6,48 @@ import argparse
 import json
 import subprocess
 import sys
+from copy import deepcopy
 from pathlib import Path
 
 from . import __version__
 from .approval import approve
-from .model import readiness
+from .model import readiness, require_snapshot
 from .planner import build_plan
 from .probe import capture
 from .store import Store
 
 
-def parser():
-    root = argparse.ArgumentParser(description=__doc__)
+class _DispositionParser(argparse.ArgumentParser):
+    def error(self, message):
+        from .restore_disposition_failure import Refusal
+
+        raise Refusal("invalid-arguments")  # Never echo usage, values or parser messages.
+
+
+def parser(*, _disposition=False):
+    kind = _DispositionParser if _disposition else argparse.ArgumentParser
+    root = kind(description=__doc__)
     root.add_argument(
         "--version", action="version", version=f"niri-desktop-continuity {__version__}"
     )
     root.add_argument("--state-root", type=Path)
     commands = root.add_subparsers(dest="command", required=True)
+    from .restore_disposition_cli import add_parser
+
+    add_parser(commands)
     observe = commands.add_parser("capture", help="read Niri and same-user process metadata")
     observe.add_argument(
         "--include-titles", action="store_true", help="private labels; never publish"
+    )
+    observe.add_argument(
+        "--window-id",
+        type=int,
+        action="append",
+        default=[],
+        help=(
+            "save only this window ID (repeatable), replacing the latest capture in this state "
+            "root; still probes the whole desktop"
+        ),
     )
     plan = commands.add_parser("plan", help="prepare proposal, never apply it")
     plan.add_argument("snapshot", nargs="?")
@@ -112,7 +134,34 @@ def parser():
     return root
 
 
+def _select_capture(value, window_ids):
+    """Select saved windows, not probe scope; retain all supporting observations."""
+    if not window_ids:
+        return value
+    if any(type(wid) is not int or wid < 0 for wid in window_ids):
+        raise ValueError("capture window IDs must be nonnegative integers")
+    selected = set(window_ids)
+    if len(selected) != len(window_ids):
+        raise ValueError("duplicate capture window ID")
+    require_snapshot(value)
+    if selected - {window["id"] for window in value["windows"]}:
+        raise ValueError("selected window ID absent from this capture")
+    result = deepcopy(value)
+    result["windows"] = [window for window in result["windows"] if window["id"] in selected]
+    result["capture_selection"] = {
+        "kind": "window-ids",
+        "window_ids": sorted(selected),
+        "observed_window_count": len(value["windows"]),
+    }
+    result["display"] = readiness(result)
+    return result
+
+
 def run(args):
+    if args.command == "restore-disposition":
+        from .restore_disposition_cli import run as run_disposition
+
+        return run_disposition(args)
     from .resolution_cli import run as run_resolution
     from .resolution_cli import selected
 
@@ -169,13 +218,14 @@ def run(args):
     ):
         raise ValueError("loss and omission decisions are reconstruction-only")
     if args.command == "capture":
-        value = capture(include_titles=args.include_titles)
+        value = _select_capture(capture(include_titles=args.include_titles), args.window_id)
         key = store.save_snapshot(value)
         return {
             "snapshot_digest": key,
             "display": readiness(value),
             "windows": len(value["windows"]),
             "warnings": value["warnings"],
+            **({"capture_selection": value["capture_selection"]} if args.window_id else {}),
         }, 0
     if args.command == "plan":
         value = build_plan(
@@ -336,7 +386,51 @@ def _run_recovery(args, store):
     return value, 2 if value.get("status") in {"partial", "indeterminate"} else 0
 
 
+def _disposition_selected(argv):
+    # Parse the root grammar: option VALUES never select a command. Once the positional
+    # command is reached the remainder belongs to it, including private options/values.
+    selector = _DispositionParser(add_help=False)
+    selector.add_argument("--state-root")
+    selector.add_argument("--version", action="store_true")
+    selector.add_argument("--help", "-h", action="store_true")
+    selector.add_argument("command", nargs="?")
+    selector.add_argument("remainder", nargs=argparse.REMAINDER)
+    try:
+        args, _ = selector.parse_known_args(argv)
+    except ValueError:
+        return False
+    return args.command == "restore-disposition" and not (args.version or args.help)
+
+
+def _disposition_main(argv):
+    from .restore_disposition_failure import invocation, phase, report
+
+    with invocation() as tracker:
+        try:
+            with phase("parse"):
+                try:
+                    args = parser(_disposition=True).parse_args(argv)
+                except SystemExit as help_exit:
+                    if type(help_exit.code) is int and help_exit.code == 0:
+                        return 0  # Explicit argparse help/version only, not runtime cancellation.
+                    raise
+            with phase("route"):
+                value, status = run(args)
+            with phase("result"):
+                data = json.dumps(value, indent=2, sort_keys=True)
+                written = sys.stdout.write(data + "\n")
+                if type(written) is not int or written != len(data) + 1:
+                    raise OSError("incomplete disposition result output")
+                sys.stdout.flush()
+            return status
+        except BaseException as failure:
+            return report(tracker, failure, sys.stderr)
+
+
 def main(argv=None):
+    argv = list(sys.argv[1:] if argv is None else argv)
+    if _disposition_selected(argv):
+        return _disposition_main(argv)
     args = parser().parse_args(argv)
     try:
         value, status = run(args)

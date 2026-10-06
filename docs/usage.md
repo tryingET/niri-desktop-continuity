@@ -20,6 +20,53 @@ match sessions to windows. Niri IPC is the only invoked runtime CLI.
 identify applications and window IDs only, and reopen recipes carry no session title. Other
 process metadata, including recipe command lines, can still be sensitive. Keep captures private.
 
+### Save selected windows
+
+`capture --window-id INT [--window-id INT ...]` saves exactly the named windows from that
+same capture. IDs must be nonnegative integers, unique and present in that observation; invalid,
+duplicate or absent selections fail before any snapshot or pointer is written. IDs are local to
+that compositor observation, not persistent application identities. No app/title guessing occurs.
+Without the flag, full-capture snapshot and result semantics are unchanged.
+
+Selection preserves source window order, complete selected recipes (including `reopen.extra`),
+and **all** supporting outputs, workspaces, layers, identities, process observations, inventory,
+warnings and capture timestamps. Readiness is recomputed for the saved windows; source coherence
+is retained. Selected snapshots and capture results add exactly this metadata object:
+`"capture_selection": {"kind": "window-ids", "window_ids": [30], "observed_window_count": 3}`
+(fabricated IDs/count). IDs in this field are sorted; window records remain in source order.
+The immutable snapshot digest binds this provenance and the saved content. It does not reference
+an unsaved full snapshot or claim complete desktop coverage. Even selecting every observed ID
+explicitly retains this provenance. The ordinary model, Store and restore planner consume it;
+full-desktop `verify` still compares all windows and can report unselected live windows as extras.
+
+**Selection is not selective probing.** Capture still reads whole-desktop/process/session metadata,
+including potential Claude transcript-title reads before redaction. Unselected process metadata
+remains in the saved snapshot. `--include-titles` controls retention, not those reads. Selection is
+neither a privacy sandbox nor resource/lock isolation.
+
+These are ordinary Store snapshots: they promote `latest-observed` and, when ready,
+`last-display-valid`. Default preview/restore in that Store will therefore use the selected snapshot.
+Use an explicitly reviewed private Store for qualification, not the login capture Store; never
+hand-edit generated snapshots or receipts. A different `--state-root` does **not** bypass the
+canonical compositor fence on apply or resolve an earlier ambiguous attempt.
+
+One selected window may carry extra-tab recipes and produce multiple planned entries. Before any
+one-window canary, review the exact saved recipes and immutable dry-run receipt: require **exactly
+one planned entry, no extras**, a harmless admitted Ghostty recipe and the intended destination.
+Dry-run records placement only; it does not certify admission, executable availability or safety.
+Do not drop extras to manufacture a one-launch plan. The proposed sequence, not permission to run it:
+
+1. With separately authorized whole-desktop read access, use the existing candidate CLI:
+   `niri-desktop-continuity --state-root <private-store> capture --window-id <observed-id>`.
+2. Retain its exact `snapshot_digest`; run
+   `niri-desktop-continuity --state-root <same-store> restore <snapshot-digest>` without `--apply`.
+   Review the returned `receipt_digest` and immutable `receipts/<receipt-digest>.json`, the saved
+   recipe (including extras), protected baseline, compacted workspace/name intent and host admission.
+3. Stop for separate explicit operator approval of any effectful canary. Neither capture nor dry-run
+   grants it. No canary, native qualification, login deployment or retry is authorized here.
+
+### Preview and verification
+
 `preview [digest]` renders a stored snapshot offline (default: the latest capture); `--kind plans`
 renders current and desired maps plus admission blockers and always needs a digest. A snapshot
 preview labels every tile with how it reopens and adds an **After a reboot** ledger: per window
@@ -43,20 +90,224 @@ the terminal recipes use its `--working-directory` and `-e`, so other terminals 
 session to its window when one terminal process owns several windows; they, and the session
 titles used for matching, are not stored unless `--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
 
-`restore [digest]` builds a placement plan from a snapshot (default: the latest capture) and prints
-it. `--apply` executes it: for each entry `niri msg action spawn`, wait for the new window (up to
-`--spawn-timeout`, default 25 s), `move-window-to-workspace --focus false`, then per workspace
-`move-column-to-index`, `set-column-width` and `consume-window-into-column` in saved order.
-Niri spawns from its own working directory, so an `app` recipe starts in its saved one (via
-`sh -c 'cd -- DIR && exec …'`, which leaves its command line unchanged) when that still exists;
-terminal recipes carry it as `--working-directory`.
-Browsers, Thunderbird and Obsidian reopen their own windows: their launch is spawned once and
-further saved windows of the same launch are awaited first, spawned only if none appears.
-Saved workspace names are re-applied. Windows present before the run are protected: never
-moved, and reopened columns are placed after them. Sessions already open (same resume argv) are
-skipped. Exit 0 means every entry was placed; exit 2 means a partial result, recorded in the
-receipt (`history --kind receipts`). The operator should stay idle during the run: column
-arrangement uses focus and Niri has no atomic focus-plus-move.
+`restore [digest]` prints a recorded-recipe placement plan (default: latest capture). Dry-run and
+preview do not certify executable availability or ownership. **The disposition and association
+corrections passed bounded independent review and full isolated CI (1,671 tests, builds and
+installed-wheel smoke). A fresh native attempt opened a host but stopped before association and
+width handling; it remains unresolved. Synthetic tests do not authorize live use, retry or cleanup.**
+
+`--apply` admits only shell/command/declared/Pi/Claude recipes for a controlled fresh Ghostty ELF,
+with existing explicit cwd and literal command tails. It forces non-single-instance Wayland and
+discards custom configuration after defaults have been read. Scripts, wrappers, conflicting flags,
+missing directories and all general application/browser recipes are unsupported before launch.
+A browser's zero-launch result is not working browser restoration evidence.
+
+One attempt holds the compositor flock through every bootstrap, exec permit, process/window proof,
+layout observation and terminal commit. Niri launches the installed bootstrap; the application does
+not inherit the service/control/writer descriptors. A retained pidfd and running-image/argv/environment
+proof, plus a fresh unique Niri PID-associated window, authorize only the trusted fresh Ghostty
+connection contract. No label fallback, forwarded host, protected overlap or surplus output is accepted.
+The no-fork/no-forward/no-connection-transfer/no-unobserved-exec host behavior remains an explicit
+trust assumption, not general PID causality or native session usability proof.
+
+The association baseline includes all queried outputs, including unchanged disabled outputs without
+workspaces. It is bound from the incoming coherent capture and checked on every subsequent read,
+not only association. New outputs, malformed metadata or disabled metadata drift stop the attempt;
+error fallback does not consume a later recovered reply after inventory failure. Missing inventory
+or output-query transport refuses before launch.
+Output/object ordering is ignored, but field presence, array order and other observed metadata are
+conservatively pinned. Strict window workspace references now intentionally reject boolean/float
+aliases of integer IDs. Cleanup failures still surface, but no longer skip later proof closes or
+lock exit; standalone ownership transfer closes orphan descriptors if context exit fails. These are
+offline review corrections, not native qualification or permission to retry.
+
+The subsequent offline association correction allows a maximum of three narrowly eligible split
+samples while awaiting the launched host: original windows and workspace metadata are unchanged,
+except the focused workspace references one new missing window ID. This grants no association or
+effect. The same pending reference must resolve in one strict whole sample with exact host proof;
+observed drift, foreign output, disappearance, query failure or deadline expiry stops without retry.
+The deadline is shared by queries and all process checks, not renewed by polling. A slow association
+write may remain in history after timeout; it never permits layout or success. Held original directory,
+pathname and launched-host cwd are checked, not a child utility's cwd or session usability. Other
+reads/decoders stay strict. Polling cannot detect events entirely between observations, and blocking
+kernel/storage calls can delay refusal. This correction has no native qualification or deployment
+approval; the earlier full-CI result does not qualify the changed bytes.
+
+Owned singleton columns are ordered after protected groups, consumed only from the exact immediate
+right singleton, and sized using measured window/tile decoration differences. Floating positions use
+fresh measured positions and signed fractional relative deltas. Sequential placement lets Niri
+materialize normal trailing-empty destinations from a single empty login workspace. Logical targets
+remain bound to stable workspace IDs across permitted empty cleanup and per-output reindexing,
+including an optional empty workspace above the first. Cross-workspace insertion follows the active
+column; moving the freshly focused donor with `--focus false` preserves source-workspace focus.
+There is no arbitrary workspace-creation feature and source monitor affinity is not restored.
+One consistent recorded width governs an entire restored column; unspecified members report
+`inherited-column`. Conflicting recorded widths refuse before launch. If none was recorded, preserve
+the admitted seed width and let other members inherit it. Separate extra-tab columns preserve their
+own fresh widths. Missing floating positions retain measured native conversion positions.
+Requested dimensions start `requested-pending`; verified equality, not intent, grants
+`requested-observed`. Inherited widths also remain pending until verified. Floating positions use the
+current output's physical-pixel grid, with `requested-quantized-observed` when rounding changes the
+saved position. Unknown scale cannot supply a position proof. Saved tile height is not restored.
+Requested sizing with unknown decorations is blocked unless the requested size is already observed.
+A resize requires a positive decimal integer window-width token whose measured-decoration
+reconstruction equals the requested tile width exactly and survives Niri's size floor and tile clamp.
+Fractional requested widths are not silently rounded: representable decorated widths are admitted;
+others stop before that seed's placement actions, after launch/association. Column donors inherit the
+seed's observed width without requiring an independent resize. Native constraints/scale-dependent
+size differences can still fail strict postconditions. Floating-position grammar and pixel-grid
+policy are separate and unchanged. Old decimal-width intents never become executable; the narrow
+explicit accounting-only disposition below does not migrate or observe them as successful.
+Names change only on admitted nonprotected workspaces without conflicting existing names. Unknown
+geometry, mixed cohorts, late unowned arrivals, lost proof or failed postconditions stop all later
+effects, including focus cleanup. The original focus is restored only after successful observations.
+Index-addressed moves and names revalidate the intended stable ID/output/index after durable intent;
+observed drift stops without dispatch, rewriting or retry. **Remain idle:** the final check and Niri
+action remain non-atomic, even against automatic workspace cleanup. Strict postconditions still apply.
+
+Canonical append-only history is independent of `--state-root` and XDG settings. Original Store
+identity, full source-derived plan, coherent baseline, pre-effect classifications, controlled literal
+specs, associations, intents and observations are retained. The closed v3 history binds current output
+scales and workspace references, and validates action
+predictions against observations, exact observed effect accounting, and terminal geometry against
+both the durable final observation and requested topology/dimension coverage. Unsupported/already-open
+classifications cannot be invented at terminal time. Historical validation does not reprobe old host
+files or working directories. Older candidate history formats remain blocked, not silently upgraded. Missing/corrupt/orphan/legacy
+records or unresolved effects block every cooperating effectful writer, across sources and Stores.
+Do not remove markers, retry, relaunch or clean up uncertainty. The accounting-only disposition
+below supports one exact historical family; there is no generic resolve command.
+A valid terminal releases future writer admission without erasing history. Exact completed-source
+replay returns historical accounting, with zero effects and no fresh native verification; another
+source needs a fresh protected baseline. Final receipt is durable before canonical terminal, then
+`last-reopened` is projected only for full success. A missing pointer never grants replay authority.
+Fully accounted unsupported entries yield `partial` (exit 2), distinct from `interrupted`; neither
+updates the success pointer. Resume-argv matches are skipped as already open, not newly verified
+sessions. Exit 0 means complete supported placement/accounting, not recovered memory or usability.
+
+### Restore read-query policy
+
+Built-in Windows, Workspaces and Version reads retry only `Popen` construction raising exact
+`BlockingIOError` with `EAGAIN`: at most three constructions per invocation, with 0.05/0.10-second
+backoffs. Outputs remains a mandatory single-dispatch read. Communication, decoding, custom queries,
+bootstrap/spawn and layout actions are never retried; IPC clients are never timeout-killed or
+implicitly cleaned up. Each eligible read has one ten-second aggregate admission/observation budget,
+intersected with an already-forwarded association deadline; construction, backoff and decoding count.
+This rejects late observations, not a hard wall-clock return bound. Existing association polling and
+its separate failure-diagnostic read may each invoke another query; three is not a whole-restore cap.
+Selected custom methods retain the existing `deadline=` association contract, without signature
+fallback. Post-action reads still do not share their postcondition loop's deadline; this policy does
+not repair that existing limit. Exhaustion leaves the original error and unresolved ownership/history,
+not a new launch or permission to retry effects. Historical native EAGAIN causation and desktop/session
+usability remain unproved; source or synthetic results do not authorize deployment or live effects.
+
+### Protected-dimension interruption evidence
+
+A new protected-size refusal may include `first_rejected_observation` in its interrupted receipt.
+It is the first refused state's bounded **dimensions-only** projection, with original-baseline
+size differences, proof phase and timing of the existing windows/workspaces/outputs queries.
+`final_observation` remains a separate, later diagnostic read: it may show the same change,
+recovery, a different change or unavailable data. Never substitute it for the rejected sample.
+
+The optional closed `restore-protected-dimensions.v1` field uses `null` for unavailable pairs or
+query/clock timing; `{"schema":"restore-protected-dimensions.v1","unavailable":true}` means the
+first retention failed or exceeded bounds. No fullscreen, work-area or layer data is inferred.
+Absence on old receipts or other refusal paths is not evidence of unchanged dimensions.
+The [exact schema and limits](architecture.md#protected-dimension-refusal-diagnostics) also explain
+classification and reused-baseline timing limits. Monotonic query intervals correlate local reads,
+not compositor causality or wall time. Titles, command lines and paths are not in this new projection.
+
+This field supplies diagnostics only. The original refusal, unresolved history, effect accounting
+and no-retry/no-cleanup boundary remain. Successful/legacy receipts are unchanged, and neither
+existing `restore-disposition` family admits these new protected-dimension interruptions.
+Offline tests do not authorize live effects or deployment.
+
+### Explicit retained partial disposition (candidate; independent review pending)
+
+Update: bounded independent re-review and full isolated CI have passed. This heading is retained
+for existing links. One separately approved native width-failure disposition was independently
+verified as partial accounting, not restored geometry or native success. A later unassociated-host
+interruption remains fenced and is outside this narrow disposition family.
+
+`restore-disposition` is **accounting only**, not repair, cancellation, retry or native success.
+It supports only a strict nine-record v3 ordinary attempt ending in the reviewed pre-fix positive
+integral `.0` column-width intent, following one owned-column move. All earlier records must pass
+strict current semantics. Unknown shapes, old v1/v2, follow-up observations, generic pending actions,
+timeouts, missing witnesses, unknown ownership and process/controller overlap remain blocked.
+The strict executable integer grammar is unchanged.
+
+Use the **original Store**, with two original private single-link witness files sharing one private
+directory. That directory may be outside the Store (for example, the original controller's private
+qualification directory); both file and directory inode identities are bound, without moving files:
+
+- `--client-result`: the original synchronous CLI result JSON object, exactly the immutable
+  interrupted receipt's fields plus `snapshot_digest` and `receipt_digest`. No envelope, extra keys
+  or reconstructed result is accepted. It must identify `CalledProcessError` for the exact pending
+  `niri msg action set-column-width ...` command with exit status 2.
+- `--client-exit`: the original synchronously collected invocation exit file, exactly `2\n`.
+
+The operator must attest original provenance, not manufacture files from the receipt. Hashes and
+inode/path/owner checks detect subsequent changes; they **do not independently authenticate the
+historical exit**. Trust includes the installed Niri/client and the operator-controlled original
+witness collection. Flock alone and a receipt error string are insufficient. This is not kernel-signed
+proof, a sandbox against the account owner, or proof of a usable native session.
+
+```sh
+niri-desktop-continuity --state-root <original-store> restore-disposition inspect <attempt> \
+  --interrupted-receipt <digest> --client-result <original-result-path> --client-exit <original-exit-path>
+niri-desktop-continuity --state-root <original-store> restore-disposition propose <attempt> \
+  --interrupted-receipt <digest> --client-result <original-result-path> --client-exit <original-exit-path> --ttl 300
+# Review the exact private plans/<plan-digest>.json and its declared uncertainty first.
+niri-desktop-continuity --state-root <original-store> restore-disposition approve <plan-digest> \
+  --confirm <same-plan-digest> --accept operator-accepted-partial --attest-client-returned
+niri-desktop-continuity --state-root <original-store> restore-disposition apply <approval-digest>
+```
+
+Inspection performs no filesystem writes; proposal only adds a private plan, never approval or a
+canonical record. All stages use the existing exclusive flock without granting desktop action
+capability. Proposal/approval/apply bind fresh coherent topology and focus, the unique originally
+associated host, live pidfds/start pins, its recorded ELF and literal argv, held recorded directory
+identity and the launched host's actual `/proc/PID/cwd`, and every currently protected window's process
+identity. This does not inspect or infer a utility child's cwd. Missing, moved or replaced host cwd
+blocks; earlier candidate disposition plans without this binding must be proposed anew. They query topology/process metadata, not saved-session
+registries or profile payloads. Current geometry may legitimately differ from the incident;
+fresh capture does **not** prove historical preservation. Stay idle during review/approval/apply;
+any bound-state drift requires a new proposal. Plans expire within 900 seconds (default 300).
+
+Apply revalidates independently, durably consumes the approval, persists a disposition receipt,
+and commits one `operator-disposition` record. It never changes prior bytes, observes the failed
+intent as successful, unlinks the fence, updates `last-reopened`, launches, moves or kills anything.
+Accounting failures before canonical commit stay fenced; no automatic retry or cleanup occurs.
+A durable staged record is renamed to the canonical record, but **visibility is not directory
+durability**. Pure history loading and inspection confer no admission. Every accepting path, including
+ordinary writer admission, original-source replay and disposition replay, validates the entire special
+flow and establishes fresh successful file and parent-directory barriers on exact identity-checked
+artifacts, dependencies and the canonical record under the same flock. A failed barrier blocks.
+
+Later successful barriers on that same already-approved, consumed, valid canonical record can establish
+durability **now**, without new approval, consumption, append or native observation. This is historical
+partial accounting recovery, not proof that the original apply succeeded. Missing, damaged or replaced
+bound evidence is refused, never repaired. Read-only inspection may report `canonical=validated` and
+`durability=unestablished`; it does not fsync or claim admission. Missing/partial/staged-only history
+remains blocked. Existing equal Store artifacts also require fresh file/directory fsync on reuse.
+
+Mandatory live checks follow the last slow history/dependency reads, before approval persistence or
+consumption, and repeat after staging persistence immediately before canonical publication. Expiry is
+rechecked after those reads. Pidfds and the cwd descriptor stay held through publication. There is no
+post-publication fresh-state veto that reports refusal after publishing authority: subsequent live
+changes are new state. The last check through publication/fsync is still **non-atomic** against process
+exit or external desktop activity; this command has no desktop effects and does not claim otherwise.
+
+The receipt remains `operator-accepted-partial`, with `historical_completion=unproved`,
+`pending_outcome=unresolved`, `native_session=not-proved`, `disposition_effects=[]` and
+`retry_authorized=false`. **Apply and historical original-source restore replay exit 2**, not success.
+Original-source replay reports invocation `effects=[]`, separate `historical_effects`, and the original
+row receipt reference. Only fully valid canonical disposition releases future writer admission.
+Keep all original evidence files: removing or changing them blocks admission again.
+
+A different source still needs its own freshly observed baseline and separately authorized operator
+action. Ordinary `restore --apply` remains the existing explicit manual apply surface; it does not gain
+an automatic exact-digest approval argument from disposition. Native qualification and login deployment
+remain separate approval gates. Do not manually edit history to bypass a refusal.
 
 `restore --at-login` first waits up to 60 s for Niri and does nothing when the saved identity
 matches the running compositor instance. `autostart --enable [--interval-minutes N]` installs
@@ -335,6 +586,95 @@ Python 3.11+; a private adapter can require a different pinned interpreter and m
 This is a bounded source-owned recovery mode, not a general application launcher or a workaround
 for the independent requirements of destructive reconstruction. Native qualification is separate.
 
+## Exited associated-shell disposition v3 (offline candidate)
+
+This accounting-only family is explicitly selected with
+`restore-disposition inspect|propose --family associated-shell-protected-dimensions-interrupted`.
+It is **not native qualification or permission to run these commands against a real desktop**.
+Omitting `--family` still selects v1; the existing unassociated-host family remains v2.
+
+Only the exact original ten-record associated-shell attempt with two observed actions (workspace
+transfer, then owned-window focus), requested width already observed, and the original seven-field
+`ValueError: protected dimensions changed` receipt is eligible. Original synchronous result/exit
+files remain mandatory. A new diagnostic-bearing receipt is explicitly **ineligible**, including
+an unavailable `first_rejected_observation`. Never strip fields, reconstruct witnesses, normalize
+the old source or substitute a later diagnostic sample for the unretained rejected sample.
+
+Inspection is historical only: no socket/process/namespace observation, fsync, artifact creation
+or admission. Proposal needs the continuing authenticated peer, validated process/namespace scope,
+all current windows protected, and exact ESRCH at pidfd_open for the old PID. The original associated
+window ID and every window reporting that PID must be absent. A live replacement at the same numeric
+PID refuses, even with another start time. New live proofs require Linux little-endian x86_64
+GNU LP64, a conventional stable upstream-compatible release >=7.2.6, libc statx UNIQUE and active
+pidfd namespace ioctls. Unsupported ABI/release/interfaces or uncertain scope refuses without fallback.
+Genuine self coordinates establish the proc/caller namespace relation without opening init namespaces;
+a nested matching PID scope is supported. Same-user process ownership and complete non-init ancestry
+remain required. The release check is compatibility under platform trust, not build attestation.
+
+Old-method v3 plans remain historical only: exact completed replay/inspection still works, including
+expired completions. An unfinished old-method approval/apply refuses before live proof or new
+accounting writes. Nothing rewrites old bytes, changes `init_pid_namespace` meaning or clears a fence.
+New plans emit only `native-niri-continuing-peer-procfs-self-pidfd-esrch.v2`, with the unique mount
+ID and derived PID namespace pin. Both the original init method and procfs-self `.v1` are historical
+only, with unchanged meaning and bytes. Their completed histories remain replayable together.
+
+Caller, continuing peer and every protected-window owner always need full namespace proofs, acquired
+before any ancestor-only row. Other ancestors need genuine singleton PID coordinates, four matching
+UIDs, stable boot/start/parent, held-directory provenance and live pidfds, but no target namespace
+ioctl. Their user namespace and executable continuity are not asserted. A capability-bearing manager
+can therefore qualify as an exclusion-only ancestor while still refusing as a peer or protected
+owner. This is not a permission fallback: inaccessible required metadata, failed full-role proofs,
+unknown/incomplete ancestry and all observed drift still refuse. Weak proofs never gain full roles;
+a later cohort change requires refusal, not promotion. No manager's other sessions become owned.
+Current ELF checking uses guarded root-relative lookups; transient privileged substitution between
+checks is an accepted sampling limit, not proved impossible. Readonly opens are not a sandbox.
+See [scope and image limits](architecture.md#exited-associated-shell-v3-offline-candidate).
+
+Proposal prints the complete fixed `platform` object and its `platform_digest`. Inspect the private
+plan, including current peer image/scope and all limitations, before any separately authorized step:
+
+```sh
+niri-desktop-continuity --state-root <original-store> restore-disposition approve <plan-digest> \
+  --confirm <same-plan-digest> --accept operator-accepted-partial --attest-client-returned \
+  --ack-platform <exact-platform-digest-from-that-plan>
+```
+
+The acknowledgement is specifically same-lifetime native endpoint/PID scope, without serving
+handover, namespace-changing proxy or PID translation. This is accepted historical platform trust,
+not measured historical executable continuity. Current ELF/Version checks do not attest a build;
+SO_PEERCRED does not identify a different task serving an inherited socket. Both original CLI-version
+members remain immutable source evidence, but only `compositor` is compared to direct IPC Version.
+
+Apply and exact completed replay return `operator-accepted-partial`, exit 2, invocation effects `[]`,
+separate two-action historical effects, unproved historical completion/preservation and unresolved
+outcome. No original source is relaunched or promoted to `last-reopened`. Direct replay needs the
+original Store; ordinary old-source replay also works from a different Store without current native
+proof. Each live stage proves its own caller. A changed baseline requires a new proposal/approval;
+no retry can bypass a `.pending` stage or consumed attempt. No process is killed or window moved.
+A distinct source remains an independent ordinary restore, not newly authorized by this accounting.
+
+## Disposition failure boundary (offline prerequisite candidate)
+
+`restore-disposition` parser, cancellation and result-output failures now use one bounded ASCII
+JSON line on stderr, with `error="restore-disposition-refused"` and a closed
+`restore-accounting-failure.v1` diagnostic. Private argument values and exception text are not
+printed. Explicit help still exits 0. Runtime cancellation never becomes success: KeyboardInterrupt
+exits 130; SystemExit preserves only actual integers 1–255 (otherwise 1); conflicting cancellation
+codes give 1. Untagged IO failures exit 2; unclassified failures exit 1. A failed diagnostic write
+has no raw fallback or retry. Other commands retain their existing error boundary.
+
+This is **not retained-pending completion support**. Both failed-preparation family selectors are
+still rejected; a retained `.pending` still blocks admission. Detailed preconsumption phase tags,
+complete guard-site reason tagging, stream/barrier teardown coverage and the S/F plus S2/F2 protocol
+remain unimplemented. The original restore witness is unchanged. Coarse diagnostics do not supply
+eligible failed-client evidence, prove linkage or grant authority.
+
+Existing v2/v3 canonical rename attempts report `publication="unknown"` until admission verifies the
+carried staged inode at the canonical name. V1 conservatively remains unknown after rename because
+it has no such carried staged-inode check. Publication is not durability. Postcommit output/cleanup
+failure emits no usable successful result and never rolls back; an explicit exact historical replay
+still performs the existing barriers without a new native proof. No live use or deployment follows.
+
 ## Privacy and trust model
 
 Private files are content-addressed and integrity checked, with distinct latest-observed,
@@ -342,3 +682,54 @@ last-display-valid and last-layout-verified pointers. Headless observations cann
 stronger pointer. Existing permissive/symlink state roots are refused, not silently repaired.
 Same-user malicious code can author local plans and approvals; these are accidental-use safety
 gates, not authentication against an attacker who already controls your user account.
+
+
+## Exec-observed-unassociated disposition v2 (offline candidate)
+
+The corrected implementation passed independent code review, full isolated CI (1,671 tests),
+and installed-wheel lifecycle checks on Python 3.13/3.14. These instructions are not live-use,
+retry, cleanup or deployment authorization. The original nine-record width procedure above remains
+v1 when `--family` is absent. For the distinct five-record exec-observed/unassociated family, select
+it explicitly on the existing commands:
+
+```sh
+niri-desktop-continuity --state-root <original-store> restore-disposition inspect <attempt> \
+  --family exec-observed-unassociated --interrupted-receipt <original-receipt> \
+  --client-result <original-private-result-file> --client-exit <original-private-exit-file>
+niri-desktop-continuity --state-root <original-store> restore-disposition propose <attempt> \
+  --family exec-observed-unassociated --interrupted-receipt <original-receipt> \
+  --client-result <original-private-result-file> --client-exit <original-private-exit-file>
+```
+
+Inspection reads existing evidence only: family eligibility is not fresh ownership, durability,
+approval or admission. Proposal requires fresh coherent current topology and real process/image/
+argv/cwd evidence. Review its exact plan digest; the existing `approve` command requires
+`--confirm <that-plan-digest> --accept operator-accepted-partial --attest-client-returned`.
+The attestation is specifically that the witness files are original synchronous invocation output,
+not reconstructed evidence; it is not kernel authentication. Existing `apply <approval-digest>`
+consumes that approval and appends only partial accounting. It never dispatches a Niri action,
+launches/terminates an application, updates `last-reopened`, retries or verifies native sessions.
+
+Only the exact original `ValueError: foreign active window`, exit `2\n`, one `launch-indeterminate`
+row with its original process-only receipt, and empty-effect witness qualify. The earlier unreviewed
+`process-exec-observed` row is not an alias; never rewrite real witness files to make them eligible. Other errors, associations/layout/terminal claims, extra entries,
+source/attempt/launch-identity reuse, uncertain ownership and protected/controller overlap refuse.
+Historical launch identity is `(boot_id, pid, start_ticks)`, not PID alone. The exact partial labels
+are `historical_association="not-recorded"` and `outcome="unresolved"`.
+Current protected geometry may legitimately differ from the historical baseline; this is not
+proof that it was preserved. The current topology is not a full physical-output inventory.
+
+Successful accounting, its historical replay and completed-partial inspection report partial
+status/exit 2, never original restore success. Active inspection/proposal/approval return exit 0
+without granting restore execution. Original-source ordinary restore remains a historical partial
+replay with empty invocation effects; a new ordinary operation needs its own fresh baseline and
+separate explicit operator action. An incomplete `.pending`/consumed flow stays fenced, even with
+a different approval; do not delete, rebuild or "repair" its evidence.
+
+Persisted historical pins are immutable expectations. Latest generated artifacts without such a
+pin have semantic/cross-reference protection plus FIRST-observation identity protection during each
+validation/barrier interval—not independently proved creation-time inodes across invocations.
+A later plan binds them as observed then. Owner-controlled append-only state and trusted app/operator
+workflow are the terminal trust boundary, not a signed log against a malicious account owner.
+See [architecture](architecture.md#exec-observed-unassociated-v2-offline-verified)
+for exact closure, staging, identity and per-pass resource limits.

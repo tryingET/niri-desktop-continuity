@@ -14,6 +14,43 @@ anything that cannot be reopened safely is reported, never guessed.
 of its five workspaces, 23 windows in all. Every tile says how it comes back after a reboot, or
 why it will not.</sub>
 
+## Candidate safety status
+
+This checkout contains an **integrated, independently reviewed, synthetically tested restore
+candidate awaiting successful native qualification**. Ordinary restore now admits only controlled fresh Ghostty hosts; general applications,
+including browsers, are unsupported. Multi-host tiling/floating and historical replay have fabricated
+outcome tests, including the installed console and real bootstrap/ELF exec. **One bounded native
+attempt opened a Ghostty host and moved its column, then failed at width parsing. Corrected width,
+session usability, full layout and login deployment remain unqualified. Do not deploy this candidate
+from synthetic results.** Historical product examples below are not candidate proof.
+The narrow `restore-disposition` candidate adds explicit accounting-only acceptance of one retained
+pre-fix width failure; it is not retry, repair or native success. It requires original invocation
+witnesses, exact disposition approval and fresh process/topology checks. Independent re-review
+closed four reported defects. That width-failed attempt subsequently received separately approved,
+independently verified partial accounting, preserving its original failure. A fresh native attempt
+then opened a host but stopped before association or width verification; this newer attempt remains
+unresolved and is not supported by the narrow width-disposition family. See [usage](docs/usage.md#explicit-retained-partial-disposition-candidate-independent-review-pending)
+and [architecture](docs/architecture.md#ordinary-restore-candidate-boundary).
+
+The subsequent association-coherence correction passed bounded independent review and full isolated
+CI: 1,671 tests, package builds and installed-wheel smoke, including the later disposition v2. Final Python 3.14 installed synthetic
+cases also passed; these are not native qualification. Only a tightly bounded split read during post-launch association may
+wait for a new whole sample; every other decoder remains strict. Host cwd is now retained and checked
+alongside process proof. Review corrections now retain the full pre-launch output inventory (including
+unchanged disabled outputs), compare it on every read against the incoming coherent capture, and
+close all owned proof resources despite exceptional teardown.
+Decoder workspace references intentionally reject boolean/float aliases of integer IDs.
+Corrected native association/width and session usability remain unverified; no deployment occurred. See [association limits](docs/architecture.md#association-only-coherence-boundary).
+
+The exited-shell v3 candidate now has a root-init-free current proof on the checked stable
+Linux >=7.2.6 x86_64 GNU LP64 profile. Its sole live procfs-self `.v2` method proves ancestor-only
+rows for exclusion without requiring their namespace handles; caller, peer and protected owners
+still require full namespace proof. No weak-to-full promotion or permission fallback exists.
+Both older-method completions remain historical; unfinished
+old-method plans cannot authorize new live work. Isolated mapped-user/kernel and installed-CLI
+tests are development evidence, not ordinary-host or desktop qualification. See the
+[scope and ELF sampling limits](docs/architecture.md#exited-associated-shell-v3-offline-candidate).
+
 ## Why
 
 niri's scrolling columns make it easy to build a desktop that is worth keeping: a workspace per
@@ -59,9 +96,9 @@ niri-desktop-continuity autostart --enable   # capture every 15 min, reopen at l
 niri-desktop-continuity restore --apply      # reopen the latest capture now
 ```
 
-`restore --apply` launches every reopenable saved window that is not already open as a Claude or
-Pi session, so run it on a desktop that has lost those windows. In the session you just captured,
-it would open second copies. The login service checks this for you: it reopens only when the
+`restore --apply` admits supported fresh Ghostty recipes not already observed as Claude or Pi
+resume recipes. Other application recipes are reported unsupported before launch. Use it only
+with separately approved native qualification on a desktop that has lost the saved windows. The login service checks this for you: it reopens only when the
 capture came from a different niri instance, such as the one before a reboot.
 
 A session that cannot be resumed (for example, a Claude Code session started from inside another
@@ -97,15 +134,20 @@ recipe* per window:
 | `claude` | Ghostty, running `claude --resume <id>` in the session's directory (from Claude Code's per-process session registry) |
 | `pi` | Ghostty, running Pi's own resume command (from Pi's presence directory) |
 | `declared` | Ghostty, running the command you gave `declare` |
-| `app` | the application's command line and working directory |
+| `app` | recorded for inspection; ordinary restore currently reports unsupported ownership |
 | `command` | Ghostty, running its last command again (for example `btop` or `npm run dev`) |
 | `shell` | Ghostty, opened in the same directory |
 | `unknown` | not reopened. The reason is recorded, for example `xwayland-client` or `claude-session-unregistered` |
 
-`restore --apply` spawns each recipe through niri, waits for its window, moves it to its workspace,
-then rebuilds the saved column order and widths and re-applies workspace names. Browsers,
-Thunderbird and Obsidian restore their own windows, so they are launched once. Every run writes a
-receipt (`history --kind receipts`); exit status 2 means a partial or interrupted run.
+`restore --apply` uses one locked attempt, Niri-dispatched bootstraps, retained process proofs and
+fresh unique native-window associations. Owned singleton donors are arranged after protected
+columns; every effect has durable intent and an observed postcondition. Unknown requested geometry,
+conflicting names or ambiguous ownership stop effects without cleanup. Sequential placement supports
+Niri's automatic trailing-empty workspaces at clean login; destinations are bound to stable IDs
+across permitted empty-workspace cleanup/reindexing. Browser
+restore is a gap, not demonstrated by its zero-launch refusal. Receipts and canonical histories
+retain all entries; exit 2 means partial or interrupted. Exact completed-source replay returns
+historical accounting without effects or fresh native verification.
 Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md#save-and-reopen).
 
 ## What it never does
@@ -139,12 +181,23 @@ captures and previews as private and do not publish them.
 - **X11 applications are not reopened**, because niri does not reveal which X11 program owns a
   window.
 - **Ghostty only, by design.** Sessions inside terminals are read and resumed in Ghostty. Other
-  terminals (kitty, WezTerm, foot, Alacritty) reopen as plain applications, without what ran in
-  them; if you use one, fork it. Claude Code and Pi resume by id; other programs in Ghostty get
+  terminals (kitty, WezTerm, foot, Alacritty) are captured as plain application recipes but are
+  unsupported by this restore candidate; if you use one, fork it. Claude Code and Pi resume by id; other programs in Ghostty get
   their last command run again, or a shell in the same directory. Sessions found in extra tabs of
   one Ghostty window reopen as separate windows.
-- **Placement is by workspace index.** Saved workspaces are compacted to consecutive indices, and
-  which monitor a workspace was on is not restored.
+- **Placement follows logical workspace order on the current output.** Normal Niri empty-workspace
+  creation/cleanup is supported; there is no arbitrary workspace-creation feature or source-monitor
+  affinity restoration. Protected workspace names are not changed.
+- **Missing optional dimensions are not guessed.** Extra-tab windows become separate columns and
+  retain freshly observed widths when no width was saved; receipts distinguish this from requested
+  width verification. A shared column uses its consistent recorded width, or its fresh seed width;
+  other members inherit it. Conflicting widths refuse before launch. Requested dimensions remain
+  pending until verified; floating positions use the current output's pixel grid and report rounding.
+  Saved tile height is not restored. History validates transitions and accounting, not hashes alone.
+- **Controlled Ghostty configuration is lossy.** Custom configuration is discarded after defaults
+  have been read. Explicit cwd and literal command arguments are retained; wrappers and conflicting
+  host options are refused. Fresh-host no-forwarding/no-connection-transfer behavior is trusted,
+  not established by a PID alone.
 - **Stay idle while it arranges columns** (usually under a minute). niri has no atomic
   focus-and-move, so input during the run can land in the wrong column.
 - Exact restart or migration of a still-running window is **not** supported and stays blocked.
@@ -176,3 +229,14 @@ Scaffolded from `tpl-project-repo`, then adapted for a standalone Python package
 retain relative template provenance only; template updates are a maintainer concern, not an
 installation prerequisite. Private template snapshot context is excluded from version control
 and distribution. Apache-2.0: see [LICENSE](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE).
+
+
+The offline `exec-observed-unassociated` disposition v2 candidate uses explicit
+`restore-disposition inspect|propose --family exec-observed-unassociated`; omission preserves v1.
+It records partial accounting only, never retries or certifies restored native state. Review
+corrections require the actual `launch-indeterminate` witness, exact seven-field segment, tuple-based
+process identity and a live/expiry veto after the final capacity check. Earlier wrong-wire fixture
+results are not intended-family proof. The corrected implementation passed independent rereview,
+installed-wheel lifecycle checks on Python 3.13/3.14 and full isolated CI (1,671 tests).
+No live use or deployment is authorized by these offline results.
+See [the family contract](docs/usage.md#exec-observed-unassociated-disposition-v2-offline-candidate).

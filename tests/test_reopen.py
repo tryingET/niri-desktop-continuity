@@ -31,6 +31,9 @@ def isolated(tmp_path, monkeypatch):
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: runtime)
     monkeypatch.setattr(launch, "declaration_root", lambda: runtime / "declared")
     monkeypatch.setattr(restore, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
+    from niri_desktop_continuity import restore_host
+
+    monkeypatch.setattr(restore_host, "route", lambda identity: None)
 
 
 def window(wid, workspace, column, *, app="com.mitchellh.ghostty", tile=1, reopen=None, **extra):
@@ -567,7 +570,7 @@ def test_plan_compacts_workspaces_and_sends_unknowns_last():
     assert by_id[3]["target_workspace_idx"] == 3  # empty named workspace 3 is skipped
     assert by_id[2]["target_workspace_idx"] == 4 and by_id[2]["column"] is None
     assert plan["unknown_workspace_idx"] == 4
-    assert plan["workspace_names"] == {3: "lab"}
+    assert plan["workspace_names"] == {"3": "lab"}
     assert plan["protected_window_ids"] == [50]
     assert [e["window_id"] for e in plan["entries"]] == [1, 4, 5, 3, 2]
 
@@ -610,13 +613,33 @@ class FakeDesktop:
         self.fail_spawn = set(fail_spawn)
         self.mismatched_app = set(mismatched_app)
         self.clock = 0.0
-        self.workspace_list = [{"id": 1, "idx": 1}, {"id": 2, "idx": 2}, {"id": 3, "idx": 3}]
+        self.workspace_list = [
+            {"id": i, "idx": i, "output": "DP-1", "is_focused": i == 1} for i in (1, 2, 3)
+        ]
 
     def windows(self):
         return [dict(w) for w in self.live]
 
     def workspaces(self):
-        return list(self.workspace_list)
+        return [
+            {
+                **ws,
+                "active_window_id": next(
+                    (
+                        w["id"]
+                        for w in self.live
+                        if w["workspace_id"] == ws["id"] and w.get("is_focused")
+                    ),
+                    next((w["id"] for w in self.live if w["workspace_id"] == ws["id"]), None),
+                ),
+                "is_active": ws["is_focused"],
+            }
+            for ws in self.workspace_list
+        ]
+
+    def outputs(self, *, deadline=None):
+        # Same explicit fabricated inventory as saved()/observation(), not a runtime fallback.
+        return [{"name": "DP-1", "logical": {"w": 1}, "current_mode": 0}]
 
     def ready(self):
         return True
@@ -648,12 +671,10 @@ class FakeDesktop:
 
 def observation(desktop):
     def observe():
-        return saved(
-            desktop.windows(),
-            workspaces=[
-                {"id": i, "idx": i, "output": "DP-1", "is_focused": i == 1} for i in (1, 2, 3)
-            ],
-        )
+        return {
+            **saved(desktop.windows(), workspaces=desktop.workspaces()),
+            "identity": restore.compositor_identity(),
+        }
 
     return observe
 
@@ -679,21 +700,15 @@ def test_reopen_places_columns_after_protected_windows_and_restores_focus(tmp_pa
     result = restore.restore(
         store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=2
     )
-    assert result["status"] == "reopened-partially"  # the unknown window has no command
-    statuses = {w["window_id"]: w["status"] for w in result["windows"]}
-    assert statuses == {1: "placed", 2: "placed", 3: "placed", 4: "placed", 5: "no-launch-command"}
-    assert ("spawn", ("brave",)) in desktop.actions
-    moves = [a for a in desktop.actions if a[0] == "move-window-to-workspace"]
-    assert [a[-1] for a in moves] == ["1", "1", "1", "2"]
-    assert all(a[4] == "false" for a in moves)  # focus never follows a reopened window
-    # Two protected tiled columns on workspace 1 → saved column 1 lands at index 3.
-    assert ("move-column-to-index", "3") in desktop.actions
-    assert ("set-column-width", "900") in desktop.actions
-    assert ("consume-window-into-column",) in desktop.actions
-    assert desktop.actions[-1] == ("focus-window", "--id", "7")
-    assert store.pointer("last-reopened") == key
-    assert not any(a[0] == "set-workspace-name" for a in desktop.actions)
-    assert store.get("receipts", result["receipt_digest"])["protected_window_ids"] == [7, 8]
+    # Legacy application recipes and terminals without an explicit cwd have no ownership grant.
+    # Positive multi-host placement now has a substantive topology oracle in test_restore_integration.
+    assert result["status"] == "partial"
+    assert {w["window_id"]: w["status"] for w in result["windows"]} == dict.fromkeys(
+        range(1, 6), "unsupported"
+    )
+    assert desktop.actions == [] and desktop.live == live
+    assert store.pointer("last-reopened") is None
+    assert len(store.get("receipts", result["receipt_digest"])["windows"]) == 5
 
 
 def test_reopen_records_undetected_spawn_and_never_moves_protected(tmp_path):
@@ -703,20 +718,20 @@ def test_reopen_records_undetected_spawn_and_never_moves_protected(tmp_path):
     result = restore.restore(
         store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
     )
-    assert result["windows"][0]["status"] == "spawned-window-not-detected"
-    assert result["status"] == "reopened-partially"
-    assert [a for a in desktop.actions if a[0] != "spawn"] == [("focus-workspace", "1")]
+    assert result["windows"][0]["status"] == "unsupported"
+    assert result["status"] == "partial"
+    assert desktop.actions == [] and desktop.live[0]["id"] == 7
 
 
-def test_mismatched_app_id_is_accepted_only_after_timeout(tmp_path):
+def test_mismatched_app_id_never_supplies_ownership(tmp_path):
     store = Store(tmp_path / "state")
     key = store.put("snapshots", saved([window(1, 1, 1, app="x", reopen=recipe("app", "x"))]))
     desktop = FakeDesktop([], mismatched_app={("x",)})
     result = restore.restore(
         store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
     )
-    assert result["windows"][0]["status"] == "placed"
-    assert desktop.clock >= 1
+    assert result["windows"][0]["status"] == "unsupported"
+    assert desktop.actions == [] and not desktop.live
 
 
 def test_self_restoring_app_is_launched_once_then_awaited(tmp_path):
@@ -741,13 +756,9 @@ def test_self_restoring_app_is_launched_once_then_awaited(tmp_path):
     result = restore.restore(
         store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=2
     )
-    assert [a for a in desktop.actions if a[0] == "spawn"] == [
-        ("spawn", ("brave",)),
-        ("spawn", ("brave",)),
-    ]
-    assert [w["status"] for w in result["windows"]] == ["placed"] * 3
-    assert result["windows"][1]["awaited_self_restore"] is True
-    assert result["windows"][2]["awaited_self_restore"] is False
+    assert desktop.actions == [] and desktop.live == []
+    assert [w["status"] for w in result["windows"]] == ["unsupported"] * 3
+    assert result["status"] == "partial" and store.pointer("last-reopened") is None
 
 
 def test_app_reopens_in_its_saved_directory(tmp_path):
@@ -767,13 +778,19 @@ def test_app_reopens_in_its_saved_directory(tmp_path):
     )
     key = store.put("snapshots", snapshot)
     desktop = FakeDesktop([])
-    restore.restore(store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1)
-    chdir = 'cd -- "$1" && shift && exec "$@"'
-    assert [a[1] for a in desktop.actions if a[0] == "spawn"] == [
-        ("sh", "-c", chdir, "sh", str(checkout), *electron),
-        ("gone", "."),  # a vanished directory falls back to niri's, as before
-        ("ghostty", "-e", "pi"),  # terminals carry their directory in their own argv
-    ]
+    # Browser/general application ownership is unsupported; vanished cwd never falls back.
+    # Refuse a fabricated script rather than discover or execute any installed native Ghostty.
+    host = checkout / "ghostty"
+    host.write_text("#!/bin/sh\nexit 0\n")
+    host.chmod(0o700)
+    snapshot["windows"][2]["reopen"]["argv"][0] = str(host)
+    key = store.put("snapshots", snapshot)
+    result = restore.restore(
+        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
+    )
+    assert desktop.actions == []
+    assert [w["status"] for w in result["windows"]] == ["unsupported"] * 3
+    assert result["status"] == "partial"
 
 
 def test_saved_directory_wrapper_changes_directory_without_reinterpreting_arguments(tmp_path):

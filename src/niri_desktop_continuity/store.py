@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -73,6 +74,79 @@ def check_file(path: Path) -> None:
         raise ValueError("artifact exceeds 16 MiB bound")
 
 
+def sync_artifact(pin: dict) -> None:
+    """Establish durability NOW on an exact validated private file and its directory.
+
+    No create, replacement, normalization or repair. Descriptors remain identity-checked
+    across both barriers; a content address or a successful read alone is not durability.
+    """
+    path = Path(pin["path"])
+    private_directory(path.parent, create=False)
+    directory = os.open(path.parent, os.O_RDONLY | os.O_DIRECTORY | os.O_NOFOLLOW)
+    try:
+        parent = os.fstat(directory)
+        if {"device": parent.st_dev, "inode": parent.st_ino} != pin["directory"]:
+            raise ValueError("artifact directory replaced before durability barrier")
+        fd = os.open(path.name, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK, dir_fd=directory)
+        try:
+            before = os.fstat(fd)
+            check_file(path)
+            if (
+                not stat.S_ISREG(before.st_mode)
+                or before.st_uid != os.getuid()
+                or before.st_nlink != 1
+                or before.st_mode & 0o077
+                or before.st_dev != pin["device"]
+                or before.st_ino != pin["inode"]
+                or before.st_size != pin["length"]
+                or before.st_size > 16 * 1024 * 1024
+            ):
+                raise ValueError("artifact identity differs from validated bytes")
+            value = hashlib.sha256()
+            remaining = before.st_size
+            while remaining:
+                block = os.read(fd, min(remaining, 1024 * 1024))
+                if not block:
+                    raise ValueError("artifact truncated before durability barrier")
+                value.update(block)
+                remaining -= len(block)
+            if value.hexdigest() != pin["sha256"]:
+                raise ValueError("artifact bytes changed before durability barrier")
+
+            def unchanged():
+                check_file(path)
+                private_directory(path.parent, create=False)
+                fields = (
+                    "st_dev",
+                    "st_ino",
+                    "st_size",
+                    "st_mtime_ns",
+                    "st_ctime_ns",
+                    "st_uid",
+                    "st_mode",
+                    "st_nlink",
+                )
+                if any(
+                    getattr(s, k) != getattr(before, k)
+                    for s in (os.fstat(fd), path.lstat())
+                    for k in fields
+                ):
+                    raise ValueError("artifact changed during durability barrier")
+                actual = path.parent.stat()
+                if (actual.st_dev, actual.st_ino) != (parent.st_dev, parent.st_ino):
+                    raise ValueError("artifact directory changed during durability barrier")
+
+            unchanged()
+            os.fsync(fd)
+            unchanged()
+            os.fsync(directory)
+            unchanged()
+        finally:
+            os.close(fd)
+    finally:
+        os.close(directory)
+
+
 class Store:
     def __init__(self, root: Path | None = None, *, create=True):
         self.root = (root or default_root()).absolute()
@@ -107,16 +181,27 @@ class Store:
         try:
             self._create(path, content)
         except FileExistsError:
-            if self.get(kind, key) != value:
+            from .restore_retained import evidence
+
+            existing, pin = evidence(path)
+            if existing != value or pin["digest"] != key:
                 raise ValueError("immutable artifact conflict") from None
+            sync_artifact(pin)
         return key
 
     def get(self, kind: str, key: str) -> dict:
         path = self.path(kind, key)
         check_file(path)
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
+        from .restore_wire import _finite_float, _nonfinite, _pairs
+
         with os.fdopen(fd) as stream:
-            value = json.load(stream)
+            value = json.load(
+                stream,
+                object_pairs_hook=_pairs,
+                parse_constant=_nonfinite,
+                parse_float=_finite_float,
+            )
         if not isinstance(value, dict) or digest(value) != key:
             raise ValueError("artifact integrity mismatch")
         return value

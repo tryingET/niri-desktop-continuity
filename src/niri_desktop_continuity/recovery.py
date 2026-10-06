@@ -95,7 +95,7 @@ def observe(adapter, plan, phase):
 
 @serialized
 def propose(store, snapshot_key, config, current, **options):
-    with operation_lock(current["identity"]):
+    with operation_lock(current["identity"], effectful=False):
         return _propose(store, snapshot_key, config, current, **options)
 
 
@@ -187,7 +187,7 @@ def _propose(
 
 @serialized
 def validate(store, key, current, adapter):
-    with operation_lock(current["identity"]):
+    with operation_lock(current["identity"], effectful=False):
         return _validate(store, key, current, adapter)
 
 
@@ -346,7 +346,7 @@ def inspect_attempt(profile, attempt):
         plan = candidate
     except diagnostic.FAULTS:
         pass
-    with operation_lock(plan["source_identity"]) if plan else nullcontext():
+    with operation_lock(plan["source_identity"], effectful=False) if plan else nullcontext():
         canonical = diagnostic.accounting(ledger, attempt)
         evidence = diagnostic.events(ledger, attempt)
         history = next(
@@ -422,7 +422,7 @@ def inspect_or_verify(store, attempt, *, verify=False):
         and plan["recovery"]["schema"] == profile["schema"]
     )
     # Inspection/verification are read-only wrt physical effects, serialized against writers.
-    with operation_lock(plan["source_identity"]):
+    with operation_lock(plan["source_identity"], effectful=False):
         from .recovery_resolution import durable_view
 
         # Route only the exact validated historical edge through its old profile.
