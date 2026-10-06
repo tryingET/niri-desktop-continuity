@@ -69,6 +69,7 @@ def observe(adapter, plan, phase):
         digest(adapter.profile["legacy_locations"]),
         adapter.profile["schema"],
     )
+    # ubs:ignore[python.ctcompare.secret_eq] -- Identity/focus integrity, not auth.
     require(
         value["identity_digest"] == digest(plan["source_identity"])
         and value["state_fingerprint"] == plan["state_fingerprint"]
@@ -353,6 +354,7 @@ def inspect_attempt(profile, attempt):
             item["status"] for item in canonical["attempts"] if item["attempt_digest"] == attempt
         )
         value, adapter_state, adapter_complete = None, "unknown", False
+        # ubs:ignore[python.ctcompare.secret_eq] -- Profile content identity, not auth.
         if (
             plan is not None
             and plan["recovery"]["profile_digest"] == digest(profile)
@@ -417,6 +419,7 @@ def inspect_or_verify(store, attempt, *, verify=False):
     approval = ledger.store.get("approvals", attempt)
     plan = ledger.store.get("plans", approval["plan_digest"])
     require(approval == approval_record(plan, approval["plan_digest"]))
+    # ubs:ignore[python.ctcompare.secret_eq] -- Profile content identity, not auth.
     require(
         plan["recovery"]["profile_digest"] == digest(profile)
         and plan["recovery"]["schema"] == profile["schema"]

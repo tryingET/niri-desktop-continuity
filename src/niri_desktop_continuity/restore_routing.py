@@ -83,6 +83,7 @@ class RoutingPass:
         for envelope in self.envelopes:
             if history.directory_pin(envelope.store.root) != envelope.record["origin"]["pin"]:
                 raise ValueError("original Store changed after routing")
+            # ubs:ignore[python.ctcompare.secret_eq] -- Stat tuple, not crypto.
             if identity(envelope.pin["path"]) != envelope.signature:
                 raise ValueError("canonical envelope changed after routing")
 
@@ -113,6 +114,7 @@ class RoutingPass:
             signature = identity(path)
             # evidence releases the raw buffer after its single bounded JSON decode.
             record, pin = self.evidence(path)
+            # ubs:ignore[python.ctcompare.secret_eq] -- Stat tuple, not crypto.
             if identity(path) != signature:
                 raise ValueError("canonical envelope changed during routing")
             states.fields(record, "schema seq previous type attempt receipt origin")

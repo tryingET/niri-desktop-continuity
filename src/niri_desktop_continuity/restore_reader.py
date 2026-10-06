@@ -67,6 +67,7 @@ def absolute(path):
 
 
 def same(a, b):
+    # ubs:ignore[python.ctcompare.secret_eq] -- Typed JSON equality, not auth.
     return digest(a) == digest(b)  # Do not let bool/int/float alias identity fields.
 
 
@@ -197,6 +198,7 @@ class DependencyReader:
                 expected,
             )
         if path in self.reservations:
+            # ubs:ignore[python.ctcompare.secret_eq] -- Reserved stat tuple, not auth.
             if signature != self.reservations[path]:
                 raise ValueError("dependency changed after reservation")
         else:

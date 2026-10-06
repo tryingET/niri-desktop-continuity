@@ -40,6 +40,7 @@ def _unchanged(path, directory, fd, reservation):
     expected, parent = reservation
     _parent(path, directory, parent)
     for info in (os.fstat(fd), path.lstat()):
+        # ubs:ignore[python.ctcompare.secret_eq] -- File metadata, not auth.
         if (
             not stat.S_ISREG(info.st_mode)
             or info.st_uid != os.getuid()

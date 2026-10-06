@@ -19,6 +19,7 @@ TRUST = "installed-client-and-operator-controlled-original-witness-not-kernel-pr
 def witness(store, active, interrupted, result_path, exit_path):
     """Original CLI result body plus synchronously captured exit; attestation is separate."""
     receipt, receipt_pin = file(store, store.path("receipts", interrupted))
+    # ubs:ignore[python.ctcompare.secret_eq] -- Receipt content address, not auth.
     if digest(receipt) != interrupted:
         raise ValueError("interrupted receipt digest mismatch")
     states.fields(

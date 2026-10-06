@@ -12,6 +12,7 @@ from niri_desktop_continuity import restore_disposition_cli as command
 from niri_desktop_continuity import restore_reader_io as bounded
 from niri_desktop_continuity.restore_reader import Counters
 
+# ubs:ignore[py.security.hardcoded-secrets] -- Fabricated redaction canary.
 SECRET = "PRIVATE-SENTINEL-ARGUMENT"
 
 

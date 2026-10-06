@@ -184,6 +184,7 @@ class Store:
             from .restore_retained import evidence
 
             existing, pin = evidence(path)
+            # ubs:ignore[python.ctcompare.secret_eq] -- Artifact integrity, not auth.
             if existing != value or pin["digest"] != key:
                 raise ValueError("immutable artifact conflict") from None
             sync_artifact(pin)
@@ -202,6 +203,7 @@ class Store:
                 parse_constant=_nonfinite,
                 parse_float=_finite_float,
             )
+        # ubs:ignore[python.ctcompare.secret_eq] -- Content address, not auth.
         if not isinstance(value, dict) or digest(value) != key:
             raise ValueError("artifact integrity mismatch")
         return value

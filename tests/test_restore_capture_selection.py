@@ -145,7 +145,9 @@ def test_given_ids_when_capture_then_exact_scope_and_full_support(
         k: v for k, v in original.items() if k != "windows"
     }
     require_snapshot(selected)
+    # ubs:ignore[python.ctcompare.secret_eq] -- Fabricated selection checksum.
     assert result["snapshot_digest"] != digest(original)
+    # ubs:ignore[python.ctcompare.secret_eq] -- Fabricated pointer checksums.
     assert (
         store.pointer("latest-observed") == store.pointer("last-display-valid") == digest(selected)
     )

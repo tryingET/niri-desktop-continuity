@@ -95,6 +95,7 @@ def test_given_private_persistent_server_when_queried_then_exact_authenticated_w
         try:
             for name in golden:
                 transport.query(name)
+            # ubs:ignore[python.ctcompare.secret_eq] -- Kernel peer IDs, not secret.
             assert transport.credentials == {
                 "pid": os.getpid(),
                 "uid": os.getuid(),

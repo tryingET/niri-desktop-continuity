@@ -72,6 +72,7 @@ def eligible(active, chain, pending=None):
     v.state(plan["baseline"])
     expected_previous = None if start == 0 else digest(chain[start - 1][0])
     for offset, (record, payload, _, _) in enumerate(suffix):
+        # ubs:ignore[python.ctcompare.secret_eq] -- History content link, not auth.
         if (
             not same(record["origin"], active["origin"])
             or record["attempt"] != active["attempt"]

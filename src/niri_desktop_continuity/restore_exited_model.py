@@ -112,6 +112,7 @@ def approval_valid(approval, plan, plan_key):
     discriminator(approval)
     v.integer(approval["created"])
     v.integer(approval["expires"])
+    # ubs:ignore[python.ctcompare.secret_eq] -- Public platform ack, not auth.
     if (
         approval["intent"] != "restore-disposition"
         or approval["plan"] != plan_key

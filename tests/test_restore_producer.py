@@ -71,6 +71,7 @@ def test_environment_is_explicitly_wayland_without_service_control_fds():
             "LISTEN_PID": "5",
             "NOTIFY_SOCKET": "/fabricated/notify",
             "INVOCATION_ID": "old",
+            # ubs:ignore[py.security.hardcoded-secrets] -- Fabricated env-removal fixture.
             "CREDENTIALS_DIRECTORY": "/fabricated/credentials",
             "CONTROL_PID": "321",
             "XDG_ACTIVATION_TOKEN": "stale",

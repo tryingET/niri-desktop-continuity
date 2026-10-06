@@ -56,6 +56,7 @@ def execute(image_fd: int, argv: list[str], env: dict, cwd_fd: int, deadline: fl
             os.close(null)
     os.set_inheritable(image_fd, False)
     wire.remaining(deadline)
+    # ubs:ignore[python.taint.command] -- Admitted, permit-bound host argv; fd exec, no shell.
     os.execve(image_fd, argv, env)
     raise AssertionError("exec unexpectedly returned")
 

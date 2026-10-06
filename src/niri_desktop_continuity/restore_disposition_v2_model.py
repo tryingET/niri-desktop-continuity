@@ -219,6 +219,7 @@ def partition(current, active, chain):
     launched = tracker["launches"][0]["process"]
     bootstrap = chain[active["_start"] + 1][1]["details"]
     state, owned, pid = states.decode(current["state"]), current["owned_window_id"], launched["pid"]
+    # ubs:ignore[python.ctcompare.secret_eq] -- Argv integrity hash, not auth.
     if (
         [w["id"] for w in state[0].values() if w["pid"] == pid] != [owned]
         or owned in tracker["baseline"][0]

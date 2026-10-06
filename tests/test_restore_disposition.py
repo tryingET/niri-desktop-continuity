@@ -97,6 +97,7 @@ def test_retained_invalid_width_is_readable_data_but_never_action_authority(reta
     s = retained
     with operation_lock.operation_lock(s.identity, effectful=False):
         completed, active, count, tail = history.load(s.identity)
+        # ubs:ignore[python.ctcompare.secret_eq] -- Fabricated history checksum.
         assert not completed and count == 9 and tail == digest(history.read(list(s.original)[-1]))
         assert active["attempt"] == s.attempt
     with pytest.raises(ValueError, match="unresolved restore"):

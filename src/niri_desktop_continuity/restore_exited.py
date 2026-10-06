@@ -280,6 +280,7 @@ def approve(
         identity, effectful=False, existing_only=True, _preserve_disposition_failures=True
     ):
         with prepared(store, plan_key, expected=first) as (active, chain, reader, plan, _):
+            # ubs:ignore[python.ctcompare.secret_eq] -- Public platform ack, not auth.
             if platform_ack != digest(plan["platform"]):
                 raise guard("invalid-arguments", "explicit exact platform acknowledgement required")
             with native(store, reader, active, plan, expected=plan["current"]) as (

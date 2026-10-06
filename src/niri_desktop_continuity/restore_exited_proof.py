@@ -39,6 +39,7 @@ def current(source, launched, associated, *, expires, expected=None):
         transport = Transport(source["identity"], scope.deadline)
         stack.callback(transport.close)
         peer_pid = transport.credentials["pid"]
+        # ubs:ignore[python.ctcompare.secret_eq] -- PID overlap check, not secret.
         if peer_pid == launched["pid"]:
             raise ValueError("original absent PID overlaps current peer")
         peer = native.Generation(scope, peer_pid)

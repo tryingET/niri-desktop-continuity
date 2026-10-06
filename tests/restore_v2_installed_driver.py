@@ -29,6 +29,7 @@ argv = [
     "--initial-window=true",
     "--working-directory=" + str(cwd),
 ]
+# ubs:ignore[py.security.command-injection,python.taint.command] -- Locally built test ELF.
 child = subprocess.Popen(
     argv,
     cwd=cwd,
@@ -58,7 +59,7 @@ def independent_process_pin():
 
 
 try:
-    exec(compile(fixture.read_text(), str(fixture), "exec"), globals())
+    exec(compile(fixture.read_text(), str(fixture), "exec"), globals())  # ubs:ignore[py.security.eval-exec-usage,python.taint.eval,py.eval-exec] -- Test-owned fixture.  # fmt: skip
     s = globals()["make_unassociated"](globals()["handwritten"](root, patch))
     assert (host.Process, host.Image, e.Directory, e.controller_pids) == original
     assert s.store.get("receipts", s.interrupted)["windows"][0]["status"] == "launch-indeterminate"

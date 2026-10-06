@@ -51,6 +51,7 @@ class Attempt:
     def check(self):
         if not self.active or self.poisoned or os.getpid() != self.pid:
             raise ValueError("closed, foreign or poisoned restore attempt")
+        # ubs:ignore[python.ctcompare.secret_eq] -- Frozen plan integrity, not auth.
         if self.frozen is not None and digest(self.plan) != self.frozen:
             self.poisoned = True
             raise ValueError("frozen attempt plan changed")

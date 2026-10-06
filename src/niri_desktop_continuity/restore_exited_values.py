@@ -237,6 +237,7 @@ def current(value, source, launched, associated):
     for k in ("uid", "gid"):
         integer(peer["credentials"][k], 0, 2**32 - 2)
     pid(peer["credentials"]["pid"])
+    # ubs:ignore[python.ctcompare.secret_eq] -- Kernel PID metadata, not secret.
     if peer["credentials"]["pid"] != peer["process"]["pid"] or peer["process"]["pid"] == old:
         raise ValueError("peer credential/process mismatch")
     endpoint = peer["endpoint"]
@@ -247,6 +248,7 @@ def current(value, source, launched, associated):
         integer(endpoint[k])
     integer(endpoint["mode"], 0, 0o7777)
     ident = source["identity"]
+    # ubs:ignore[python.ctcompare.secret_eq] -- Kernel UID metadata, not secret.
     if (
         endpoint["path"] != ident["niri_socket"]
         or endpoint["device"] != ident["socket_device"]

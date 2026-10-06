@@ -112,6 +112,7 @@ def historical_binding(store, plan, active, chain):
     launched = active["_launches"]["launches"][0]["process"]
     current = plan["current"]
     owned_windows = [w["id"] for w in current["state"]["windows"] if w["pid"] == launched["pid"]]
+    # ubs:ignore[python.ctcompare.secret_eq] -- Argv integrity hash, not auth.
     if (
         current["owned_window_id"] != active["_launches"]["associations"][0]["id"]
         or owned_windows != [current["owned_window_id"]]
