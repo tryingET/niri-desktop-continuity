@@ -152,17 +152,16 @@ def plan(snapshot: dict, current_windows: list[dict], *, entries=None, users=Non
                 by_instance[instance]["slots"].append(slot)
                 continue
             group = {"kind": "app", "app_id": slot["app_id"], "slots": [slot]}
+            found = routes.route(
+                slot["app_id"],
+                recipe,
+                single_instance=instances[slot["app_id"]] == 1,
+                entries=entries,
+                users=users,
+            )
+            group.update(found or {"skip": "no-route"})  # shown in the dry run even when skipped
             if slot["app_id"] in running:
                 group["skip"] = "already-running"  # never a second instance, never its windows
-            else:
-                found = routes.route(
-                    slot["app_id"],
-                    recipe,
-                    single_instance=instances[slot["app_id"]] == 1,
-                    entries=entries,
-                    users=users,
-                )
-                group.update(found or {"skip": "no-route"})
             by_instance[instance] = group
             groups.append(group)
         else:

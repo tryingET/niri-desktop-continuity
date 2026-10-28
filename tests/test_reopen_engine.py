@@ -137,6 +137,7 @@ def test_running_app_is_not_launched_and_its_windows_are_untouched(tmp_path):
     result = run(tmp_path, saved_windows, desktop)
     assert desktop.actions == []
     assert statuses(result) == [(1, "already-running")]
+    assert result["windows"][0]["route"] == "argv"  # what would launch, shown though skipped
     assert result["protected_window_ids"] == [7] and desktop.live[0]["workspace_id"] == 2
 
 
