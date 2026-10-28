@@ -12,20 +12,34 @@ permissions: {}
 
 jobs:
   build:
-    runs-on: ubuntu-latest
+    # The same test environment as ci.yml; see the reasons there.
+    runs-on: ubuntu-26.04
     timeout-minutes: 30
     permissions:
       contents: read
+    env:
+      UV_PYTHON: /usr/bin/python3
+      UV_PYTHON_DOWNLOADS: never
+      TMPDIR: /tmp
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
       - uses: astral-sh/setup-uv@bec219d24cd3e171d82865faccec33120bb574f4 # v10.1.0
       - uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4
+      - name: Allow unprivileged user namespaces (the jail tests create them; AppArmor blocks them)
+        run: |
+          knob=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
+          if [ -e "$knob" ]; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi
       - run: uv sync --frozen --group dev
+      - name: Cache the index entries the installed-wheel tests resolve offline
+        run: |
+          uv export --frozen --only-dev --no-hashes --no-emit-project > "$RUNNER_TEMP/dev.txt"
+          uv venv "$RUNNER_TEMP/warm"
+          uv pip install --python "$RUNNER_TEMP/warm/bin/python" -r "$RUNNER_TEMP/dev.txt"
       - name: The tag names the packaged version
         run: test "v$(uv run --frozen niri-desktop-continuity --version | cut -d' ' -f2)" = "$GITHUB_REF_NAME"
-      - run: just ci
+      - run: umask 022 && just ci # fixtures create 0755 directories the store must refuse
       - run: cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS
       - run: python3 scripts/release-notes.py "$GITHUB_REF_NAME" > dist/RELEASE_NOTES.md
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
