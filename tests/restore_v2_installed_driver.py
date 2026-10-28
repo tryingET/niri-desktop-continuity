@@ -11,7 +11,7 @@ from pathlib import Path
 from types import SimpleNamespace
 
 import niri_desktop_continuity
-from niri_desktop_continuity import restore
+from niri_desktop_continuity import probe, reopen, restore
 from niri_desktop_continuity import restore_disposition_cli as disposition_cli
 from niri_desktop_continuity import restore_disposition_evidence as e
 from niri_desktop_continuity import restore_host as host
@@ -65,6 +65,8 @@ try:
     assert s.store.get("receipts", s.interrupted)["windows"][0]["status"] == "launch-indeterminate"
     disposition_cli.compositor_identity = lambda: s.identity
     restore.compositor_identity = lambda: s.identity
+    probe.compositor_identity = lambda: s.identity  # the IS-2 `restore` engine reads it here
+    reopen.session_locked = lambda: False  # never the operator's logind lock state
     e.observe = s.observe  # ONLY fabricated IPC; actual ELF/proc/argv/cwd/pidfd proofs remain.
     restore.LiveDesktop.spawn = fail
     restore.LiveDesktop.action = fail

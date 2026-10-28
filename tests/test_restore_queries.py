@@ -864,7 +864,7 @@ def test_given_real_exec_and_earlier_placement_when_constructor_eagain_then_one_
     run_boundary(tmp_path, fabricated_elf, failures)
 
 
-def test_installed_wheel_console_actual_executor_reads_and_ambiguities(tmp_path, fabricated_elf):
+def test_installed_wheel_actual_executor_reads_and_ambiguities(tmp_path, fabricated_elf):
     import hashlib
     import inspect
     import zipfile
@@ -936,7 +936,6 @@ actual = {str(p.relative_to(package)): hashlib.sha256(p.read_bytes()).hexdigest(
 assert actual == expected
 for module in (fixture.restore, restore_execute, restore_producer, restore_bootstrap):
     assert Path(module.__file__).is_relative_to(package), module.__file__
-console = Path(sys.executable).parent / 'niri-desktop-continuity'
 cases = [{'failures': 1}, {'failures': 2},
          {'failures': 'persistent'}, {'failures': 'persistent', 'query': 'workspaces'},
          {'failures': 'persistent', 'query': 'outputs'},
@@ -945,7 +944,8 @@ cases = [{'failures': 1}, {'failures': 2},
 for i, case in enumerate(cases):
     root = Path(__file__).parent / ('case-' + str(i))
     root.mkdir(mode=0o700)
-    fixture.run_boundary(root, Path(sys.argv[1]), console=console, **case)
+    # The `restore` command now runs the IS-2 engine; drive the installed strict engine directly.
+    fixture.run_boundary(root, Path(sys.argv[1]), **case)
 for name, module in list(sys.modules.items()):
     if name.startswith('niri_desktop_continuity') and hasattr(module, '__file__'):
         assert Path(module.__file__).is_relative_to(package), (name, module.__file__)

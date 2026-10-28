@@ -529,12 +529,12 @@ with tempfile.TemporaryDirectory(prefix='coh-', dir=os.environ['TMPDIR']) as sho
             children.append(child)
             pending.append(child.pid)
         restore_producer.niri_spawn = dispatch
-        console = str(Path(sys.executable).parent / 'niri-desktop-continuity')
-        sys.argv = [console, '--state-root', str(store.root), 'restore', '--apply', key,
-                    '--spawn-timeout', '10']
         try:
-            try: runpy.run_path(console, run_name='__main__')
-            except SystemExit as exc: assert exc.code == 0
+            # The `restore` command now runs the IS-2 engine; this strict-family case drives the
+            # installed strict engine directly, as the console did before.
+            result = restore.restore(store, key, restore.LiveDesktop(), apply=True, spawn_timeout=10)
+            print(json.dumps(result))
+            assert result['status'] == 'reopened', result
             assert len(children) == 1 and schedule[:2] == ['split', 'whole']
             assert d.columns == {1: [[10], [20], [30]], 2: []}
             assert d.widths == {10: 640., 20: 720., 30: 900.} and d.focus == 10
