@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import subprocess
 import sys
 from copy import deepcopy
@@ -108,7 +109,9 @@ def parser(*, _disposition=False):
         help="operator must remain idle; Niri focus+move cannot be atomic",
     )
     reopen = commands.add_parser("restore", help="reopen every window of a saved desktop")
-    reopen.add_argument("snapshot", nargs="?", help="snapshot digest; default latest capture")
+    reopen.add_argument(
+        "snapshot", nargs="?", help="snapshot digest; default latest display-valid capture"
+    )
     reopen.add_argument("--apply", action="store_true", help="without it: dry-run plan only")
     reopen.add_argument(
         "--at-login",
@@ -124,6 +127,11 @@ def parser(*, _disposition=False):
     declared.add_argument("--label")
     declared.add_argument("--clear", action="store_true", help="remove the declaration")
     declared.add_argument("launch", nargs=argparse.REMAINDER, help="-- COMMAND [ARG...]")
+    hooked = commands.add_parser(
+        "hook", help="agent SessionStart hook: declare the announced session (JSON on stdin)"
+    )
+    hooked.add_argument("agent", help="agent process name, e.g. claude, codex, angelx")
+    hooked.add_argument("resume", nargs=argparse.REMAINDER, help="-- COMMAND ... {id}")
     autostart = commands.add_parser("autostart", help="opt-in systemd user units (capture+reopen)")
     autostart.add_argument("--enable", action="store_true")
     autostart.add_argument("--disable", action="store_true")
@@ -301,19 +309,23 @@ def run(args):
 
 def run_restore(args, store):
     from .probe import compositor_identity
-    from .restore import LiveDesktop, restore
+    from .reopen import reopen
+    from .restore import LiveDesktop
+    from .restore_selection import select_snapshot
 
     desktop = LiveDesktop()
-    key = args.snapshot or store.pointer("latest-observed")
-    if key is None:
-        raise ValueError("no saved desktop to reopen")
+    selection = select_snapshot(store, args.snapshot)
+    key = selection.digest
+    if selection.fallback_reason is not None:
+        print(json.dumps(selection.metadata(), sort_keys=True), file=sys.stderr)
     if args.at_login:
         deadline = desktop.monotonic() + 60
         while not desktop.ready():
             if desktop.monotonic() >= deadline:
                 raise ValueError("Niri did not become ready; nothing reopened")
             desktop.sleep(1.0)
-        if store.get("snapshots", key)["identity"] == compositor_identity():
+    if args.at_login or selection.fallback_reason is not None:
+        if selection.same_instance(compositor_identity()):
             return {
                 "status": "same-compositor-instance",
                 "snapshot_digest": key,
@@ -321,8 +333,25 @@ def run_restore(args, store):
             }, 0
     if not 1 <= args.spawn_timeout <= 300:
         raise ValueError("spawn timeout must be 1..300 seconds")
-    result = restore(store, key, desktop, apply=args.apply, spawn_timeout=args.spawn_timeout)
+    result = reopen(store, key, desktop, apply=args.apply, spawn_timeout=args.spawn_timeout)
     return result, 0 if result["status"] in {"dry-run", "reopened"} else 2
+
+
+def run_hook(args) -> int:
+    """An agent's SessionStart hook: never exit 2, which some hook runners treat as blocking."""
+    from . import launch
+
+    template = args.resume[1:] if args.resume[:1] == ["--"] else args.resume
+    try:
+        payload = json.loads(sys.stdin.read(1024 * 1024) or "{}")
+        if not isinstance(payload, dict):
+            raise ValueError("hook input must be a JSON object")
+        value = launch.hook_declaration(args.agent, payload, template or None, os.getppid())
+    except (ValueError, OSError, KeyError) as exc:
+        print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
+        return 1
+    print(json.dumps({"declared": value}, sort_keys=True))
+    return 0
 
 
 def run_recovery(args, store):
@@ -432,6 +461,8 @@ def main(argv=None):
     if _disposition_selected(argv):
         return _disposition_main(argv)
     args = parser().parse_args(argv)
+    if args.command == "hook":
+        return run_hook(args)
     try:
         value, status = run(args)
     except (

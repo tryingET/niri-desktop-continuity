@@ -73,6 +73,7 @@ def desktop(tmp_path, monkeypatch):
     monkeypatch.setattr(probe, "Niri", IPC)
     monkeypatch.setattr(probe, "compositor_identity", lambda: dict(IDENTITY))
     monkeypatch.setattr(restore, "compositor_identity", lambda: dict(IDENTITY))
+    monkeypatch.setattr(probe, "compositor_identity", lambda: dict(IDENTITY))  # reopen engine
     monkeypatch.setattr(probe, "now", lambda: "2026-01-01T00:00:00+00:00")
     monkeypatch.setattr(probe, "window_processes", window_processes)
     monkeypatch.setattr(probe, "process_inventory", inventory)

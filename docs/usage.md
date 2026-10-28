@@ -90,99 +90,78 @@ the terminal recipes use its `--working-directory` and `-e`, so other terminals 
 session to its window when one terminal process owns several windows; they, and the session
 titles used for matching, are not stored unless `--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
 
-`restore [digest]` prints a recorded-recipe placement plan (default: latest capture). Dry-run and
-preview do not certify executable availability or ownership. **The disposition and association
-corrections passed bounded independent review and full isolated CI (1,671 tests, builds and
-installed-wheel smoke). A fresh native attempt opened a host but stopped before association and
-width handling; it remains unresolved. Synthetic tests do not authorize live use, retry or cleanup.**
+`restore [digest]` prints the plan: every saved window with its group, route (`terminal`,
+`desktop:<entry>`, `argv` or `user`), exact launch command and status (`planned`, `already-open`,
+`already-running`, `not-reopened` with a reason). `--apply` carries it out:
 
-`--apply` admits only shell/command/declared/Pi/Claude recipes for a controlled fresh Ghostty ELF,
-with existing explicit cwd and literal command tails. It forces non-single-instance Wayland and
-discards custom configuration after defaults have been read. Scripts, wrappers, conflicting flags,
-missing directories and all general application/browser recipes are unsupported before launch.
-A browser's zero-launch result is not working browser restoration evidence.
+1. One lock per compositor serializes continuity writers. An unresolved attempt left by the earlier
+   strict engine still blocks `--apply`, and a source that engine already attempted returns its
+   recorded answer with no new effects.
+2. Groups launch one after another. An app group is every saved window of one process; it is spawned
+   **once** through Niri. New windows whose app ID equals the group's are adopted, in arrival order,
+   into the saved places, until the saved number arrived, none arrived for 5 s, or `--spawn-timeout`
+   (default 25 s) passed. Windows of other apps are never adopted. Fewer windows leave the remaining
+   places `not-detected`; there is no second launch. Extra windows stay where the app put them and
+   cannot be taken by a later group.
+3. An app with any window already open is not launched and its windows are not touched
+   (`already-running`). A Claude, Pi or declared session whose resume command is already open is
+   `already-open`.
+4. Each saved Ghostty window is its own launch: `--gtk-single-instance=false`, the saved directory and
+   `-e` command, with your normal configuration (`--config-default-files=false` from earlier controlled
+   restores is dropped).
+5. Adopted windows move to their saved workspace (saved workspaces compact to consecutive indices;
+   windows without a known place go to one new last workspace), then columns are rebuilt after the
+   windows that were already open, with saved widths, stacked tiles and floating positions. Workspace
+   names are restored, and focus returns to the window that had it.
 
-One attempt holds the compositor flock through every bootstrap, exec permit, process/window proof,
-layout observation and terminal commit. Niri launches the installed bootstrap; the application does
-not inherit the service/control/writer descriptors. A retained pidfd and running-image/argv/environment
-proof, plus a fresh unique Niri PID-associated window, authorize only the trusted fresh Ghostty
-connection contract. No label fallback, forwarded host, protected overlap or surplus output is accepted.
-The no-fork/no-forward/no-connection-transfer/no-unobserved-exec host behavior remains an explicit
-trust assumption, not general PID causality or native session usability proof.
+Every run writes one receipt (`reopened`, `reopened-partially`, `interrupted` or `dry-run`); exit 2
+means some window did not come back. `last-reopened` points at the last fully reopened snapshot.
+Reopening is not recovered memory: applications restore their own content. **Stay idle** while it
+arranges columns; niri has no atomic focus-and-move.
 
-The association baseline includes all queried outputs, including unchanged disabled outputs without
-workspaces. It is bound from the incoming coherent capture and checked on every subsequent read,
-not only association. New outputs, malformed metadata or disabled metadata drift stop the attempt;
-error fallback does not consume a later recovered reply after inventory failure. Missing inventory
-or output-query transport refuses before launch.
-Output/object ordering is ignored, but field presence, array order and other observed metadata are
-conservatively pinned. Strict window workspace references now intentionally reject boolean/float
-aliases of integer IDs. Cleanup failures still surface, but no longer skip later proof closes or
-lock exit; standalone ownership transfer closes orphan descriptors if context exit fails. These are
-offline review corrections, not native qualification or permission to retry.
+### Default restore snapshot selection
 
-The subsequent offline association correction allows a maximum of three narrowly eligible split
-samples while awaiting the launched host: original windows and workspace metadata are unchanged,
-except the focused workspace references one new missing window ID. This grants no association or
-effect. The same pending reference must resolve in one strict whole sample with exact host proof;
-observed drift, foreign output, disappearance, query failure or deadline expiry stops without retry.
-The deadline is shared by queries and all process checks, not renewed by polling. A slow association
-write may remain in history after timeout; it never permits layout or success. Held original directory,
-pathname and launched-host cwd are checked, not a child utility's cwd or session usability. Other
-reads/decoders stay strict. Polling cannot detect events entirely between observations, and blocking
-kernel/storage calls can delay refusal. This correction has no native qualification or deployment
-approval; the earlier full-CI result does not qualify the changed bytes.
+Manual and login restore without a digest prefer a readiness-valid `latest-observed` snapshot. If
+that coherent observation has no usable output, no active workspace, or windows on unavailable
+workspaces, they select the preserved `last-display-valid` snapshot, checking its readiness again. A
+genuinely absent latest pointer also permits this fallback. Corrupt pointers, missing artifacts,
+invalid digests, unsafe private files, unsupported schemas and incoherent observations fail closed and
+never trigger another selection. An explicit `restore <digest>` never falls back. On fallback, both
+manual and login restore skip when either the latest observation or the selected snapshot belongs to
+the running compositor, so turning off a display never reopens an old desktop; the CLI then prints
+one JSON line on stderr with `source_pointer`, `snapshot_digest` and `fallback_reason`.
 
-Owned singleton columns are ordered after protected groups, consumed only from the exact immediate
-right singleton, and sized using measured window/tile decoration differences. Floating positions use
-fresh measured positions and signed fractional relative deltas. Sequential placement lets Niri
-materialize normal trailing-empty destinations from a single empty login workspace. Logical targets
-remain bound to stable workspace IDs across permitted empty cleanup and per-output reindexing,
-including an optional empty workspace above the first. Cross-workspace insertion follows the active
-column; moving the freshly focused donor with `--focus false` preserves source-workspace focus.
-There is no arbitrary workspace-creation feature and source monitor affinity is not restored.
-One consistent recorded width governs an entire restored column; unspecified members report
-`inherited-column`. Conflicting recorded widths refuse before launch. If none was recorded, preserve
-the admitted seed width and let other members inherit it. Separate extra-tab columns preserve their
-own fresh widths. Missing floating positions retain measured native conversion positions.
-Requested dimensions start `requested-pending`; verified equality, not intent, grants
-`requested-observed`. Inherited widths also remain pending until verified. Floating positions use the
-current output's physical-pixel grid, with `requested-quantized-observed` when rounding changes the
-saved position. Unknown scale cannot supply a position proof. Saved tile height is not restored.
-Requested sizing with unknown decorations is blocked unless the requested size is already observed.
-A resize requires a positive decimal integer window-width token whose measured-decoration
-reconstruction equals the requested tile width exactly and survives Niri's size floor and tile clamp.
-Fractional requested widths are not silently rounded: representable decorated widths are admitted;
-others stop before that seed's placement actions, after launch/association. Column donors inherit the
-seed's observed width without requiring an independent resize. Native constraints/scale-dependent
-size differences can still fail strict postconditions. Floating-position grammar and pixel-grid
-policy are separate and unchanged. Old decimal-width intents never become executable; the narrow
-explicit accounting-only disposition below does not migrate or observe them as successful.
-Names change only on admitted nonprotected workspaces without conflicting existing names. Unknown
-geometry, mixed cohorts, late unowned arrivals, lost proof or failed postconditions stop all later
-effects, including focus cleanup. The original focus is restored only after successful observations.
-Index-addressed moves and names revalidate the intended stable ID/output/index after durable intent;
-observed drift stops without dispatch, rewriting or retry. **Remain idle:** the final check and Niri
-action remain non-atomic, even against automatic workspace cleanup. Strict postconditions still apply.
+### Routes: where an app is launched from
 
-Canonical append-only history is independent of `--state-root` and XDG settings. Original Store
-identity, full source-derived plan, coherent baseline, pre-effect classifications, controlled literal
-specs, associations, intents and observations are retained. The closed v3 history binds current output
-scales and workspace references, and validates action
-predictions against observations, exact observed effect accounting, and terminal geometry against
-both the durable final observation and requested topology/dimension coverage. Unsupported/already-open
-classifications cannot be invented at terminal time. Historical validation does not reprobe old host
-files or working directories. Older candidate history formats remain blocked, not silently upgraded. Missing/corrupt/orphan/legacy
-records or unresolved effects block every cooperating effectful writer, across sources and Stores.
-Do not remove markers, retry, relaunch or clean up uncertainty. The accounting-only disposition
-below supports one exact historical family; there is no generic resolve command.
-A valid terminal releases future writer admission without erasing history. Exact completed-source
-replay returns historical accounting, with zero effects and no fresh native verification; another
-source needs a fresh protected baseline. Final receipt is durable before canonical terminal, then
-`last-reopened` is projected only for full success. A missing pointer never grants replay authority.
-Fully accounted unsupported entries yield `partial` (exit 2), distinct from `interrupted`; neither
-updates the success pointer. Resume-argv matches are skipped as already open, not newly verified
-sessions. Exit 0 means complete supported placement/accounting, not recovered memory or usability.
+1. A user route in `$XDG_CONFIG_HOME/niri-desktop-continuity/routes.json` (your own file, not
+   writable by others): `{"routes": {APP_ID: {"desktop": "x.desktop"} | {"argv": [...], "cwd": "/dir"}}}`.
+2. The desktop entry (XDG data directories, yours first) whose file name or `StartupWMClass` equals the
+   app ID, case-insensitive, or whose `Exec` program is the captured executable. `Exec` is parsed by
+   the Desktop Entry Specification's quoting rules; field codes such as `%U` are dropped, so no file or
+   URL is passed. Hidden, `Terminal=true` and failing `TryExec` entries are skipped.
+3. The captured command line, without operands that contain `://` (sign-in links, deep links).
+
+Rule 2 applies only when the snapshot has a single instance of that app. Two instances (two browser
+profiles, two processes of one app) each keep their own command line, launched one after another.
+
+### Agent sessions
+
+An agent process (`claude`, `codex`, `pi`, `angel`/`angelx`, `aider`, `gemini`, `opencode`, `goose`,
+`crush`, `qwen`, `grok`, `cursor-agent`) is never relaunched from its command line. It comes back
+from Claude Code's session registry, Pi's presence file, a `declare`, or a session it announced:
+
+```sh
+# an agent's SessionStart hook; reads {"session_id": ..., "cwd": ...} on stdin
+niri-desktop-continuity hook claude                         # claude --resume {id}
+niri-desktop-continuity hook codex                          # codex resume {id}
+niri-desktop-continuity hook myagent -- myagent --resume {id}
+```
+
+`hook` finds the nearest ancestor process with the agent's name and declares the resume command for
+it, pinned to that process's start time (a reused PID never matches). A later `SessionStart` (a new
+session or thread switch) replaces the declaration. The program is resolved to an absolute path,
+because Niri's `PATH` can differ from the agent's. `hook` exits 0 or 1, never 2. Without an
+announced session, the tab is reported `agent-session-unannounced` (Claude: `claude-session-unregistered`).
 
 ### Restore read-query policy
 

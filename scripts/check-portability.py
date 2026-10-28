@@ -85,7 +85,14 @@ def source_paths():
                 continue
             dirs.remove(name)
         paths.extend(str((Path(directory) / name).relative_to(ROOT)) for name in files)
+    if git and (ROOT / ".git").is_file() and worktree_pointer(ROOT / ".git"):
+        paths.remove(".git")  # a git worktree's link to its repository, never distributed
     return paths
+
+
+def worktree_pointer(path: Path) -> bool:
+    lines = path.read_text(encoding="utf-8", errors="replace").splitlines()
+    return len(lines) == 1 and lines[0].startswith("gitdir: ")
 
 
 def check() -> list[str]:

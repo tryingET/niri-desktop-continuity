@@ -10,6 +10,7 @@ from test_restore_cli_grammar import niri_change
 
 from niri_desktop_continuity import (
     operation_lock,
+    probe,
     restore,
     restore_execute,
     restore_host,
@@ -187,6 +188,7 @@ def integrated(tmp_path, monkeypatch):
     identity = {**IDENTITY, "boot_id": "new"}
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: runtime)
     monkeypatch.setattr(restore, "compositor_identity", lambda: identity)
+    monkeypatch.setattr(probe, "compositor_identity", lambda: identity)  # reopen engine
     monkeypatch.setattr(restore_host, "route", lambda value: None)
 
     class Image:

@@ -8,6 +8,7 @@ import shlex
 from collections import Counter, defaultdict
 from pathlib import Path
 
+from .launch import refusal
 from .model import readiness, require_snapshot
 from .recovery_projection import REASONS
 from .recovery_protocol import ADDITIVE
@@ -29,6 +30,8 @@ REOPENS_AS = {
 NOT_REOPENED = {
     "xwayland-client": "X11 window: Niri reports the xwayland-satellite bridge, not the application",
     "claude-session-unregistered": "Claude process without a session registry entry; "
+    "its command line would start the work over",
+    "agent-session-unannounced": "coding agent without an announced session (see `hook`); "
     "its command line would start the work over",
     "appimage-mount-unresolved": "AppImage temporary mount not traced to its image file",
     "process-title-unresolved": "the program rewrote its command line and no program file "
@@ -115,9 +118,9 @@ def recipe_of(window) -> dict:
 
 
 def reopen_badge(recipe) -> str:
-    if recipe.get("argv"):
+    if refusal(recipe) is None:
         return f'<small class="reopen">reopens as {escape(recipe.get("kind"))}</small>'
-    reason = recipe.get("reason") or "no-launch-command"
+    reason = refusal(recipe)
     return f'<small class="reopen not-reopened">not reopened ({escape(reason)})</small>'
 
 
@@ -180,7 +183,7 @@ def reopen_html(snapshot):
                         )
                     )
                 for item, who_cell in tabs:
-                    if item.get("argv"):
+                    if refusal(item) is None:
                         kind = str(item.get("kind"))
                         kinds[kind] += 1
                         status = f"<td>Reopens<br><small>{escape(REOPENS_AS.get(kind, kind))}</small></td>"
@@ -200,7 +203,7 @@ def reopen_html(snapshot):
                         )
                     else:
                         missing += 1
-                        reason = item.get("reason") or "no-launch-command"
+                        reason = refusal(item)
                         status = (
                             f'<td class="not-reopened">Not reopened<br><small>'
                             f"{escape(NOT_REOPENED.get(reason, 'no launch command recorded'))}"

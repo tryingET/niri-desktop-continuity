@@ -14,42 +14,16 @@ anything that cannot be reopened safely is reported, never guessed.
 of its five workspaces, 23 windows in all. Every tile says how it comes back after a reboot, or
 why it will not.</sub>
 
-## Candidate safety status
+## Status
 
-This checkout contains an **integrated, independently reviewed, synthetically tested restore
-candidate awaiting successful native qualification**. Ordinary restore now admits only controlled fresh Ghostty hosts; general applications,
-including browsers, are unsupported. Multi-host tiling/floating and historical replay have fabricated
-outcome tests, including the installed console and real bootstrap/ELF exec. **One bounded native
-attempt opened a Ghostty host and moved its column, then failed at width parsing. Corrected width,
-session usability, full layout and login deployment remain unqualified. Do not deploy this candidate
-from synthetic results.** Historical product examples below are not candidate proof.
-The narrow `restore-disposition` candidate adds explicit accounting-only acceptance of one retained
-pre-fix width failure; it is not retry, repair or native success. It requires original invocation
-witnesses, exact disposition approval and fresh process/topology checks. Independent re-review
-closed four reported defects. That width-failed attempt subsequently received separately approved,
-independently verified partial accounting, preserving its original failure. A fresh native attempt
-then opened a host but stopped before association or width verification; this newer attempt remains
-unresolved and is not supported by the narrow width-disposition family. See [usage](docs/usage.md#explicit-retained-partial-disposition-candidate-independent-review-pending)
-and [architecture](docs/architecture.md#ordinary-restore-candidate-boundary).
-
-The subsequent association-coherence correction passed bounded independent review and full isolated
-CI: 1,671 tests, package builds and installed-wheel smoke, including the later disposition v2. Final Python 3.14 installed synthetic
-cases also passed; these are not native qualification. Only a tightly bounded split read during post-launch association may
-wait for a new whole sample; every other decoder remains strict. Host cwd is now retained and checked
-alongside process proof. Review corrections now retain the full pre-launch output inventory (including
-unchanged disabled outputs), compare it on every read against the incoming coherent capture, and
-close all owned proof resources despite exceptional teardown.
-Decoder workspace references intentionally reject boolean/float aliases of integer IDs.
-Corrected native association/width and session usability remain unverified; no deployment occurred. See [association limits](docs/architecture.md#association-only-coherence-boundary).
-
-The exited-shell v3 candidate now has a root-init-free current proof on the checked stable
-Linux >=7.2.6 x86_64 GNU LP64 profile. Its sole live procfs-self `.v2` method proves ancestor-only
-rows for exclusion without requiring their namespace handles; caller, peer and protected owners
-still require full namespace proof. No weak-to-full promotion or permission fallback exists.
-Both older-method completions remain historical; unfinished
-old-method plans cannot authorize new live work. Isolated mapped-user/kernel and installed-CLI
-tests are development evidence, not ordinary-host or desktop qualification. See the
-[scope and ELF sampling limits](docs/architecture.md#exited-associated-shell-v3-offline-candidate).
+This branch brings every application back again. It is the 0.1.2 restorer with its three known
+defects fixed: each saved app instance is launched **once** (no second launch after a wait), only
+**new windows of that app** are adopted (never an unrelated window), and coding agents are **never
+replayed** from their command line. Apps start from their own menu entry, so wrappers, AppImages and
+sign-in or deep-link URLs are handled the way you launch them. Saved column widths now account for
+window borders, a fix carried over from the strict line. The strict controlled-Ghostty candidate
+that preceded it no longer drives `restore`; its reconstruction and disposition commands remain.
+Offline tests pass. A real login restore of a mixed desktop has not been run on this branch yet.
 
 ## Why
 
@@ -131,31 +105,49 @@ recipe* per window:
 
 | Kind | How it comes back |
 |---|---|
-| `claude` | Ghostty, running `claude --resume <id>` in the session's directory (from Claude Code's per-process session registry) |
-| `pi` | Ghostty, running Pi's own resume command (from Pi's presence directory) |
-| `declared` | Ghostty, running the command you gave `declare` |
-| `app` | recorded for inspection; ordinary restore currently reports unsupported ownership |
+| `app` | launched **once** per saved instance from its desktop entry; its new windows fill the saved places |
+| `claude` | Ghostty, running `claude --resume <id>` in the session's directory (Claude Code's session registry) |
+| `pi` | Ghostty, running Pi's own resume command (Pi's presence directory) |
+| `declared` | Ghostty, running the command you gave `declare`, or the session an agent announced with `hook` |
 | `command` | Ghostty, running its last command again (for example `btop` or `npm run dev`) |
 | `shell` | Ghostty, opened in the same directory |
-| `unknown` | not reopened. The reason is recorded, for example `xwayland-client` or `claude-session-unregistered` |
+| `unknown` | not reopened, with the reason, for example `xwayland-client` or `agent-session-unannounced` |
 
-`restore --apply` uses one locked attempt, Niri-dispatched bootstraps, retained process proofs and
-fresh unique native-window associations. Owned singleton donors are arranged after protected
-columns; every effect has durable intent and an observed postcondition. Unknown requested geometry,
-conflicting names or ambiguous ownership stop effects without cleanup. Sequential placement supports
-Niri's automatic trailing-empty workspaces at clean login; destinations are bound to stable IDs
-across permitted empty-workspace cleanup/reindexing. Browser
-restore is a gap, not demonstrated by its zero-launch refusal. Receipts and canonical histories
-retain all entries; exit 2 means partial or interrupted. Exact completed-source replay returns
-historical accounting without effects or fresh native verification.
+`restore --apply` takes one lock per compositor, then launches the groups one after another. An app
+group is every saved window of one process (for example six Brave windows): it is launched once, and
+new windows with that app's ID are adopted until the saved number arrived, they stop arriving, or the
+spawn timeout passes. An app that is already running is not launched again and its windows are not
+touched. Each saved Ghostty window is its own launch, with your normal Ghostty configuration. Adopted
+windows go to their saved workspaces and columns, with saved widths and floating positions, after any
+windows that were already open. Every run writes one receipt; exit 2 means some window did not come back.
+
+**Where apps launch from.** First an entry in `$XDG_CONFIG_HOME/niri-desktop-continuity/routes.json`,
+then the desktop entry whose name or `StartupWMClass` equals the app ID, or whose program is the
+captured executable, then the captured command line without URL or deep-link operands. A second
+instance of the same app (for example a second browser profile) keeps its own command line, because one
+menu entry cannot tell two profiles apart. `restore` without `--apply` prints each window's route.
+
+```json
+{"routes": {"brave-browser": {"argv": ["brave", "--profile-directory=Work"]}}}
+```
+
+**Agent sessions.** An agent comes back only through a session it announced. Claude Code and Pi are
+read directly. Any agent with session hooks announces itself with one hook line in its own settings,
+for example in Claude Code's `settings.json` under `hooks.SessionStart`:
+`{"type": "command", "command": "niri-desktop-continuity hook claude"}`. Codex takes the same command
+in its hooks file (feature `hooks`; trust the hook once). `hook codex` and `hook angelx` know their
+resume commands; any other agent passes its own: `niri-desktop-continuity hook myagent -- myagent
+--resume {id}`. A new session or thread switch replaces the record, so the newest session wins.
 Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md#save-and-reopen).
 
 ## What it never does
 
 - **Never closes a window, and never moves one that was open before the run.** Reopened columns
   go after them.
-- **Never replays what it cannot resume.** A Claude process without a session registry entry is
-  not relaunched from its command line, which would start the same work over.
+- **Never launches an app twice** in one run, and never adopts a window of another app.
+- **Never replays what it cannot resume.** A coding agent (Claude, Codex, Pi, angelX, Gemini, Aider
+  and others) without an announced session is not relaunched from its command line, which would
+  start the same work over. A captured sign-in URL or `app://` deep link is never opened again.
 - **Never guesses.** An X11 window (niri reports only the `xwayland-satellite` bridge), an
   unresolvable AppImage mount or an unreadable process is reported with a reason, not launched.
 - **Never runs anything at login unless you opt in.** `autostart --enable` writes three systemd user
@@ -180,24 +172,18 @@ captures and previews as private and do not publish them.
   scrollback, shell state and the order of hidden tabs are not recovered.
 - **X11 applications are not reopened**, because niri does not reveal which X11 program owns a
   window.
-- **Ghostty only, by design.** Sessions inside terminals are read and resumed in Ghostty. Other
-  terminals (kitty, WezTerm, foot, Alacritty) are captured as plain application recipes but are
-  unsupported by this restore candidate; if you use one, fork it. Claude Code and Pi resume by id; other programs in Ghostty get
-  their last command run again, or a shell in the same directory. Sessions found in extra tabs of
-  one Ghostty window reopen as separate windows.
+- **Sessions inside terminals need Ghostty.** Other terminals (kitty, WezTerm, foot, Alacritty)
+  reopen like any app, from their own entry, without their sessions. In Ghostty, Claude Code, Pi and
+  hook-announced agents resume by id; other programs get their last command run again, or a shell in
+  the same directory. Sessions found in extra tabs of one Ghostty window reopen as separate windows.
+- **Apps decide how many windows they reopen.** A browser that restores fewer windows than were saved
+  leaves the rest reported as `not-detected`; it is never launched a second time. Extra windows stay
+  where the app put them.
 - **Placement follows logical workspace order on the current output.** Normal Niri empty-workspace
   creation/cleanup is supported; there is no arbitrary workspace-creation feature or source-monitor
   affinity restoration. Protected workspace names are not changed.
-- **Missing optional dimensions are not guessed.** Extra-tab windows become separate columns and
-  retain freshly observed widths when no width was saved; receipts distinguish this from requested
-  width verification. A shared column uses its consistent recorded width, or its fresh seed width;
-  other members inherit it. Conflicting widths refuse before launch. Requested dimensions remain
-  pending until verified; floating positions use the current output's pixel grid and report rounding.
-  Saved tile height is not restored. History validates transitions and accounting, not hashes alone.
-- **Controlled Ghostty configuration is lossy.** Custom configuration is discarded after defaults
-  have been read. Explicit cwd and literal command arguments are retained; wrappers and conflicting
-  host options are refused. Fresh-host no-forwarding/no-connection-transfer behavior is trusted,
-  not established by a PID alone.
+- **Saved widths and floating positions come back; tile heights do not.** A window that cannot be
+  placed in its saved column goes to the end of its workspace.
 - **Stay idle while it arranges columns** (usually under a minute). niri has no atomic
   focus-and-move, so input during the run can land in the wrong column.
 - Exact restart or migration of a still-running window is **not** supported and stays blocked.

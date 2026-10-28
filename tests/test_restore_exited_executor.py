@@ -10,11 +10,19 @@ from test_reopen import saved, window
 from test_restore_exited_history import FAMILY
 from test_restore_lifecycle import Niri
 
-from niri_desktop_continuity import cli, probe, restore, restore_producer
+from niri_desktop_continuity import probe, restore, restore_producer
 from niri_desktop_continuity import restore_disposition as disposition
 from niri_desktop_continuity import restore_exited_proof as proof
 from niri_desktop_continuity import restore_host as host
 from niri_desktop_continuity.restore_attempt import Attempt
+
+
+def strict_restore(store, key, *, spawn_timeout):
+    """`restore` now runs the IS-2 engine; strict-family tests drive the strict engine directly."""
+    value = restore.restore(
+        store, key, restore.LiveDesktop(), apply=True, spawn_timeout=spawn_timeout
+    )
+    return value, 0 if value["status"] in {"dry-run", "reopened"} else 2
 
 
 def continuation_then_diagnostic(s, root, patch):
@@ -37,6 +45,7 @@ def continuation_then_diagnostic(s, root, patch):
         w["pid"] = os.getpid()
     desktop.initialize()
     patch.setattr(restore, "compositor_identity", lambda: s.identity)
+    patch.setattr(probe, "compositor_identity", lambda: s.identity)  # reopen engine
     patch.setattr(host, "compositor_identity", lambda: s.identity)
     patch.setattr(restore, "LiveDesktop", lambda: desktop)
     patch.setattr(probe, "capture", desktop.observe)
@@ -77,19 +86,7 @@ def continuation_then_diagnostic(s, root, patch):
             inventory_complete=True,
         )
         key = s.store.put("snapshots", snapshot)
-        return cli.run(
-            cli.parser().parse_args(
-                [
-                    "--state-root",
-                    str(s.store.root),
-                    "restore",
-                    key,
-                    "--apply",
-                    "--spawn-timeout",
-                    "10",
-                ]
-            )
-        )
+        return strict_restore(s.store, key, spawn_timeout=10)
 
     try:
         before = {w["id"]: w for w in desktop.windows()}

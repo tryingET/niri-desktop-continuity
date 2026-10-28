@@ -341,3 +341,18 @@ def test_png_asset_size_is_bounded(tmp_path, monkeypatch):
     put(tmp_path, "docs/assets/preview.png", png())
     monkeypatch.setattr(module, "MAX_PNG_BYTES", len(png()) - 1)
     assert module.check() == [f"docs/assets/preview.png: PNG asset exceeds {len(png()) - 1} bytes"]
+
+
+def test_worktree_pointer_is_not_source_but_other_dot_git_files_are(source_repo, tmp_path):
+    module, root = source_repo
+    put(root, "README.md", b"A portable tool.")
+    git = ["git", "-c", "user.name=fabricated", "-c", "user.email=fabricated@example.invalid"]
+    subprocess.run([*git, "add", "README.md"], cwd=root, check=True)
+    subprocess.run([*git, "commit", "--quiet", "-m", "fabricated"], cwd=root, check=True)
+    tree = tmp_path / "worktree"
+    subprocess.run([*git, "worktree", "add", "--quiet", str(tree)], cwd=root, check=True)
+    assert (tree / ".git").is_file()  # "gitdir: <absolute path of the repository>"
+    module.ROOT = tree
+    assert module.check() == []
+    (tree / ".git").write_text("gitdir: x\n" + "/".join(["", "home", "example", "private"]))
+    assert module.worktree_pointer(tree / ".git") is False

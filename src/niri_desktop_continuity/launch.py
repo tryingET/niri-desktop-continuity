@@ -18,6 +18,31 @@ CLAUDE_TITLE_PREFIX = "✳ "
 XWAYLAND_BRIDGE = "xwayland-satellite"
 # A type-2 AppImage runs its payload from a temporary FUSE mount named .mount_<name><random>.
 APPIMAGE_MOUNT_PREFIX = ".mount_"
+# Coding agents, by process name. Rerunning an agent's command line would replay its opening
+# prompt, so an agent comes back only through a session it announced (`hook`) or a built-in
+# reader (Claude registry, Pi presence). Adding an agent is one line here, never a module.
+AGENT_NAMES = {
+    "claude": "claude",
+    "codex": "codex",
+    "pi": "pi",
+    "angel": "angelx",
+    "angelx": "angelx",
+    "aider": "aider",
+    "gemini": "gemini",
+    "opencode": "opencode",
+    "goose": "goose",
+    "crush": "crush",
+    "qwen": "qwen",
+    "grok": "grok",
+    "cursor-agent": "cursor-agent",
+}
+# How `hook AGENT` turns an announced session ID into a resume command; others pass their own.
+RESUME_TEMPLATES = {
+    "claude": ["claude", "--resume", "{id}"],
+    "codex": ["codex", "resume", "{id}"],
+    "angelx": ["angelx", "--resume", "{id}"],
+}
+SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
 
 
 def read_cmdline(pid: int) -> list[str]:
@@ -227,6 +252,57 @@ def declare(pid: int, argv: list[str], *, cwd: str | None = None, label: str | N
     return value
 
 
+def refusal(recipe: dict) -> str | None:
+    """Why a saved recipe must not run, even if captured by older code that kept agent commands.
+
+    A `command` recipe whose program is a coding agent would replay its opening prompt.
+    """
+    if recipe.get("kind") == "unknown":
+        return recipe.get("reason") or "no-launch-command"
+    argv = recipe.get("argv") or []
+    if recipe.get("kind") == "command" and "-e" in argv[:-1]:
+        program = Path(argv[argv.index("-e") + 1]).name.lower()
+        if program in AGENT_NAMES:
+            return (
+                "claude-session-unregistered"
+                if program == "claude"
+                else "agent-session-unannounced"
+            )
+    return None if argv else "no-launch-command"
+
+
+def agent_ancestor(agent: str, pid: int, depth: int = 8) -> int:
+    """The nearest ancestor of a hook process that is the agent itself (hooks run via a shell)."""
+    from .probe import proc_stat
+
+    names = {comm for comm, name in AGENT_NAMES.items() if name == agent} or {agent}
+    for _ in range(depth):
+        if pid <= 1:
+            break
+        if (Path("/proc") / str(pid) / "comm").read_text().strip().lower() in names:
+            return pid
+        pid = proc_stat(pid)["ppid"]
+    raise ValueError(f"no {agent} process among this hook's ancestors")
+
+
+def hook_declaration(agent: str, payload: dict, template: list[str] | None, pid: int) -> dict:
+    """Declare the resume command for the session an agent's SessionStart hook announced.
+
+    A new session or thread switch fires the hook again and replaces the record, so the
+    declaration always names the current session. It is pinned to the agent's process start.
+    """
+    session_id, cwd = payload.get("session_id"), payload.get("cwd")
+    if not isinstance(session_id, str) or not SESSION_ID.fullmatch(session_id):
+        raise ValueError("hook input needs a plain session_id")
+    template = template or RESUME_TEMPLATES.get(agent)
+    if not template or not any("{id}" in arg for arg in template):
+        raise ValueError(f"no resume template for {agent}; pass -- COMMAND ... {{id}}")
+    argv = [arg.replace("{id}", session_id) for arg in template]
+    argv[0] = shutil.which(argv[0]) or argv[0]  # niri's PATH can differ from the agent's
+    cwd = cwd if isinstance(cwd, str) and cwd.startswith("/") else None
+    return declare(agent_ancestor(agent, pid), argv, cwd=cwd)
+
+
 def clear_declaration(pid: int) -> bool:
     try:
         (declaration_root() / f"{pid}.json").unlink()
@@ -258,15 +334,26 @@ def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
             )
             if found:
                 break
-        if found is None and any(by_pid.get(p, {}).get("comm") == "claude" for p in tree):
-            # No registry entry means no resumable session. Its command line (often the opening
+        agent = next(
+            (
+                AGENT_NAMES[name]
+                for p in tree
+                if (name := str(by_pid.get(p, {}).get("comm", "")).lower()) in AGENT_NAMES
+            ),
+            None,
+        )
+        if found is None and agent is not None:
+            # No announced session means nothing to resume. Its command line (often the opening
             # prompt) or a child's would start new work, so this surface is not reopened.
             found = {
                 "kind": "unknown",
                 "argv": [],
                 "cwd": None,
                 "label": None,
-                "reason": "claude-session-unregistered",
+                "reason": "claude-session-unregistered"
+                if agent == "claude"
+                else "agent-session-unannounced",
+                **({} if agent == "claude" else {"agent": agent}),
             }
         if found is None:
             leaves = [p for p in tree if not children.get(p) and p not in claimed]

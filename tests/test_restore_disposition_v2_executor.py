@@ -16,7 +16,6 @@ from test_restore_disposition_v2 import approve, propose
 from test_restore_lifecycle import Niri
 
 from niri_desktop_continuity import (
-    cli,
     operation_lock,
     probe,
     restore,
@@ -27,6 +26,14 @@ from niri_desktop_continuity import restore_disposition as d
 from niri_desktop_continuity import restore_history as history
 from niri_desktop_continuity import restore_host as host
 from niri_desktop_continuity.store import Store
+
+
+def strict_restore(store, key, *, spawn_timeout):
+    """`restore` now runs the IS-2 engine; strict-family tests drive the strict engine directly."""
+    value = restore.restore(
+        store, key, restore.LiveDesktop(), apply=True, spawn_timeout=spawn_timeout
+    )
+    return value, 0 if value["status"] in {"dry-run", "reopened"} else 2
 
 
 @pytest.fixture
@@ -62,6 +69,7 @@ def executor_original(tmp_path, monkeypatch):
                 w["pid"] = os.getpid()
             desktop.initialize()
             monkeypatch.setattr(restore, "compositor_identity", lambda: identity)
+            monkeypatch.setattr(probe, "compositor_identity", lambda: identity)  # reopen engine
             monkeypatch.setattr(host, "compositor_identity", lambda: identity)
             monkeypatch.setattr(restore, "LiveDesktop", lambda: desktop)
             monkeypatch.setattr(probe, "capture", desktop.observe)
@@ -105,18 +113,7 @@ def executor_original(tmp_path, monkeypatch):
                     ]
                 )
                 key = store.put("snapshots", snapshot)
-                args = cli.parser().parse_args(
-                    [
-                        "--state-root",
-                        str(store.root),
-                        "restore",
-                        "--apply",
-                        key,
-                        "--spawn-timeout",
-                        "10",
-                    ]
-                )
-                value, code = cli.run(args)
+                value, code = strict_restore(store, key, spawn_timeout=10)
                 return key, value, code
 
             def foreign_active(layout, proof, index):

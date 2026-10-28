@@ -1,4 +1,4 @@
-"""Existing installed console + default producer/bootstrap + real pidfds, fabricated ELF/IPC."""
+"""Installed console + real `niri msg` subprocess transport + real child hosts, fabricated ELF/IPC."""
 
 import inspect
 import json
@@ -73,6 +73,7 @@ desktop.initialize()
 # Keep the actual action subprocess boundary; reads remain fabricated model observations.
 model_action = desktop.action
 desktop.action = restore.LiveDesktop().action
+desktop.spawn = restore.LiveDesktop().spawn  # real `niri msg action spawn` subprocess
 restore.LiveDesktop = lambda: desktop
 probe.capture = desktop.observe
 store = Store(root / "state")
@@ -94,7 +95,8 @@ with tempfile.TemporaryDirectory(prefix="ni-", dir=os.environ["TMPDIR"]) as shor
             report = root / ("report-" + str(len(children)))
             process = subprocess.Popen(argv, env={**os.environ, "NDC_TEST_REPORT": str(report)}, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, close_fds=True)
             children.append(process)
-            desktop.add(process.pid)
+            wid = desktop.add(process.pid)
+            desktop.windows_by_id[wid]["app_id"] = "com.mitchellh.ghostty"  # a real Ghostty window's ID
         # Exercise the production niri_spawn subprocess transport too. Only the executable/server
         # are fabricated; the console, producer, handshake and process proof are installed code.
         bindir = root / 'bin'
@@ -163,8 +165,10 @@ with socket.socket(socket.AF_UNIX, socket.SOCK_STREAM) as client:
             for index in range(2):
                 lines = (root / ("report-" + str(index))).read_text().splitlines()
                 assert [v for v in lines if v.startswith("fd=")] == ["fd=0", "fd=1", "fd=2"]
-                assert [v[4:] for v in lines if v.startswith("arg=")][-4:] == ["-e", "tool", "a b", "$HOME"]
-                assert "normal=literal $HOME" in lines and "backend=wayland" in lines
+                args = [v[4:] for v in lines if v.startswith("arg=")]
+                assert args[-4:] == ["-e", "tool", "a b", "$HOME"]
+                # Niri launches the host directly: own process, the user's environment, no forced backend.
+                assert "--gtk-single-instance=false" in args and "normal=literal $HOME" in lines
             (root / "outcome.json").write_text(json.dumps({"hosts": len(pids), "layout": "observed", "native": False}))
         finally:
             stopped.set()

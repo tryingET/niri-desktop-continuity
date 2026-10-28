@@ -30,10 +30,17 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   reopen ledger read from saved recipes (it never imports or runs `restore`). CSS is packaged beside
   the module; no access to a source checkout or external design service is needed after installation.
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
-  only: Claude session registry, Pi presence, leaf command). Titles match sessions to windows and
-  are never stored.
-- `restore`: placement plan (workspace compaction, unknowns last, protected live windows) and the
-  spawn → detect → move → arrange executor with a receipt per run. No window is ever closed.
+  only: Claude session registry, Pi presence, declarations, leaf command). One agent-name table
+  refuses agent surfaces without an announced session; `hook` declares an agent's announced session.
+  Titles match sessions to windows and are never stored.
+- `routes`: where an app is launched from: user `routes.json`, desktop entry (XDG search, Desktop
+  Entry `Exec` quoting, field codes dropped) or the captured command line without URL operands.
+- `reopen`: the ordinary `restore` engine. Pure `plan` (slots, launch groups, routes, workspace
+  compaction, protected live windows) and the launch-once → adopt-own-new-windows → move → arrange
+  executor with one receipt per run. No window is ever closed or launched twice.
+- `restore_selection`: default source selection with the display-unavailable fallback.
+- `restore`: Niri IPC transport (`LiveDesktop`) and the strict engine kept for history replay and
+  disposition; `restore` (the CLI command) no longer uses its executor.
 - `autostart`: opt-in systemd user units (periodic capture, reopen at login) and their removal.
 - `cli` / `__main__`: console script and `python -m` entrypoints; no private infrastructure imports.
 - `recovery` / `recovery_verification`: fresh proposal/admission, exact losses and typed process-pin
@@ -59,9 +66,24 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   cross-root replay refusal and retained indeterminate history. Worker inherits the compositor
   lock; applications must not. An unresolved attempt blocks new reconstruction, not automatic repair.
 
-## Ordinary restore candidate boundary
+## Ordinary restore (IS-2 small restorer)
 
-Ordinary restore uses the integrated launch-bound candidate. Disposition and subsequent association
+`restore` runs `reopen`: the 0.1.2 broad restorer with three defects fixed. Each saved app instance
+(the windows of one process) is one group, launched once from its route; only new windows with the
+group's app ID are adopted, serially per group, until the saved count arrives, arrivals stop for 5 s
+or the timeout passes; there is no relaunch and no any-window fallback. Running apps are skipped.
+Each Ghostty window is its own launch with the user's configuration. Agents return only through an
+announced session. Trust is stated, not proved: an app is trusted to open its own windows, and a
+window of the same app ID that the user opens while its group is collecting could be adopted (stay
+idle during restore). Effect admission still uses `operation_lock(effectful=True)`, so unresolved strict
+histories block `--apply`; a source with a completed strict attempt returns that historical answer.
+
+## Strict candidate boundary (no longer the ordinary path)
+
+The sections below describe the strict launch-bound candidate that preceded IS-2. Its modules remain
+for history replay, disposition and reconstruction; `restore` no longer executes through them.
+
+Ordinary restore used the integrated launch-bound candidate. Disposition and subsequent association
 corrections passed bounded independent review. The current full isolated CI passed 1,671 tests,
 package builds and installed-wheel smoke; final Python 3.14 installed synthetic cases also passed.
 The width-failed native attempt received separately approved partial accounting with original evidence
