@@ -83,8 +83,9 @@ or another refusal. Focus is reported separately. Native application state stays
 
 `capture` attaches a reopen recipe to every window (`reopen`): kind `app` (process argv and cwd),
 `claude` (`claude --resume <id>` inside the same terminal, from `~/.claude/sessions/<pid>.json`),
-`pi` (the presence directory's `resumeArgv`), `command` (the terminal's leaf process), `shell`
-(terminal in the same directory) or `unknown` with a reason. Only Ghostty is read as a terminal:
+`pi` (the presence directory's `resumeArgv`), `command` (the job in the tab's foreground, as it
+was started: `just dev`, `bash start.sh`; a helper it detached or a background job is ignored),
+`shell` (terminal in the same directory) or `unknown` with a reason. Only Ghostty is read as a terminal:
 the terminal recipes use its `--working-directory` and `-e`, so other terminals are recorded as
 `app` (their own command line, nothing that ran inside). Titles are used only to match a
 session to its window when one terminal process owns several windows; they, and the session

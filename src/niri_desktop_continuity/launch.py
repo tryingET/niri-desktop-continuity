@@ -337,8 +337,51 @@ def is_terminal(app_id: str, comm: str) -> bool:
     return any(marker in haystack for marker in TERMINAL_MARKERS)
 
 
+def job_control(pid: int, start_ticks: int | None) -> tuple[int, int] | None:
+    """A process's group and its terminal's foreground group; None when unknown or reused."""
+    if start_ticks is None:
+        return None
+    try:
+        raw = (Path("/proc") / str(pid) / "stat").read_text()
+        fields = raw[raw.rindex(")") + 2 :].split()
+        if int(fields[19]) != start_ticks:
+            return None  # the pid now names another process
+        return int(fields[2]), int(fields[5])
+    except (OSError, ValueError, IndexError):
+        return None
+
+
+def foreground_job(
+    shell: int, tree: list[int], by_pid: dict
+) -> tuple[int | None, list[int]] | None:
+    """The leader (if it still runs) and processes of the job in a surface's foreground.
+
+    A daemon a program forked into a group of its own (nodecode's `setsid ... serve`) or a
+    background job is not what the tab shows. None when job control cannot be read.
+    """
+    groups = {p: job_control(p, by_pid.get(p, {}).get("start_ticks")) for p in tree}
+    if groups[shell] is None or groups[shell][1] <= 0:
+        return None
+    foreground = groups[shell][1]
+    job = [p for p in tree if groups[p] is not None and groups[p][0] == foreground]
+    if not job:
+        return None
+    return (foreground if foreground in job else None), job
+
+
+def interactive_shell(pid: int, comm: str) -> bool:
+    """A shell waiting for input (`bash`, `-zsh`, `bash --posix`), not one running a script or -c."""
+    if comm not in SHELLS:
+        return False
+    try:
+        args = read_cmdline(pid)[1:]
+    except OSError:
+        return True
+    return not any(arg == "-c" or not arg.startswith("-") for arg in args)
+
+
 def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
-    """Resumable sessions (or plain leaf commands) running inside one terminal process."""
+    """Resumable sessions (or the foreground commands) running inside one terminal process."""
     by_pid = {item["pid"]: item for item in inventory}
     children = children_index(inventory)
     sessions: list[dict] = []
@@ -377,8 +420,23 @@ def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
                 **({} if agent == "claude" else {"agent": agent}),
             }
         if found is None:
-            leaves = [p for p in tree if not children.get(p) and p not in claimed]
-            leaf = next((p for p in leaves if by_pid.get(p, {}).get("comm") not in SHELLS), None)
+            # The command is what the tab runs in its foreground: the job's leader, as it was
+            # started (`bash start.sh`), unless that is the interactive shell itself; then the
+            # job's innermost program. Without job control, the whole tree is the job.
+            job = foreground_job(shell, tree, by_pid)
+            leader, pool = (None, tree) if job is None else job
+            comm = str(by_pid.get(leader, {}).get("comm", ""))
+            if leader is not None and leader not in claimed and not interactive_shell(leader, comm):
+                leaf = leader
+            else:
+                leaves = [
+                    p
+                    for p in pool
+                    if not any(c in pool for c in children.get(p, [])) and p not in claimed
+                ]
+                leaf = next(
+                    (p for p in leaves if by_pid.get(p, {}).get("comm") not in SHELLS), None
+                )
             cwd = read_cwd(leaf if leaf is not None else shell)
             if leaf is None:
                 found = {"kind": "shell", "argv": [], "cwd": cwd, "label": None}

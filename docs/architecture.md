@@ -30,7 +30,7 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   reopen ledger read from saved recipes (it never imports or runs `restore`). CSS is packaged beside
   the module; no access to a source checkout or external design service is needed after installation.
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
-  only: Claude session registry, Pi presence, declarations, leaf command). One agent-name table
+  only: Claude session registry, Pi presence, declarations, the foreground job's command). One agent-name table
   refuses agent surfaces without an announced session; `hook` declares an agent's announced session.
   Titles match sessions to windows and are never stored.
 - `routes`: where an app is launched from: user `routes.json`, desktop entry (XDG search, Desktop
