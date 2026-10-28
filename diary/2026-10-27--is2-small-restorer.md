@@ -58,3 +58,25 @@ portability). A read-only plan of the newest display-valid snapshot on a real de
 one of its 68 windows and tabs (61 terminal launches, 7 apps from their desktop entries) with no
 configuration. No real compositor, routes file or lock directory was touched by tests, and no
 restore, installation or login change was performed.
+
+## First native test (2026-10-28)
+
+On a second machine (one output, Niri, Python 3.14), the branch was installed into its own prefix
+beside the selected legacy installation; services, timers and the real state store were untouched,
+and captures went to a separate test store.
+
+- A first `--apply` ran while the idle locker had locked the session. Niri accepted the spawn request
+  but launched nothing, so the terminal ended `not-detected` after the full timeout. `--apply` now
+  refuses a locked session before any launch (verified live: refused, window count unchanged) and
+  `--at-login` waits for the unlock.
+- With the session unlocked: the desktop (a terminal, Obsidian, Firefox, six windows of one browser
+  instance) was captured, the eight app windows were closed, and `restore --apply` ran. In 11.9 s it
+  made exactly four launches (terminal, Obsidian, Firefox, browser once), placed every window that
+  arrived on its saved workspace in saved order after the terminal that stayed open, set every
+  column to its saved 1,012 px width, and returned focus to the original window.
+- The browser opened one window, not six: the saved windows belonged to a separate test profile,
+  while the desktop entry starts the default profile. The five missing slots were reported
+  `not-detected`, with no second launch, and the run ended `reopened-partially` (exit 2).
+
+Not yet tested natively: a login restore through the user service, agent session resume through the
+new hooks, multiple workspaces or outputs, and floating windows.
