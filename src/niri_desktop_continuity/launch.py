@@ -255,20 +255,34 @@ def declare(pid: int, argv: list[str], *, cwd: str | None = None, label: str | N
 def refusal(recipe: dict) -> str | None:
     """Why a saved recipe must not run, even if captured by older code that kept agent commands.
 
-    A `command` recipe whose program is a coding agent would replay its opening prompt.
+    A `command` recipe whose program is a coding agent would replay its opening prompt, and so
+    would an `app` recipe of an agent in its own window (angelX 0.2.5 opens one).
     """
     if recipe.get("kind") == "unknown":
         return recipe.get("reason") or "no-launch-command"
     argv = recipe.get("argv") or []
+    program = None
     if recipe.get("kind") == "command" and "-e" in argv[:-1]:
         program = Path(argv[argv.index("-e") + 1]).name.lower()
-        if program in AGENT_NAMES:
-            return (
-                "claude-session-unregistered"
-                if program == "claude"
-                else "agent-session-unannounced"
-            )
+    elif recipe.get("kind") == "app" and argv:
+        program = Path(argv[0]).name.lower()
+    if program in AGENT_NAMES:
+        return "claude-session-unregistered" if program == "claude" else "agent-session-unannounced"
     return None if argv else "no-launch-command"
+
+
+def inside_terminal(pid: int, depth: int = 16) -> bool:
+    """Whether a process runs inside a terminal window, which is what capture can reopen."""
+    from .probe import proc_stat
+
+    for _ in range(depth):
+        pid = proc_stat(pid)["ppid"]
+        if pid <= 1:
+            return False
+        comm = (Path("/proc") / str(pid) / "comm").read_text().strip().lower()
+        if any(marker in comm for marker in TERMINAL_MARKERS):
+            return True
+    return False
 
 
 def agent_ancestor(agent: str, pid: int, depth: int = 8) -> int:
@@ -285,11 +299,15 @@ def agent_ancestor(agent: str, pid: int, depth: int = 8) -> int:
     raise ValueError(f"no {agent} process among this hook's ancestors")
 
 
-def hook_declaration(agent: str, payload: dict, template: list[str] | None, pid: int) -> dict:
+def hook_declaration(
+    agent: str, payload: dict, template: list[str] | None, pid: int
+) -> dict | None:
     """Declare the resume command for the session an agent's SessionStart hook announced.
 
     A new session or thread switch fires the hook again and replaces the record, so the
     declaration always names the current session. It is pinned to the agent's process start.
+    None when the agent runs outside a terminal (for example Codex's shared app-server daemon):
+    no terminal tab could be matched to it, so nothing is declared.
     """
     session_id, cwd = payload.get("session_id"), payload.get("cwd")
     if not isinstance(session_id, str) or not SESSION_ID.fullmatch(session_id):
@@ -300,7 +318,10 @@ def hook_declaration(agent: str, payload: dict, template: list[str] | None, pid:
     argv = [arg.replace("{id}", session_id) for arg in template]
     argv[0] = shutil.which(argv[0]) or argv[0]  # niri's PATH can differ from the agent's
     cwd = cwd if isinstance(cwd, str) and cwd.startswith("/") else None
-    return declare(agent_ancestor(agent, pid), argv, cwd=cwd)
+    owner = agent_ancestor(agent, pid)
+    if not inside_terminal(owner):
+        return None
+    return declare(owner, argv, cwd=cwd)
 
 
 def clear_declaration(pid: int) -> bool:

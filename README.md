@@ -135,9 +135,11 @@ menu entry cannot tell two profiles apart. `restore` without `--apply` prints ea
 read directly. Any agent with session hooks announces itself with one hook line in its own settings,
 for example in Claude Code's `settings.json` under `hooks.SessionStart`:
 `{"type": "command", "command": "niri-desktop-continuity hook claude"}`. Codex takes the same command
-in its hooks file (feature `hooks`; trust the hook once). `hook codex` and `hook angelx` know their
-resume commands; any other agent passes its own: `niri-desktop-continuity hook myagent -- myagent
---resume {id}`. A new session or thread switch replaces the record, so the newest session wins.
+in `~/.codex/hooks.json` (trust it once with `/hooks`; sessions in Codex's shared daemon cannot be tied
+to a tab, so use `--no-daemon` where a tab should come back). angelX has tool hooks only, so its tabs
+are refused until it can announce a session. Any other agent passes its own resume command:
+`niri-desktop-continuity hook myagent -- myagent --resume {id}`. A new session or thread switch
+replaces the record, so the newest session wins.
 Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md#save-and-reopen).
 
 ## What it never does

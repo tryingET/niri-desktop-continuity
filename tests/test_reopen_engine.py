@@ -290,25 +290,23 @@ def test_unannounced_agent_is_refused_never_replayed(comm, monkeypatch):
     assert "fabricated opening prompt" not in json.dumps(session)
 
 
-def hook(monkeypatch, tmp_path, payload, template=None, comm="codex"):
+def hook(monkeypatch, tmp_path, payload, template=None, comm="codex", terminal=True):
+    # Fabricated chain: hook shell 13 -> agent 12 -> tab shell 11 -> terminal 10 (or a daemon).
     monkeypatch.setattr(launch.shutil, "which", lambda name: f"/fabricated/bin/{name}")
     monkeypatch.setattr(launch, "read_cwd", lambda pid: "/fabricated/cwd")  # never real /proc
+    parents = {13: 12, 12: 11, 11: 10, 10: 1}
     monkeypatch.setattr(
         "niri_desktop_continuity.probe.proc_stat",
-        lambda pid: {
-            "pid": pid,
-            "ppid": 12 if pid == 13 else 11,
-            "start_ticks": {12: 50}.get(pid, 1),
-        },
+        lambda pid: {"pid": pid, "ppid": parents[pid], "start_ticks": {12: 50}.get(pid, 1)},
     )
-    comms = {13: "sh", 12: comm}
+    comms = {13: "sh", 12: comm, 11: "bash", 10: "ghostty" if terminal else "codex-daemon"}
     real = launch.Path
 
     class Proc(type(real())):
         def read_text(self, *args, **kwargs):
             parts = self.parts
             if len(parts) == 4 and parts[1] == "proc" and parts[3] == "comm":
-                return comms.get(int(parts[2]), "init") + "\n"
+                return comms[int(parts[2])] + "\n"
             return super().read_text(*args, **kwargs)
 
     monkeypatch.setattr(launch, "Path", Proc)
@@ -420,3 +418,29 @@ def test_old_captured_agent_command_is_refused_not_replayed(tmp_path):
 
     shown = map_preview.reopen_html(saved(saved_windows))
     assert "0 of 1 reopen" in shown and "coding agent without an announced session" in shown
+
+
+def test_agent_outside_a_terminal_declares_nothing(tmp_path, monkeypatch):
+    # Codex's shared app-server daemon runs the session outside any terminal tab.
+    value = hook(monkeypatch, tmp_path, {"session_id": "s1", "cwd": "/w"}, terminal=False)
+    assert value is None and not (tmp_path / "declared").exists()
+
+
+@pytest.mark.parametrize("declared", [{"pid": 12}, None])
+def test_hook_prints_nothing_on_stdout(declared, monkeypatch, capsys):
+    # SessionStart hooks feed stdout into the agent's context; keep it empty.
+    monkeypatch.setattr("sys.stdin", io.StringIO(json.dumps({"session_id": "s1"})))
+    monkeypatch.setattr(launch, "hook_declaration", lambda *args: declared)
+    assert cli.main(["hook", "codex"]) == 0
+    output = capsys.readouterr()
+    assert output.out == ""
+    assert ("not inside a terminal" in output.err) is (declared is None)
+
+
+def test_agent_in_its_own_window_is_refused_not_relaunched_with_its_prompt(tmp_path):
+    gui = recipe("app", "/usr/bin/angelX", "/w", "--prompt", "opening prompt")
+    saved_windows = [window(1, 1, 1, app="angelx", reopen=gui)]
+    desktop = Desktop(opens={("/usr/bin/angelX", "/w", "--prompt", "opening prompt"): ["angelx"]})
+    result = run(tmp_path, saved_windows, desktop)
+    assert desktop.actions == []
+    assert result["windows"][0]["reason"] == "agent-session-unannounced"

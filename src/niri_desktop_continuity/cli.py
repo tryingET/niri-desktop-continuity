@@ -350,7 +350,12 @@ def run_hook(args) -> int:
     except (ValueError, OSError, KeyError) as exc:
         print(json.dumps({"status": "error", "error": str(exc)}), file=sys.stderr)
         return 1
-    print(json.dumps({"declared": value}, sort_keys=True))
+    if value is None:
+        print(
+            f"niri-desktop-continuity: {args.agent} is not inside a terminal; nothing declared",
+            file=sys.stderr,
+        )
+    # Nothing on stdout: SessionStart hooks feed stdout into the agent's context.
     return 0
 
 

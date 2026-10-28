@@ -160,8 +160,23 @@ niri-desktop-continuity hook myagent -- myagent --resume {id}
 `hook` finds the nearest ancestor process with the agent's name and declares the resume command for
 it, pinned to that process's start time (a reused PID never matches). A later `SessionStart` (a new
 session or thread switch) replaces the declaration. The program is resolved to an absolute path,
-because Niri's `PATH` can differ from the agent's. `hook` exits 0 or 1, never 2. Without an
-announced session, the tab is reported `agent-session-unannounced` (Claude: `claude-session-unregistered`).
+because Niri's `PATH` can differ from the agent's. `hook` prints nothing on stdout (agents feed a
+`SessionStart` hook's stdout into their context) and exits 0 or 1, never 2. If the agent is not inside
+a terminal, nothing is declared and one line on stderr says so. Without an announced session, the tab
+is reported `agent-session-unannounced` (Claude: `claude-session-unregistered`); an agent running in
+its own window is refused the same way rather than relaunched with its opening prompt.
+
+Where the hook line goes:
+
+- **Claude Code:** `~/.claude/settings.json`, under `hooks.SessionStart`. Claude's own session
+  registry already covers most sessions; the hook also covers sessions without a registry entry.
+- **Codex:** `~/.codex/hooks.json`, same nested shape, under `SessionStart` (feature `hooks`). Codex
+  skips a new hook until you trust it once with `/hooks`. By default Codex runs sessions in a shared
+  app-server daemon outside the terminal; such sessions cannot be tied to a tab, so start Codex with
+  `--no-daemon` where a tab should come back.
+- **angelX:** its hooks are tool hooks only (`PreToolUse`/`PostToolUse`, no session ID), so angelX
+  cannot announce a session yet. Its tabs are refused, never replayed, until angelX gains a
+  `SessionStart` hook. `declare` on its PID works meanwhile.
 
 ### Restore read-query policy
 
