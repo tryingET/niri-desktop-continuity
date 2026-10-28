@@ -315,6 +315,8 @@ export XDG_RUNTIME_DIR=/e/runtime XDG_CONFIG_HOME=/e/config XDG_DATA_HOME=/e/dat
 cd "$jail"
 pivot_root . old-root
 cd /
+umount -l /old-root
+rmdir /old-root
 exec chroot / "$@"
 """
     return subprocess.run(
@@ -343,6 +345,45 @@ exec chroot / "$@"
         text=True,
         timeout=45,
     )
+
+
+@pytest.mark.skipif(
+    os.environ.get("NIRI_TEST_SEPARATE_KERNEL_GUEST") != "1",
+    reason="Old-root isolation regression requires an approved separate-kernel guest.",
+)
+def test_namespace_old_root_is_absent_and_outer_marker_is_unreachable(tmp_path):
+    """Guest-only behavioral check; the opt-in is an attestation, not VM detection."""
+    marker = tmp_path / "outer-only-marker"
+    marker.write_text("fabricated outer-root marker\n", encoding="utf-8")
+    evidence = tmp_path / "evidence"
+    evidence.mkdir(mode=0o700)
+    result = isolated_namespace(
+        f"""
+import os
+
+for base in ("", "/proc/self/root", "/proc/1/root"):
+    try:
+        os.lstat(base + "/old-root")
+    except FileNotFoundError:
+        pass
+    else:
+        raise AssertionError("old-root entry is still visible")
+    try:
+        fd = os.open(base + "/old-root" + {str(marker)!r}, os.O_RDONLY | os.O_CLOEXEC)
+    except FileNotFoundError:
+        pass
+    else:
+        os.close(fd)
+        raise AssertionError("outer-only marker is still reachable through old-root")
+with open("/proc/self/mountinfo", encoding="utf-8") as stream:
+    for line in stream:
+        mountpoint = line.split()[4]
+        assert mountpoint != "/old-root" and not mountpoint.startswith("/old-root/")
+""",
+        data_root=evidence,
+    )
+    assert result.returncode == 0, result.stderr
+    assert marker.read_text(encoding="utf-8") == "fabricated outer-root marker\n"
 
 
 def test_real_procfs_active_scope_and_self():
