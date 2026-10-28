@@ -78,5 +78,27 @@ and captures went to a separate test store.
   while the desktop entry starts the default profile. The five missing slots were reported
   `not-detected`, with no second launch, and the run ended `reopened-partially` (exit 2).
 
-Not yet tested natively: a login restore through the user service, agent session resume through the
-new hooks, multiple workspaces or outputs, and floating windows.
+## Login restore, installed-wheel gate and both machines (2026-10-28)
+
+- Login restore through the user service, second machine: after its capture and restore units were
+  switched to the branch installation, the next login ran `restore --apply --at-login` in 14 s. All
+  eight groups (four terminals, two of them resuming agent sessions; four apps from their desktop
+  entries) were `placed`, with no failures, saved widths and status `reopened`.
+- Installed-wheel gate: with a private offline build cache, the ten installed-wheel cases ran for
+  the first time on this branch. Three still reached the strict executor through the `restore`
+  console command, which now runs this engine. Their drivers now call the installed strict engine
+  directly, as their in-process siblings already did. The v2 disposition driver keeps the console
+  and supplies the compositor identity where this engine reads it. Neither driver reads the
+  operator's logind lock state: a screen that locked during the run had failed two of them. Full
+  suite on the branch head before this fix: 2,993 passed; the ten installed-wheel cases failed. The
+  three changed files, rerun in full while the session was locked: 117 passed. Ruff, formatting,
+  portable-source check, wheel/sdist build and installed-wheel smoke passed.
+- First machine (one output, seven saved workspaces): its units now match the second machine's,
+  selecting the same installation. A capture through the service recorded 57 windows with the
+  display ready. The read-only plan from it found every agent tab already open, four running apps,
+  and four plain shell or command terminals that it would launch. Those have no identity to
+  match, so a manual `--apply` on a live desktop would open them a second time; at login they are
+  the expected launches.
+
+Not yet tested natively: agent session resume through the new hooks, a login with several
+workspaces (the first machine's next login), several outputs, and floating windows.
