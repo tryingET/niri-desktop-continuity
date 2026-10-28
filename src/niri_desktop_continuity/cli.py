@@ -324,6 +324,15 @@ def run_restore(args, store):
             if desktop.monotonic() >= deadline:
                 raise ValueError("Niri did not become ready; nothing reopened")
             desktop.sleep(1.0)
+        if args.apply:
+            from .reopen import session_locked
+
+            # Lock-on-login: wait for the unlock, since a locked session launches nothing.
+            unlock = desktop.monotonic() + 600
+            while session_locked():
+                if desktop.monotonic() >= unlock:
+                    raise ValueError("the session stayed locked for 10 minutes; nothing reopened")
+                desktop.sleep(2.0)
     if args.at_login or selection.fallback_reason is not None:
         if selection.same_instance(compositor_identity()):
             return {

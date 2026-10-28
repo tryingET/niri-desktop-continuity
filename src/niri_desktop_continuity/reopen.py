@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import json
 import os
+import subprocess
 from collections import Counter
 
 from . import operation_lock as locks
@@ -28,6 +29,34 @@ LOSSY_TERMINAL_FLAGS = {"--config-default-files=false"}
 # niri spawns from its own working directory. An application captured with a relative path
 # (`electron .`) starts in its saved one; `exec` keeps its command line exactly as recorded.
 CHDIR_EXEC = 'cd -- "$1" && shift && exec "$@"'
+
+
+def logind_locked() -> bool:
+    """Whether logind says the user's active session is locked; unknown counts as unlocked.
+
+    Niri ignores spawn requests while a screen locker runs, so nothing launched then would appear.
+    """
+
+    def ask(*args):
+        result = subprocess.run(
+            ["loginctl", *args], capture_output=True, text=True, timeout=3, check=False
+        )
+        return result.stdout if result.returncode == 0 else ""
+
+    try:
+        for line in ask("list-sessions", "--no-legend").splitlines():
+            fields = line.split()
+            if len(fields) < 2 or fields[1] != str(os.getuid()):
+                continue
+            values = ask("show-session", fields[0], "-p", "Active", "-p", "LockedHint")
+            if "Active=yes" in values.split() and "LockedHint=yes" in values.split():
+                return True
+    except (OSError, subprocess.SubprocessError):
+        return False
+    return False
+
+
+session_locked = logind_locked  # tests replace this, never the real logind
 
 
 def terminal_argv(argv: list[str]) -> list[str]:
@@ -283,6 +312,10 @@ def reopen(
     if not readiness(snapshot)["ready"]:
         raise ValueError("saved snapshot is not display-valid; refusing to reopen from it")
     observe = observe or probe.capture
+    if apply and session_locked():
+        raise ValueError(
+            "the session is locked: Niri would not launch anything; unlock and run again"
+        )
     if apply:
         from .restore_exited import historical_replay
 

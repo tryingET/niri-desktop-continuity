@@ -8,7 +8,7 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
-from niri_desktop_continuity import recovery_profile  # noqa: E402
+from niri_desktop_continuity import recovery_profile, reopen  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -18,3 +18,5 @@ def no_live_desktop_or_owner_profile(tmp_path_factory, monkeypatch):
     monkeypatch.delenv("NIRI_SOCKET", raising=False)
     absent = tmp_path_factory.mktemp("no-owner-profile") / "absent" / "recovery-profile.json"
     monkeypatch.setattr(recovery_profile, "profile_path", lambda: absent)
+    # Nor the operator's logind: a screen that locks during a run must not change results.
+    monkeypatch.setattr(reopen, "session_locked", lambda: False)

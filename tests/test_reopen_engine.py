@@ -444,3 +444,48 @@ def test_agent_in_its_own_window_is_refused_not_relaunched_with_its_prompt(tmp_p
     result = run(tmp_path, saved_windows, desktop)
     assert desktop.actions == []
     assert result["windows"][0]["reason"] == "agent-session-unannounced"
+
+
+def test_locked_session_refuses_apply_before_any_launch(tmp_path, monkeypatch):
+    monkeypatch.setattr(reopen, "session_locked", lambda: True)
+    desktop = Desktop()
+    with pytest.raises(ValueError, match="locked"):
+        run(tmp_path, [window(1, 1, 1, app="x", reopen=recipe("app", "x"))], desktop)
+    assert desktop.actions == []
+    result = run(
+        tmp_path, [window(1, 1, 1, app="x", reopen=recipe("app", "x"))], desktop, apply=False
+    )
+    assert result["status"] == "dry-run"  # a dry run still works while locked
+
+
+@pytest.mark.parametrize(
+    "sessions,shown,expected",
+    [
+        ("2 {uid} tryinget seat0 tty2\n", "Active=yes\nLockedHint=yes\n", True),
+        ("2 {uid} tryinget seat0 tty2\n", "Active=yes\nLockedHint=no\n", False),
+        ("2 {uid} tryinget seat0 tty2\n", "Active=no\nLockedHint=yes\n", False),
+        ("2 99999 other seat0 tty3\n", "Active=yes\nLockedHint=yes\n", False),
+        ("", "", False),
+    ],
+)
+def test_logind_lock_state_is_read_for_this_users_active_session(
+    sessions, shown, expected, monkeypatch
+):
+    class Done:
+        def __init__(self, stdout):
+            self.stdout, self.returncode = stdout, 0
+
+    def fake(argv, **kwargs):
+        assert argv[0] == "loginctl"
+        return Done(sessions.format(uid=os.getuid()) if argv[1] == "list-sessions" else shown)
+
+    monkeypatch.setattr(reopen.subprocess, "run", fake)
+    assert reopen.logind_locked() is expected
+
+
+def test_unreadable_logind_counts_as_unlocked(monkeypatch):
+    def missing(*args, **kwargs):
+        raise FileNotFoundError("loginctl")
+
+    monkeypatch.setattr(reopen.subprocess, "run", missing)
+    assert reopen.logind_locked() is False

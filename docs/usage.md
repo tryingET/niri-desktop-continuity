@@ -114,6 +114,10 @@ titles used for matching, are not stored unless `--include-titles` is given. Ses
    windows that were already open, with saved widths, stacked tiles and floating positions. Workspace
    names are restored, and focus returns to the window that had it.
 
+Niri launches nothing while the session is locked, so `--apply` refuses a locked session (logind
+`LockedHint`) before launching anything, and `--at-login` waits up to 10 minutes for the unlock. If the
+lock state cannot be read, the session counts as unlocked.
+
 Every run writes one receipt (`reopened`, `reopened-partially`, `interrupted` or `dry-run`); exit 2
 means some window did not come back. `last-reopened` points at the last fully reopened snapshot.
 Reopening is not recovered memory: applications restore their own content. **Stay idle** while it

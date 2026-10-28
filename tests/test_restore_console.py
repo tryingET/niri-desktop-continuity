@@ -64,6 +64,8 @@ root, elf, console = Path(sys.argv[2]), sys.argv[3], sys.argv[4]
 runtime = root / "runtime"
 runtime.mkdir(mode=0o700)
 operation_lock.runtime_root = lambda: runtime
+from niri_desktop_continuity import reopen
+reopen.session_locked = lambda: False  # never the operator's logind lock state
 quit = root / "quit"
 children = []
 desktop = Niri()
