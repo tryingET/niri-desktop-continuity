@@ -33,6 +33,12 @@ jobs:
         run: |
           knob=/proc/sys/kernel/apparmor_restrict_unprivileged_userns
           if [ -e "$knob" ]; then sudo sysctl -w kernel.apparmor_restrict_unprivileged_userns=0; fi
+      # The jail binds /usr only: Ubuntu's cc resolves through /etc/alternatives and setup-uv
+      # installs uv elsewhere. The jail tests skip until the runner kernel is >= 7.2.6.
+      - name: Keep cc and uv inside /usr for the native jail
+        run: |
+          sudo ln -sfn "$(readlink -f /usr/bin/cc)" /usr/bin/cc
+          sudo install -m 0755 "$(command -v uv)" /usr/bin/uv
       - run: uv sync --frozen --group dev
       - name: Cache the index entries the installed-wheel tests resolve offline
         run: |

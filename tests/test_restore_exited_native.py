@@ -236,6 +236,20 @@ def test_trickle_cannot_renew_complete_frame_deadline():
             transport.close()
 
 
+def native_platform_or_skip():
+    """Skip on a kernel outside the product's platform profile, which the jailed code refuses.
+
+    The native code needs a stable Linux >= 7.2.6 by design. Hosted CI runners lag behind, so
+    there these tests skip with the reason; they run in the full gate on a supported kernel.
+    """
+    from niri_desktop_continuity import restore_exited_syscalls
+
+    try:
+        restore_exited_syscalls.profile()
+    except ValueError as exc:
+        pytest.skip(f"native platform profile not met: {exc}")
+
+
 def isolated_namespace(code, data_root=None):
     """Test-owned namespace/root; no unmapped host-root ancestor is silently trusted.
 
@@ -243,6 +257,7 @@ def isolated_namespace(code, data_root=None):
     System libraries and candidate are read-only; only this fixture's private evidence
     tree is writable. Production has no unshare, chroot, mount or injection path.
     """
+    native_platform_or_skip()
     candidate = Path(native.__file__).parents[2]
     import sysconfig
 
