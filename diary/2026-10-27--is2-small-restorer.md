@@ -100,5 +100,6 @@ and captures went to a separate test store.
   match, so a manual `--apply` on a live desktop would open them a second time; at login they are
   the expected launches.
 
-Not yet tested natively: agent session resume through the new hooks, a login with several
-workspaces (the first machine's next login), several outputs, and floating windows.
+Not yet tested natively: a login with several workspaces (the first machine's next login), several
+outputs, and floating windows. Agent session resume was tested natively on 2026-10-28; see
+`2026-10-28--agent-resume-and-foreground-job.md`.
