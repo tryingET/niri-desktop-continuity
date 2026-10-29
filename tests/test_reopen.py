@@ -491,7 +491,7 @@ def test_claude_registry_and_title_scan(tmp_path, monkeypatch):
     monkeypatch.setattr(Path, "home", classmethod(lambda cls: tmp_path))
     sessions = tmp_path / ".claude" / "sessions"
     sessions.mkdir(parents=True)
-    sid = "9f6031d6-a9ff-4b94-bdb5-a365989558f6"
+    sid = "00000000-0000-4000-8000-0000000000a1"  # fabricated, matches the UUID shape
     (sessions / "42.json").write_text(f'{{"pid": 42, "sessionId": "{sid}", "cwd": "/w/a.b"}}')
     project = tmp_path / ".claude" / "projects" / "-w-a-b"
     project.mkdir(parents=True)
