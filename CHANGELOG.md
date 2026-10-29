@@ -4,6 +4,42 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.2.0] - 2026-10-29
+
+### Changed
+
+- `restore` and the login service run a new reopen engine. Each saved application instance is
+  launched once, and only new windows of that application are adopted, until its saved count
+  arrives, arrivals stop for 5 s or the spawn timeout passes; nothing is launched a second time and
+  no unrelated window is taken. Every window goes back to its saved workspace, column order and
+  width. Running applications are skipped (`already-running`), and windows open before the run are
+  never moved or closed. The restore receipt now lists launch groups and each window's route
+  (`terminal`, `desktop:<entry>`, `argv` or `user`), and a run that places only some windows ends
+  `reopened-partially` (exit 2). Column widths no longer come back wider by their border.
+- Applications launch from a route in `$XDG_CONFIG_HOME/niri-desktop-continuity/routes.json`, then
+  from their desktop entry, then from the captured command line without `://` operands, so a
+  browser no longer reopens a sign-in or deep-link URL it was started with.
+- Ghostty tabs reopen with your own Ghostty configuration.
+- A terminal tab without an agent session is saved as the job in its foreground, as it was started
+  (`bash start.sh`, `just dev`), not a helper the program detached (such as a server started with
+  `setsid`). A background job (`cmd &`) is no longer reopened as the tab's command.
+- A coding agent (Codex, angelX, Aider, Gemini and others) comes back only through a session it
+  announced; a tab running one without an announced session is not reopened, so its opening prompt
+  is never replayed. Captures from older versions that saved such a tab as a command are refused.
+- Without a digest, `restore` uses the latest capture, or the last display-valid one when the latest
+  saw no usable display (for example a screen that was off); a digest you give never falls back.
+- `restore --apply` refuses while the session is locked, because Niri launches nothing then;
+  `--at-login` waits for the unlock.
+
+### Added
+
+- `hook AGENT` for an agent's `SessionStart` hook (Claude Code, Codex, or any agent with
+  `-- COMMAND ... {id}`): it records the session a terminal tab holds, so the tab resumes after a
+  reboot, and records again when the session changes.
+- `capture --keep-days N` and `autostart --enable --keep-days N` keep the snapshots of the N most
+  recent days that have captures. A day without captures does not count, and a snapshot that a
+  pointer, receipt or other record names is always kept. Without the option nothing is deleted.
+
 ## [0.1.2] - 2026-09-19
 
 ### Changed

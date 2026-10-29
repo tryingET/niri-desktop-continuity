@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [options]
@@ -26,7 +26,7 @@ wheels = [
 
 [[package]]
 name = "niri-desktop-continuity"
-version = "0.1.2"
+version = "0.2.0"
 source = { editable = "." }
 
 [package.dev-dependencies]
