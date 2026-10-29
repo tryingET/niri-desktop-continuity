@@ -379,6 +379,7 @@ def test_routes_file_must_be_private_and_well_formed(tmp_path):
     path.write_text(json.dumps({"routes": {"x": {"argv": ["x"]}}}))
     os.chmod(path, 0o644)
     assert routes.user_routes(path) == {"x": {"argv": ["x"]}}
+    # ubs:ignore[py.security.file-permissions] -- Fabricated file, made unsafe to prove the refusal.
     os.chmod(path, 0o666)
     with pytest.raises(ValueError, match="not writable by others"):
         routes.user_routes(path)
