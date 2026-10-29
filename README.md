@@ -63,17 +63,19 @@ niri-desktop-continuity preview    # write an offline HTML map of the latest cap
 niri-desktop-continuity restore    # dry run: the placement plan, as JSON; nothing is launched
 ```
 
-Reopen it: automatically at every login, or by hand after a reboot or crash:
+Reopen it: automatically at every login, which is all most desktops need:
 
 ```sh
-niri-desktop-continuity autostart --enable   # capture every 15 min, reopen at login; --disable removes it
-niri-desktop-continuity restore --apply      # reopen the latest capture now
+niri-desktop-continuity autostart --enable --keep-days 3  # capture every 15 min, keep 3 capture days, reopen at login
+niri-desktop-continuity restore --apply      # by hand: reopen the latest capture now
 ```
 
-`restore --apply` admits supported fresh Ghostty recipes not already observed as Claude or Pi
-resume recipes. Other application recipes are reported unsupported before launch. Use it only
-with separately approved native qualification on a desktop that has lost the saved windows. The login service checks this for you: it reopens only when the
-capture came from a different niri instance, such as the one before a reboot.
+At login the restore service runs `restore --apply --at-login` for you; it waits for Niri, and
+skips when the capture came from the same Niri instance. By hand you need `restore --apply` only
+when saved windows are gone while you stay logged in, for example after closing them by mistake,
+or to reopen an older capture by its digest. It launches each saved application that is not
+running and each saved terminal tab that is not open. A plain shell or command tab cannot be
+recognised as already open, so on a desktop where it still runs it opens a second time.
 
 A session that cannot be resumed (for example, a Claude Code session started from inside another
 one, which keeps no transcript) is not reopened. If you would rather it came back as a fresh
