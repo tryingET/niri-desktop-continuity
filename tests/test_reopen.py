@@ -14,6 +14,7 @@ from niri_desktop_continuity import (  # noqa: E402
     autostart,
     cli,
     launch,
+    launch_sessions,
     operation_lock,
     probe,
     restore,
@@ -29,7 +30,9 @@ def isolated(tmp_path, monkeypatch):
     runtime = tmp_path / "runtime"
     runtime.mkdir(mode=0o700)
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: runtime)
-    monkeypatch.setattr(launch, "declaration_root", lambda: runtime / "declared")
+    # Declarations live in launch_sessions; launch re-exports the root for callers like these tests.
+    for module in (launch, launch_sessions):
+        monkeypatch.setattr(module, "declaration_root", lambda: runtime / "declared")
     monkeypatch.setattr(restore, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
     from niri_desktop_continuity import restore_host
 
@@ -252,6 +255,7 @@ def unresumable_claude_tree(monkeypatch):
     cmdlines = {10: ["ghostty", "--working-directory=/w", "-e", "claude", "Work task 7."]}
     monkeypatch.setattr(launch, "read_cmdline", lambda pid: cmdlines[pid])
     monkeypatch.setattr(launch, "read_cwd", lambda pid: "/w")
+    monkeypatch.setattr(launch_sessions, "read_cwd", lambda pid: "/w")  # declare reads it there
     monkeypatch.setattr(launch, "claude_session", lambda pid: None)
     monkeypatch.setattr(launch, "pi_session", lambda pid: None)
 

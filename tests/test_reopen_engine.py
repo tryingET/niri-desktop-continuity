@@ -10,7 +10,7 @@ from contextlib import contextmanager
 import pytest
 from test_reopen import IDENTITY, recipe, saved, window
 
-from niri_desktop_continuity import cli, launch, reopen, routes
+from niri_desktop_continuity import cli, launch, launch_sessions, reopen, routes
 from niri_desktop_continuity.store import Store
 
 GHOSTTY = "com.mitchellh.ghostty"
@@ -27,7 +27,7 @@ def isolated(tmp_path, monkeypatch):
 
     monkeypatch.setattr(reopen.locks, "operation_lock", lock)
     monkeypatch.setattr(reopen.probe, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
-    monkeypatch.setattr(launch, "declaration_root", lambda: tmp_path / "declared")
+    monkeypatch.setattr(launch_sessions, "declaration_root", lambda: tmp_path / "declared")
     return locks
 
 
@@ -293,7 +293,7 @@ def test_unannounced_agent_is_refused_never_replayed(comm, monkeypatch):
 def hook(monkeypatch, tmp_path, payload, template=None, comm="codex", terminal=True):
     # Fabricated chain: hook shell 13 -> agent 12 -> tab shell 11 -> terminal 10 (or a daemon).
     monkeypatch.setattr(launch.shutil, "which", lambda name: f"/fabricated/bin/{name}")
-    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/fabricated/cwd")  # never real /proc
+    monkeypatch.setattr(launch_sessions, "read_cwd", lambda pid: "/fabricated/cwd")  # never /proc
     parents = {13: 12, 12: 11, 11: 10, 10: 1}
     monkeypatch.setattr(
         "niri_desktop_continuity.probe.proc_stat",
@@ -309,8 +309,8 @@ def hook(monkeypatch, tmp_path, payload, template=None, comm="codex", terminal=T
                 return comms[int(parts[2])] + "\n"
             return super().read_text(*args, **kwargs)
 
-    monkeypatch.setattr(launch, "Path", Proc)
-    monkeypatch.setattr(launch, "declaration_root", lambda: real(tmp_path) / "declared")
+    monkeypatch.setattr(launch_sessions, "Path", Proc)
+    monkeypatch.setattr(launch_sessions, "declaration_root", lambda: real(tmp_path) / "declared")
     return launch.hook_declaration(comm, payload, template, 13)
 
 
