@@ -7,6 +7,7 @@ import json
 import os
 import re
 import stat
+import time
 import uuid
 from pathlib import Path
 
@@ -240,6 +241,54 @@ class Store:
         if readiness(snapshot)["ready"]:
             self.pointer("last-display-valid", key)
         return key
+
+    def prune_snapshots(self, keep_days: int, *, history: Path | None = None) -> dict:
+        """Delete snapshots saved before the `keep_days` most recent days that have captures.
+
+        Days are local calendar days of each snapshot file's creation; a day without captures
+        does not count, so a week away never empties the store. A snapshot whose digest appears
+        in a pointer, in any other file of this state root (receipts, plans, approvals, previews,
+        recovery markers) or in the restore history is never deleted.
+        """
+        if not 1 <= keep_days <= 3650:
+            raise ValueError("--keep-days must be 1..3650")
+        if history is None:
+            from .operation_lock import runtime_root
+
+            history = runtime_root() / "niri-desktop-continuity-locks"
+        snapshots = self.root / "snapshots"
+        days: dict[str, list[Path]] = {}
+        for path in snapshots.iterdir():
+            if path.suffix != ".json" or not HEX.fullmatch(path.stem):
+                continue
+            info = path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+                continue
+            day = time.strftime("%Y-%m-%d", time.localtime(info.st_mtime))
+            days.setdefault(day, []).append(path)
+        kept_days = sorted(days)[-keep_days:]
+        referenced: set[str] = set()
+        for base in (self.root, history):
+            if not base.is_dir():
+                continue
+            for path in base.rglob("*"):
+                if path.parent == snapshots or path.is_symlink() or not path.is_file():
+                    continue
+                if path.stat().st_size <= 16 * 1024 * 1024:
+                    referenced.update(re.findall(r"[0-9a-f]{64}", path.read_text(errors="ignore")))
+        deleted = protected = 0
+        for day, paths in days.items():
+            if day in kept_days:
+                continue
+            for path in paths:
+                if path.stem in referenced:
+                    protected += 1
+                    continue
+                path.unlink()
+                deleted += 1
+        if deleted:
+            self._sync_dir(snapshots)
+        return {"kept_days": kept_days, "deleted": deleted, "protected": protected}
 
     def save_verification(self, desired: dict, actual: dict) -> tuple[str, dict]:
         report = verify(desired, actual)

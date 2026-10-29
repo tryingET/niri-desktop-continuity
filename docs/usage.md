@@ -309,9 +309,13 @@ an automatic exact-digest approval argument from disposition. Native qualificati
 remain separate approval gates. Do not manually edit history to bypass a refusal.
 
 `restore --at-login` first waits up to 60 s for Niri and does nothing when the saved identity
-matches the running compositor instance. `autostart --enable [--interval-minutes N]` installs
-`niri-desktop-continuity-capture.timer` and `niri-desktop-continuity-restore.service` (wanted by
-`graphical-session.target`); `autostart --disable` removes them; `autostart` alone reports status.
+matches the running compositor instance. `autostart --enable [--interval-minutes N]
+[--keep-days N]` installs `niri-desktop-continuity-capture.timer` and
+`niri-desktop-continuity-restore.service` (wanted by `graphical-session.target`); `autostart
+--disable` removes them; `autostart` alone reports status. `capture --keep-days N` then deletes
+snapshots saved before the N most recent days that have captures (a day without captures does not
+count). A snapshot that a pointer, receipt, plan, approval, preview, recovery marker or the restore
+history names is always kept; without the option nothing is deleted.
 Recipes are launch commands, not process memory: unsaved drafts, scrollback and hidden tab order
 are not recovered, and applications restore their own content.
 

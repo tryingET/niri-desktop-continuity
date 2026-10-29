@@ -23,10 +23,13 @@ def command() -> str:
     return f"{sys.executable} -m niri_desktop_continuity"
 
 
-def render(interval_minutes: int, state_root: Path | None) -> dict[str, str]:
+def render(
+    interval_minutes: int, state_root: Path | None, keep_days: int | None = None
+) -> dict[str, str]:
     root = (state_root or default_root()).absolute()
     state = f"--state-root {root} " if state_root else ""
     exe = command()
+    keep = f" --keep-days {keep_days}" if keep_days else ""
     restore_service = f"""[Unit]
 Description=Reopen the last saved Niri desktop (niri-desktop-continuity, opt-in)
 After=graphical-session.target
@@ -49,7 +52,7 @@ PartOf=graphical-session.target
 
 [Service]
 Type=oneshot
-ExecStart={exe} {state}capture
+ExecStart={exe} {state}capture{keep}
 StandardOutput=journal
 StandardError=journal
 """
@@ -92,14 +95,20 @@ def status(runner=subprocess.run) -> dict:
 
 
 def enable(
-    *, interval_minutes: int = 15, state_root: Path | None = None, control=systemctl
+    *,
+    interval_minutes: int = 15,
+    state_root: Path | None = None,
+    keep_days: int | None = None,
+    control=systemctl,
 ) -> dict:
     if not 1 <= interval_minutes <= 1440:
         raise ValueError("capture interval must be 1..1440 minutes")
+    if keep_days is not None and not 1 <= keep_days <= 3650:
+        raise ValueError("--keep-days must be 1..3650")
     directory = unit_directory()
     directory.mkdir(parents=True, exist_ok=True)
     written = []
-    for name, content in render(interval_minutes, state_root).items():
+    for name, content in render(interval_minutes, state_root, keep_days).items():
         path = directory / name
         path.write_text(content)
         written.append(str(path))

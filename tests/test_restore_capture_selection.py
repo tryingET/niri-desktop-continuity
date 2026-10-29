@@ -124,6 +124,23 @@ def test_given_no_selector_when_capture_then_original_bytes_and_result(desktop, 
     assert "capture_selection" not in original
 
 
+def test_given_keep_days_when_capture_then_older_unreferenced_snapshots_go(desktop, capsys):
+    import os
+    import time
+
+    store = Store(desktop.root)
+    old = store.put("snapshots", {"fabricated": "a capture day long ago"})
+    stamp = time.mktime((2026, 1, 1, 12, 0, 0, 0, 0, -1))
+    os.utime(store.path("snapshots", old), (stamp, stamp))
+    result = invoke(desktop, capsys, "capture", "--keep-days", "1")
+    assert result["retention"] == {
+        "kept_days": [time.strftime("%Y-%m-%d")],
+        "deleted": 1,
+        "protected": 0,
+    }
+    assert {p.stem for p in (desktop.root / "snapshots").iterdir()} == {result["snapshot_digest"]}
+
+
 @pytest.mark.parametrize("ids,expected", [([30], [30]), ([0], [0]), ([0, 30], [30, 0])])
 @pytest.mark.parametrize("titles", [False, True])
 def test_given_ids_when_capture_then_exact_scope_and_full_support(

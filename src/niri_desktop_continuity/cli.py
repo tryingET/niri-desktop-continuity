@@ -50,6 +50,12 @@ def parser(*, _disposition=False):
             "root; still probes the whole desktop"
         ),
     )
+    observe.add_argument(
+        "--keep-days",
+        type=int,
+        help="after saving, delete snapshots older than the N most recent days with captures; "
+        "never one a pointer, receipt or other record names",
+    )
     plan = commands.add_parser("plan", help="prepare proposal, never apply it")
     plan.add_argument("snapshot", nargs="?")
     plan.add_argument("--candidate-profile", type=Path)
@@ -136,6 +142,7 @@ def parser(*, _disposition=False):
     autostart.add_argument("--enable", action="store_true")
     autostart.add_argument("--disable", action="store_true")
     autostart.add_argument("--interval-minutes", type=int, default=15)
+    autostart.add_argument("--keep-days", type=int, help="capture with --keep-days N")
     history = commands.add_parser("history", help="private stored artifact identities only")
     history.add_argument("--kind", choices=["snapshots", "plans", "receipts"], default="snapshots")
     history.add_argument("--limit", type=int, default=20)
@@ -234,6 +241,7 @@ def run(args):
             "windows": len(value["windows"]),
             "warnings": value["warnings"],
             **({"capture_selection": value["capture_selection"]} if args.window_id else {}),
+            **({"retention": store.prune_snapshots(args.keep_days)} if args.keep_days else {}),
         }, 0
     if args.command == "plan":
         value = build_plan(
@@ -287,7 +295,9 @@ def run(args):
             raise ValueError("choose --enable or --disable")
         if args.enable:
             return units.enable(
-                interval_minutes=args.interval_minutes, state_root=args.state_root
+                interval_minutes=args.interval_minutes,
+                state_root=args.state_root,
+                keep_days=args.keep_days,
             ), 0
         if args.disable:
             return units.disable(), 0
