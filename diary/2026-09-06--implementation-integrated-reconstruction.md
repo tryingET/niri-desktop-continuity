@@ -1,5 +1,8 @@
 ---
 summary: "Portable reconstruction orchestration, exact internal protocol, synthetic installed-console proof and outstanding review gates."
+read_when:
+  - "Changing the recovery modules, reconstruction CLI routing or the internal adapter protocol."
+  - "Reviewing how reconstruction effects are fenced, approved and verified."
 type: "implementation-note"
 ---
 

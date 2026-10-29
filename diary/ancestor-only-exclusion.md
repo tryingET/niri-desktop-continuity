@@ -1,3 +1,10 @@
+---
+summary: "Exited-shell proof: exclusion-only ancestors are separated from full-role process generations."
+read_when:
+  - "Changing how the exited-shell proof treats ancestor processes or the procfs-self method."
+type: "diary"
+---
+
 # Ancestor-only exclusion proof
 
 The candidate now distinguishes full-role process generations from exclusion-only ancestors.

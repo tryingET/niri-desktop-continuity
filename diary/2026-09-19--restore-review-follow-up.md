@@ -1,5 +1,7 @@
 ---
 summary: "Correct clean-login lifecycle, active-column semantics, semantic history and absent geometry."
+read_when:
+  - "Changing restore workspace lifecycle handling, the handwritten compositor fixture or history v2 validation."
 type: "implementation"
 ---
 

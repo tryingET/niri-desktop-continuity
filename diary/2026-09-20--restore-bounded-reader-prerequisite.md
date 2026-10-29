@@ -1,3 +1,10 @@
+---
+summary: "Bounded restore history reader: separate envelope routing and per-pass dependency budgets, with the v2 family still refused."
+read_when:
+  - "Changing restore history envelope routing, reader dependency budgets or the v2 semantic hook."
+type: "diary"
+---
+
 # Restore bounded-reader prerequisite
 
 Implemented separate envelope routing and per-validation-pass dependency budgets without changing

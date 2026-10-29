@@ -1,3 +1,10 @@
+---
+summary: "Resolution routes for failed reconstruction: strict resolution objects, retained history decoding and an observe-only transport."
+read_when:
+  - "Changing the candidate or resolution CLI routes or how retained reconstruction history is decoded."
+type: "diary"
+---
+
 # Portable resolution implementation notes
 
 Implemented the existing-CLI candidate/resolution routes, isolated strict resolution objects,

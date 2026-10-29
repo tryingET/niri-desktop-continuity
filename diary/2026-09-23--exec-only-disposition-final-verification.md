@@ -1,5 +1,7 @@
 ---
 summary: "Exec-only accounting disposition v2 independently reviewed and full CI verified offline; no native application."
+read_when:
+  - "Reviewing the exec-observed-unassociated disposition family or its verification."
 type: "validation"
 ---
 

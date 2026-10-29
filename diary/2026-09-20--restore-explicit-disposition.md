@@ -1,5 +1,7 @@
 ---
 summary: "Accounting-only retained width disposition candidate; targeted green, independent review/full gate pending."
+read_when:
+  - "Tracing the original restore-disposition design and the defects review found in it."
 type: "validation"
 ---
 

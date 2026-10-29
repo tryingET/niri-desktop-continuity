@@ -1,3 +1,10 @@
+---
+summary: "Exited associated-shell accounting: the closed v3 family, implemented and verified offline."
+read_when:
+  - "Changing the v3 exited-shell accounting family or its live-proof transport, scope and proof modules."
+type: "diary"
+---
+
 # Exited associated-shell accounting — offline implementation
 
 Implemented a distinct closed v3 accounting family, not a present-host fallback or a widening of

@@ -1,5 +1,7 @@
 ---
 summary: "Disposition corrections independently re-reviewed; full isolated CI passed, native disposition unperformed."
+read_when:
+  - "Reviewing the verification status of the restore disposition corrections."
 type: "validation"
 ---
 

@@ -1,5 +1,7 @@
 ---
 summary: "Integrated ordinary restore candidate: synthetic ownership/layout and durable-history evidence."
+read_when:
+  - "Tracing the origin of the ordinary restore executor, its attempt lock and canonical history."
 type: "implementation"
 ---
 

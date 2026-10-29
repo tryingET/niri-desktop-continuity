@@ -1,3 +1,10 @@
+---
+summary: "Disposition diagnostic and lifecycle prerequisite: private error projection, lock failure preservation and v3 cleanup instrumentation."
+read_when:
+  - "Changing disposition error projection, lock failure handling or v3 proof cleanup."
+type: "diary"
+---
+
 # Disposition diagnostic/lifecycle prerequisite
 
 Implemented only the independently inspectable prerequisite: command-specific private-error and

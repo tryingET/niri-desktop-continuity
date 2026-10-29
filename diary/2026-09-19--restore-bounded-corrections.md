@@ -1,5 +1,8 @@
 ---
 summary: "Bounded restore corrections: physical pixel grids, honest dimension coverage, shared widths and stale references."
+read_when:
+  - "Changing floating position quantization, column width resolution or workspace reference checks in restore."
+  - "Reviewing how restore receipts report dimension coverage."
 type: "implementation"
 ---
 

@@ -1,5 +1,7 @@
 ---
 summary: "Four disposition review defects corrected offline; 552 targeted passes, independent re-review pending."
+read_when:
+  - "Changing restore disposition admission, durability barriers or live validation before publication."
 type: "validation"
 ---
 

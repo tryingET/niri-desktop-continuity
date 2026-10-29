@@ -1,5 +1,7 @@
 ---
 summary: "Association correction independently reviewed and full CI passed; newer native interruption remains unresolved."
+read_when:
+  - "Changing window association across split IPC queries or output inventory checks in restore."
 type: "validation"
 ---
 

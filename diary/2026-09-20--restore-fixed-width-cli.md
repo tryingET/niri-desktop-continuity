@@ -1,5 +1,7 @@
 ---
 summary: "Offline fixed-width CLI correction; exact representability and retained-history refusal."
+read_when:
+  - "Changing how restore serializes fixed widths or positions for compositor CLI actions."
 type: "diary"
 ---
 

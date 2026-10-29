@@ -1,3 +1,10 @@
+---
+summary: "Native recovery boundary: protocol v2 utility identities, critical platform pins and separate utility omissions, reviewed and CI-verified."
+read_when:
+  - "Changing recovery protocol v2 utility accounting, platform pins or the native endpoint boundary."
+type: "diary"
+---
+
 # Native recovery integration boundary and utility accounting
 
 ## Decision and implementation

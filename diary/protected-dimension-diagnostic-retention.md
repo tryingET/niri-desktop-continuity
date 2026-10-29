@@ -1,3 +1,10 @@
+---
+summary: "Protected-dimension refusals keep the first rejected size sample as a diagnostic."
+read_when:
+  - "Changing the protected-size guard or its interrupted-only dimensions diagnostic."
+type: "diary"
+---
+
 # Protected-dimension diagnostic retention
 
 Implemented an interrupted-only dimensions projection at the existing protected-size guard. The

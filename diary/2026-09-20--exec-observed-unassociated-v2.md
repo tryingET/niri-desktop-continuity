@@ -1,3 +1,10 @@
+---
+summary: "Offline v2 five-record partial accounting family on the existing CLI, with historical and interval identity pins."
+read_when:
+  - "Changing the exec-observed-unassociated v2 accounting family, its identity pins or staging."
+type: "diary"
+---
+
 # Explicit five-record partial accounting
 
 Implemented the separate offline v2 family on the existing CLI, with strict semantic closure,

@@ -1,3 +1,10 @@
+---
+summary: "Root-init-free v3 scope: pinned self coordinates instead of a live init anchor."
+read_when:
+  - "Changing the v3 proof scope, its procfs self coordinates or the ELF route."
+type: "diary"
+---
+
 # Root-init-free v3 scope implementation
 
 Replaced the live init anchor with genuine pinned self coordinates and singleton NSpid/NStgid,

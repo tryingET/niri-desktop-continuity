@@ -1,3 +1,10 @@
+---
+summary: "Review fixes for the bounded history reader: reservation-bound v2 descriptor reads and pass retirement on failure."
+read_when:
+  - "Changing the v2 history reader, its read reservations or validation pass retirement."
+type: "diary"
+---
+
 # Reader review corrections, before v2 integration
 
 Review found that a stat-size reservation was followed by an unbounded legacy raw read, so growth
