@@ -454,6 +454,44 @@ def test_focus_only_transition_invalidates_capture(monkeypatch):
     assert not probe.capture(transport=FocusChange())["coherent"]
 
 
+@pytest.mark.parametrize(
+    ("coherence", "expected", "pauses"),
+    [
+        ([True], (1, 1), []),
+        ([False, True, True], (2, 2), [1.0]),
+        ([False, False, False], (3, 3), [1.0, 1.0]),
+    ],
+    ids=["first", "second", "never"],
+)
+def test_settled_capture_samples_again_until_coherent(coherence, expected, pauses):
+    taken, slept = [], []
+
+    def take():
+        taken.append(coherence[len(taken)])
+        return {"coherent": taken[-1], "sample": len(taken)}
+
+    value, samples = probe.settled_capture(take, sleep=slept.append)
+    assert (value["sample"], samples) == expected and slept == pauses
+    assert value["coherent"] is coherence[expected[0] - 1]
+
+
+def test_cli_capture_saves_the_settled_sample(tmp_path, monkeypatch, capsys):
+    moving = snapshot()
+    moving["coherent"] = False
+    settled = snapshot()
+    samples = iter([moving, settled])
+    monkeypatch.setattr(cli, "capture", lambda **_: deepcopy(next(samples)))
+    monkeypatch.setattr(probe.time, "sleep", lambda seconds: None)
+    assert cli.main(["--state-root", str(tmp_path / "private"), "capture"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    store = Store(tmp_path / "private")
+    assert result["samples"] == 2 and result["display"] == {"ready": True, "reasons": []}
+    assert store.get("snapshots", result["snapshot_digest"]) == settled
+    assert store.pointer("latest-observed") == result["snapshot_digest"]
+    assert store.pointer("last-display-valid") == result["snapshot_digest"]
+    assert len(list((store.root / "snapshots").iterdir())) == 1
+
+
 def test_hand_written_reorder_oracle(tmp_path):
     store, source, _, _, token = admitted(tmp_path)
 

@@ -38,7 +38,8 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
 - `reopen`: the ordinary `restore` engine. Pure `plan` (slots, launch groups, routes, workspace
   compaction, protected live windows) and the launch-once → adopt-own-new-windows → move → arrange
   executor with one receipt per run. No window is ever closed or launched twice.
-- `restore_selection`: default source selection with the display-unavailable fallback.
+- `restore_selection`: default source selection with the display-unavailable fallback and the
+  same-instance fallback for an incoherent latest capture.
 - `restore`: Niri IPC transport (`LiveDesktop`) and the strict engine kept for history replay and
   disposition; `restore` (the CLI command) no longer uses its executor.
 - `autostart`: opt-in systemd user units (periodic capture, reopen at login) and their removal.

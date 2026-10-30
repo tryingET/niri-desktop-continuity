@@ -27,7 +27,11 @@ The release process is in [docs/release.md](docs/release.md).
   announced; a tab running one without an announced session is not reopened, so its opening prompt
   is never replayed. Captures from older versions that saved such a tab as a command are refused.
 - Without a digest, `restore` uses the latest capture, or the last display-valid one when the latest
-  saw no usable display (for example a screen that was off); a digest you give never falls back.
+  saw no usable display (for example a screen that was off), or when the latest saw the desktop
+  change while it was read and both come from the same Niri session; a digest you give never falls
+  back.
+- `capture` reads the desktop again after 1 s, up to three readings, when it changed during a
+  reading (a focus switch is enough), and reports `samples` when it read more than once.
 - `restore --apply` refuses while the session is locked, because Niri launches nothing then;
   `--at-login` waits for the unlock.
 

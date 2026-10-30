@@ -12,6 +12,7 @@ DISPLAY_UNAVAILABLE = {
     "no-active-workspace",
     "window-on-unavailable-workspace",
 }
+INCOHERENT = "incoherent-observation"
 
 
 @dataclass(frozen=True)
@@ -60,8 +61,10 @@ def _require_ready(value):
 
 
 def select_snapshot(store, explicit=None):
-    """Prefer ready latest; fallback only on display unavailability or pointer absence.
+    """Prefer ready latest; fallback on display unavailability, incoherence or pointer absence.
 
+    An incoherent latest falls back only to a desktop of the same compositor instance: the
+    desktop changed while it was read, so an older valid reading of it is the best evidence.
     Artifact, permission, schema and pointer errors propagate without another selection.
     Cached display metadata is not evidence; readiness is recomputed from the source.
     """
@@ -78,8 +81,9 @@ def select_snapshot(store, explicit=None):
         display = readiness(value)
         if display["ready"]:
             return Selection(latest, value, "latest-observed")
-        if not set(display["reasons"]) <= DISPLAY_UNAVAILABLE:
-            _require_ready(value)  # Incoherence is not a display-unavailable fallback.
+        reasons = set(display["reasons"])
+        if not reasons <= DISPLAY_UNAVAILABLE | {INCOHERENT}:
+            _require_ready(value)
         # Readiness also labels missing references as an unavailable workspace.
         # Invalid references must not authorize selection of a different desktop.
         workspace_ids = {workspace["id"] for workspace in value["workspaces"]}
@@ -88,7 +92,7 @@ def select_snapshot(store, explicit=None):
             if type(reference) is not int or reference not in workspace_ids:
                 raise ValueError("invalid saved window workspace reference; refusing fallback")
         latest_identity = value["identity"]
-        reason = "latest-display-unavailable"
+        reason = "latest-incoherent" if INCOHERENT in reasons else "latest-display-unavailable"
 
     fallback = _pointer(store, "last-display-valid")
     if fallback is None:
@@ -97,4 +101,9 @@ def select_snapshot(store, explicit=None):
         raise ValueError("no display-valid saved desktop to reopen")
     value = _snapshot(store, fallback)
     _require_ready(value)
+    if reason == "latest-incoherent" and value["identity"] != latest_identity:
+        raise ValueError(
+            "latest capture is incoherent and the last display-valid one is from another "
+            "Niri instance; refusing to reopen"
+        )
     return Selection(fallback, value, "last-display-valid", reason, latest_identity)

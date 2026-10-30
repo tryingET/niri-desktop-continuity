@@ -8,6 +8,7 @@ import os
 import socket
 import stat
 import subprocess
+import time
 from pathlib import Path
 
 from .model import normalized_snapshot, now, process_pin
@@ -217,6 +218,21 @@ def capture(*, include_titles: bool = False, transport=None) -> dict:
         },
         include_titles=include_titles,
     )
+
+
+def settled_capture(take, *, attempts: int = 3, pause: float = 1.0, sleep=None):
+    """Sample again while the desktop changes between one capture's two readings.
+
+    A focus switch during the seconds a capture takes already makes it incoherent. Returns the
+    first coherent sample, or the last one, and how many samples were taken.
+    """
+    for sample in range(1, attempts + 1):
+        if sample > 1:
+            (sleep or time.sleep)(pause)
+        value = take()
+        if value["coherent"]:
+            break
+    return value, sample
 
 
 def watch_events(max_events: int):

@@ -14,7 +14,7 @@ from . import __version__
 from .approval import approve
 from .model import readiness, require_snapshot
 from .planner import build_plan
-from .probe import capture
+from .probe import capture, settled_capture
 from .store import Store
 
 
@@ -233,13 +233,15 @@ def run(args):
     ):
         raise ValueError("loss and omission decisions are reconstruction-only")
     if args.command == "capture":
-        value = _select_capture(capture(include_titles=args.include_titles), args.window_id)
+        value, samples = settled_capture(lambda: capture(include_titles=args.include_titles))
+        value = _select_capture(value, args.window_id)
         key = store.save_snapshot(value)
         return {
             "snapshot_digest": key,
             "display": readiness(value),
             "windows": len(value["windows"]),
             "warnings": value["warnings"],
+            **({"samples": samples} if samples > 1 else {}),
             **({"capture_selection": value["capture_selection"]} if args.window_id else {}),
             **({"retention": store.prune_snapshots(args.keep_days)} if args.keep_days else {}),
         }, 0

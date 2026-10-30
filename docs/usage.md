@@ -10,7 +10,9 @@ read_when:
 
 `capture` observes Niri outputs, workspaces, windows and layer surfaces, plus same-user process
 identity metadata. It samples twice and rejects coherence if topology, focus, active workspace,
-layer list or window-host process identity changes. This is bounded observation, not an atomic
+layer list or window-host process identity changes. The `capture` command then reads again after
+1 s, up to three readings in all, and saves the first coherent one or else the last; its output
+reports `samples` when it read more than once. This is bounded observation, not an atomic
 snapshot across processes. It never reads terminal contents or browser profiles, and never
 executes a discovered application binary. Session identity comes from Claude Code's per-PID
 registry and Pi's presence files; a Claude transcript is scanned only for its title records, to
@@ -129,12 +131,16 @@ arranges columns; niri has no atomic focus-and-move.
 Manual and login restore without a digest prefer a readiness-valid `latest-observed` snapshot. If
 that coherent observation has no usable output, no active workspace, or windows on unavailable
 workspaces, they select the preserved `last-display-valid` snapshot, checking its readiness again. A
-genuinely absent latest pointer also permits this fallback. Corrupt pointers, missing artifacts,
-invalid digests, unsafe private files, unsupported schemas and incoherent observations fail closed and
-never trigger another selection. An explicit `restore <digest>` never falls back. On fallback, both
-manual and login restore skip when either the latest observation or the selected snapshot belongs to
-the running compositor, so turning off a display never reopens an old desktop; the CLI then prints
-one JSON line on stderr with `source_pointer`, `snapshot_digest` and `fallback_reason`.
+genuinely absent latest pointer also permits this fallback. An incoherent latest observation (the
+desktop changed while it was read) selects `last-display-valid` only when both come from the same
+compositor instance (boot ID and Niri socket); otherwise restore refuses, so a desktop of an earlier
+session never stands in for a later one. Corrupt pointers, missing artifacts, invalid digests,
+unsafe private files and unsupported schemas fail closed and never trigger another selection. An
+explicit `restore <digest>` never falls back. On fallback, both manual and login restore skip when
+either the latest observation or the selected snapshot belongs to the running compositor, so
+turning off a display never reopens an old desktop; the CLI then prints one JSON line on stderr with
+`source_pointer`, `snapshot_digest` and `fallback_reason` (`latest-display-unavailable`,
+`latest-incoherent` or `latest-pointer-missing`).
 
 ### Routes: where an app is launched from
 

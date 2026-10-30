@@ -13,11 +13,11 @@ from niri_desktop_continuity.model import normalized_snapshot
 from niri_desktop_continuity.store import Store
 
 
-def snapshot(window_id, *, boot="saved-boot", unavailable=False):
+def snapshot(window_id, *, boot="saved-boot", unavailable=False, coherent=True):
     return normalized_snapshot(
         {
             "identity": {"boot_id": boot, "socket_inode": 11, "socket_device": 22},
-            "coherent": True,
+            "coherent": coherent,
             "outputs": [] if unavailable else [{"name": "FAKE", "logical": {}, "current_mode": 0}],
             "workspaces": [{"id": 1, "idx": 1, "output": "FAKE", "is_focused": True}],
             "windows": [
@@ -354,13 +354,59 @@ def test_active_display_with_missing_workspace_is_not_display_fallback(sandbox):
     assert sandbox.calls == [] and contents(sandbox.store) == before
 
 
-def test_incoherent_latest_is_not_display_fallback(sandbox):
-    sandbox.store.save_snapshot(snapshot(1))
-    incoherent = snapshot(2, unavailable=True)
-    incoherent["coherent"] = False
-    sandbox.store.save_snapshot(incoherent)
-    with pytest.raises(ValueError, match="display-valid"):
-        invoke(sandbox)
+@pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
+@pytest.mark.parametrize("unavailable", [False, True], ids=["display", "no-display"])
+def test_incoherent_latest_selects_valid_desktop_of_the_same_instance(sandbox, login, unavailable):
+    # The 2026-10-30 reboot: the last capture before it saw the desktop change while reading.
+    good = sandbox.store.save_snapshot(snapshot(1))
+    latest = sandbox.store.save_snapshot(snapshot(2, unavailable=unavailable, coherent=False))
+    before = contents(sandbox.store)
+    result, status = invoke(sandbox, login=login)
+    assert status == 0 and result["status"] == "dry-run"
+    assert result["snapshot_digest"] == good
+    assert sandbox.diagnostic == {
+        "source_pointer": "last-display-valid",
+        "snapshot_digest": good,
+        "fallback_reason": "latest-incoherent",
+    }
+    assert [(w["window_id"], w["argv"]) for w in result["windows"]] == [(1, ["fabricated-app"])]
+    assert result["effects"] == [] and result["protected_window_ids"] == [900]
+    assert sandbox.store.pointer("latest-observed") == latest
+    assert all(contents(sandbox.store)[p] == data for p, data in before.items())
+
+
+@pytest.mark.parametrize("login", [False, True])
+@pytest.mark.parametrize("field", ["boot_id", "socket_inode"])
+def test_incoherent_latest_never_selects_another_instance(sandbox, login, field):
+    older = snapshot(1)
+    older["identity"][field] = "older-instance"
+    sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(snapshot(2, coherent=False))
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="another Niri instance"):
+        invoke(sandbox, login=login, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+@pytest.mark.parametrize("apply", [False, True])
+def test_incoherent_latest_of_the_running_instance_skips_at_login(sandbox, apply):
+    good = sandbox.store.save_snapshot(snapshot(1, boot="current-boot"))
+    sandbox.store.save_snapshot(snapshot(2, boot="current-boot", coherent=False))
+    before = contents(sandbox.store)
+    result, status = invoke(sandbox, login=True, apply=apply)
+    assert status == 0 and result == {
+        "status": "same-compositor-instance",
+        "snapshot_digest": good,
+        "skipped": True,
+    }
+    assert "capture" not in sandbox.calls and "lock" not in sandbox.calls
+    assert contents(sandbox.store) == before
+
+
+def test_incoherent_latest_without_valid_desktop_refuses(sandbox):
+    sandbox.store.save_snapshot(snapshot(1, coherent=False))
+    with pytest.raises(ValueError, match="no display-valid saved desktop"):
+        invoke(sandbox, apply=True)
     assert sandbox.calls == []
 
 
