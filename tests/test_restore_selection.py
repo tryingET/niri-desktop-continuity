@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from niri_desktop_continuity import cli, probe, reopen, restore
+from niri_desktop_continuity import cli, probe, reopen, restore, restore_history
 from niri_desktop_continuity.model import normalized_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -30,6 +30,13 @@ def snapshot(window_id, *, boot="saved-boot", unavailable=False, coherent=True):
             ],
         }
     )
+
+
+def incoherent_family_snapshot(window_id, **kwargs):
+    # Only the new fallback family needs complete producer identity; older paths stay unchanged.
+    value = snapshot(window_id, **kwargs)
+    value["identity"]["niri_socket"] = "/run/user/1000/niri.wayland-1.4242.sock"
+    return value
 
 
 def contents(store):
@@ -71,6 +78,7 @@ def sandbox(tmp_path, monkeypatch):
         state.calls.append("lock")
         return nullcontext()
 
+    state.operation_lock = reopen.locks.operation_lock
     real_reopen = reopen.reopen
 
     def hermetic_reopen(*args, **kwargs):
@@ -132,9 +140,13 @@ def test_no_output_latest_selects_preserved_valid_desktop(sandbox, login):
 
 
 @pytest.mark.parametrize("login", [False, True])
-def test_cli_emits_selection_without_changing_receipt_schema(sandbox, capsys, login):
-    good = sandbox.store.save_snapshot(snapshot(1))
-    sandbox.store.save_snapshot(snapshot(2, unavailable=True))
+@pytest.mark.parametrize("family", ["display", "incoherent"])
+def test_cli_emits_selection_without_changing_receipt_schema(sandbox, capsys, login, family):
+    make = incoherent_family_snapshot if family == "incoherent" else snapshot
+    good = sandbox.store.save_snapshot(make(1))
+    sandbox.store.save_snapshot(
+        make(2, unavailable=family == "display", coherent=family != "incoherent")
+    )
     argv = ["--state-root", str(sandbox.store.root), "restore"]
     assert cli.main(argv + (["--at-login"] if login else [])) == 0
     output = capsys.readouterr()
@@ -144,7 +156,7 @@ def test_cli_emits_selection_without_changing_receipt_schema(sandbox, capsys, lo
     assert json.loads(output.err) == {
         "source_pointer": "last-display-valid",
         "snapshot_digest": good,
-        "fallback_reason": "latest-display-unavailable",
+        "fallback_reason": f"latest-{'incoherent' if family == 'incoherent' else 'display-unavailable'}",
     }
     receipt = sandbox.store.get("receipts", result["receipt_digest"])
     assert receipt == {k: v for k, v in result.items() if k != "receipt_digest"}
@@ -204,12 +216,16 @@ def test_explicit_valid_ignores_corrupt_pointers(sandbox):
 
 
 @pytest.mark.parametrize("login", [False, True])
+@pytest.mark.parametrize("family", ["display", "incoherent"])
 @pytest.mark.parametrize(
     "fault", ["json", "digest", "missing-artifact", "symlink", "private", "schema", "address"]
 )
-def test_latest_errors_do_not_select_good_fallback(sandbox, login, fault):
-    sandbox.store.save_snapshot(snapshot(1))
-    latest = sandbox.store.save_snapshot(snapshot(2, unavailable=True))
+def test_latest_errors_do_not_select_good_fallback(sandbox, login, family, fault):
+    make = incoherent_family_snapshot if family == "incoherent" else snapshot
+    sandbox.store.save_snapshot(make(1))
+    latest = sandbox.store.save_snapshot(
+        make(2, unavailable=family == "display", coherent=family != "incoherent")
+    )
     pointer = sandbox.store.root / "latest-observed.json"
     artifact = sandbox.store.path("snapshots", latest)
     if fault == "json":
@@ -222,7 +238,7 @@ def test_latest_errors_do_not_select_good_fallback(sandbox, login, fault):
         pointer.unlink()
         pointer.symlink_to("absent-fabricated-target")
     elif fault == "schema":
-        invalid = snapshot(3, unavailable=True)
+        invalid = make(3, unavailable=family == "display", coherent=family != "incoherent")
         invalid["schema"] = "unsupported"
         sandbox.store.pointer("latest-observed", sandbox.store.put("snapshots", invalid))
     elif fault == "address":
@@ -238,12 +254,16 @@ def test_latest_errors_do_not_select_good_fallback(sandbox, login, fault):
 
 
 @pytest.mark.parametrize("login", [False, True])
+@pytest.mark.parametrize("family", ["display", "incoherent"])
 @pytest.mark.parametrize(
     "fault", ["missing-pointer", "json", "missing-artifact", "digest", "unavailable", "schema"]
 )
-def test_invalid_fallback_refuses(sandbox, login, fault):
-    good = sandbox.store.save_snapshot(snapshot(1))
-    sandbox.store.save_snapshot(snapshot(2, unavailable=True))
+def test_invalid_fallback_refuses(sandbox, login, family, fault):
+    make = incoherent_family_snapshot if family == "incoherent" else snapshot
+    good = sandbox.store.save_snapshot(make(1))
+    sandbox.store.save_snapshot(
+        make(2, unavailable=family == "display", coherent=family != "incoherent")
+    )
     pointer = sandbox.store.root / "last-display-valid.json"
     if fault == "missing-pointer":
         pointer.unlink()
@@ -254,7 +274,7 @@ def test_invalid_fallback_refuses(sandbox, login, fault):
     elif fault == "digest":
         sandbox.store.path("snapshots", good).write_text("{}")
     else:
-        invalid = snapshot(3, unavailable=fault == "unavailable")
+        invalid = make(3, unavailable=fault == "unavailable")
         if fault == "schema":
             invalid["schema"] = "unsupported"
         sandbox.store.pointer("last-display-valid", sandbox.store.put("snapshots", invalid))
@@ -357,9 +377,10 @@ def test_active_display_with_missing_workspace_is_not_display_fallback(sandbox):
 @pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
 @pytest.mark.parametrize("unavailable", [False, True], ids=["display", "no-display"])
 def test_incoherent_latest_selects_valid_desktop_of_the_same_instance(sandbox, login, unavailable):
-    # The 2026-10-30 reboot: the last capture before it saw the desktop change while reading.
-    good = sandbox.store.save_snapshot(snapshot(1))
-    latest = sandbox.store.save_snapshot(snapshot(2, unavailable=unavailable, coherent=False))
+    good = sandbox.store.save_snapshot(incoherent_family_snapshot(1))
+    latest = sandbox.store.save_snapshot(
+        incoherent_family_snapshot(2, unavailable=unavailable, coherent=False)
+    )
     before = contents(sandbox.store)
     result, status = invoke(sandbox, login=login)
     assert status == 0 and result["status"] == "dry-run"
@@ -376,24 +397,34 @@ def test_incoherent_latest_selects_valid_desktop_of_the_same_instance(sandbox, l
 
 
 @pytest.mark.parametrize("login", [False, True])
-@pytest.mark.parametrize("field", ["boot_id", "socket_inode"])
-def test_incoherent_latest_never_selects_another_instance(sandbox, login, field):
-    older = snapshot(1)
-    older["identity"][field] = "older-instance"
+@pytest.mark.parametrize(
+    "field,other",
+    [
+        ("boot_id", "older-instance"),
+        ("niri_socket", "/run/user/1000/another-niri.sock"),
+        ("socket_inode", 12),
+        ("socket_device", 23),
+    ],
+)
+def test_incoherent_latest_never_selects_another_instance(sandbox, login, field, other):
+    older = incoherent_family_snapshot(1)
+    older["identity"][field] = other
     sandbox.store.save_snapshot(older)
-    sandbox.store.save_snapshot(snapshot(2, coherent=False))
+    sandbox.store.save_snapshot(incoherent_family_snapshot(2, coherent=False))
     before = contents(sandbox.store)
     with pytest.raises(ValueError, match="another Niri instance"):
         invoke(sandbox, login=login, apply=True)
     assert sandbox.calls == [] and contents(sandbox.store) == before
 
 
+@pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
 @pytest.mark.parametrize("apply", [False, True])
-def test_incoherent_latest_of_the_running_instance_skips_at_login(sandbox, apply):
-    good = sandbox.store.save_snapshot(snapshot(1, boot="current-boot"))
-    sandbox.store.save_snapshot(snapshot(2, boot="current-boot", coherent=False))
+def test_incoherent_latest_of_the_running_instance_skips(sandbox, login, apply):
+    sandbox.current = incoherent_family_snapshot(900, boot="current-boot")
+    good = sandbox.store.save_snapshot(incoherent_family_snapshot(1, boot="current-boot"))
+    sandbox.store.save_snapshot(incoherent_family_snapshot(2, boot="current-boot", coherent=False))
     before = contents(sandbox.store)
-    result, status = invoke(sandbox, login=True, apply=apply)
+    result, status = invoke(sandbox, login=login, apply=apply)
     assert status == 0 and result == {
         "status": "same-compositor-instance",
         "snapshot_digest": good,
@@ -404,7 +435,7 @@ def test_incoherent_latest_of_the_running_instance_skips_at_login(sandbox, apply
 
 
 def test_incoherent_latest_without_valid_desktop_refuses(sandbox):
-    sandbox.store.save_snapshot(snapshot(1, coherent=False))
+    sandbox.store.save_snapshot(incoherent_family_snapshot(1, coherent=False))
     with pytest.raises(ValueError, match="no display-valid saved desktop"):
         invoke(sandbox, apply=True)
     assert sandbox.calls == []
@@ -487,3 +518,280 @@ def test_selected_fallback_still_meets_the_unresolved_attempt_fence(sandbox, mon
     assert sandbox.diagnostic["snapshot_digest"] == good
     assert "fenced" in sandbox.calls and "capture" not in sandbox.calls
     assert contents(sandbox.store) == before
+
+
+@pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
+def test_explicit_incoherent_snapshot_keeps_prior_refusal_or_login_skip(sandbox, login):
+    sandbox.store.save_snapshot(incoherent_family_snapshot(1))
+    # Explicit selection retains the old identity contract, even without a socket path.
+    key = sandbox.store.save_snapshot(snapshot(2, boot="current-boot", coherent=False))
+    before = contents(sandbox.store)
+    if login:
+        result, status = invoke(sandbox, explicit=key, login=True, apply=True)
+        assert status == 0 and result == {
+            "status": "same-compositor-instance",
+            "snapshot_digest": key,
+            "skipped": True,
+        }
+    else:
+        with pytest.raises(ValueError, match="display-valid"):
+            invoke(sandbox, explicit=key, apply=True)
+    assert sandbox.diagnostic is None
+    assert "capture" not in sandbox.calls and "lock" not in sandbox.calls
+    assert contents(sandbox.store) == before
+
+
+@pytest.mark.parametrize("unavailable", [False, True])
+@pytest.mark.parametrize("coherence", ["missing", None, 0, 1, "false", "", [], {}])
+def test_incoherent_fallback_requires_explicit_false(sandbox, coherence, unavailable):
+    sandbox.store.save_snapshot(incoherent_family_snapshot(1))
+    latest = incoherent_family_snapshot(2, unavailable=unavailable)
+    if coherence == "missing":
+        del latest["coherent"]
+    else:
+        latest["coherent"] = coherence
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="coherent"):
+        invoke(sandbox, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+IDENTITY_FAULTS = [
+    (field, fault)
+    for field in ("boot_id", "niri_socket", "socket_inode", "socket_device")
+    for fault in (
+        ["missing", None, True, False, 42, 1.0, [], {}, "", "   ", "bad\x00identity"]
+        if field in {"boot_id", "niri_socket"}
+        else ["missing", None, True, False, 11.0, "11", [], {}, -1]
+    )
+]
+
+
+@pytest.mark.parametrize("side", ["latest", "fallback", "both"])
+@pytest.mark.parametrize("field,fault", IDENTITY_FAULTS)
+def test_incoherent_fallback_requires_complete_typed_identities(sandbox, side, field, fault):
+    older = incoherent_family_snapshot(1)
+    latest = incoherent_family_snapshot(2, coherent=False)
+    for name, value in (("fallback", older), ("latest", latest)):
+        if side not in {name, "both"}:
+            continue
+        if fault == "missing":
+            del value["identity"][field]
+        else:
+            value["identity"][field] = fault
+    sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="identity|another Niri instance"):
+        invoke(sandbox, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+@pytest.mark.parametrize("other", [True, 1.0, None])
+def test_incoherent_fallback_does_not_discard_or_coerce_extra_metadata(sandbox, other):
+    older = incoherent_family_snapshot(1)
+    latest = incoherent_family_snapshot(2, coherent=False)
+    older["identity"]["extra"] = 1
+    if other is not None:
+        latest["identity"]["extra"] = other
+    sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="another Niri instance"):
+        invoke(sandbox, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+def test_incoherent_fallback_does_not_normalize_socket_paths(sandbox):
+    older = incoherent_family_snapshot(1)
+    older["identity"]["niri_socket"] = "/run/user/1000/./niri.wayland-1.4242.sock"
+    sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(incoherent_family_snapshot(2, coherent=False))
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="another Niri instance"):
+        invoke(sandbox, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+@pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
+def test_incoherent_fallback_preserves_61_window_desktop(sandbox, login):
+    older = incoherent_family_snapshot(1)
+    older["identity"] = {
+        "boot_id": "a1111111-2222-4333-8444-555555555555",
+        "niri_socket": "/run/user/1000/niri.wayland-1.4242.sock",
+        "socket_inode": 123456789,
+        "socket_device": 27,
+        "extra": {"producer": "fabricated", "generation": 1},
+    }
+    older["captured_at"] = "2026-10-29T12:00:00+00:00"
+    older["finished_at"] = "2026-10-29T12:00:02+00:00"
+    older["niri_version"] = {"compositor": "fabricated", "cli": "fabricated"}
+    older["outputs"] = [
+        {
+            "name": "FAKE",
+            "make": "Fabricated",
+            "model": "Display",
+            "current_mode": 0,
+            "modes": [{"width": 2560, "height": 1440, "refresh_rate": 60000}],
+            "logical": {"x": 0, "y": 0, "width": 2560, "height": 1440, "scale": 1.0},
+        }
+    ]
+    older["processes"] = [
+        {
+            "pid": 4242,
+            "ppid": 1,
+            "start_ticks": 123456,
+            "exe": "/fabricated/bin/fabricated-app",
+            "exe_sha256": "a" * 64,
+            "exe_inode": 987654,
+            "exe_device": 2049,
+            "cgroup": "/fabricated/app.scope",
+        }
+    ]
+    older["process_inventory"] = [{"pid": 4242, "ppid": 1, "start_ticks": 123456}]
+    older["inventory_complete"] = True
+    older["workspaces"] = [
+        {"id": i, "idx": i, "output": "FAKE", "is_focused": i == 1} for i in range(1, 6)
+    ]
+    older["windows"] = [
+        {
+            **deepcopy(older["windows"][0]),
+            "id": i,
+            "pid": 4242,
+            "app_id": "fabricated-app",
+            "workspace_id": (i - 1) // 13 + 1,
+            "is_focused": i == 1,
+            "is_floating": False,
+            "layout": {
+                "pos_in_scrolling_layout": [(i - 1) % 13 + 1, 1],
+                "tile_size": [900.0, 1400.0],
+                "window_size": [888.0, 1388.0],
+            },
+        }
+        for i in range(1, 62)
+    ]
+    latest = deepcopy(older)
+    latest["coherent"] = False
+    latest["captured_at"] = "2026-10-29T12:15:00+00:00"
+    latest["finished_at"] = "2026-10-29T12:15:02+00:00"
+    latest["warnings"] = ["fabricated-process-unavailable:ProcessLookupError"]
+    good = sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    result, status = invoke(sandbox, login=login)
+    assert status == 0 and result["status"] == "dry-run"
+    assert result["snapshot_digest"] == good
+    assert [(w["window_id"], w["argv"]) for w in result["windows"]] == [
+        (i, ["fabricated-app"]) for i in range(1, 62)
+    ]
+    assert sandbox.diagnostic == {
+        "source_pointer": "last-display-valid",
+        "snapshot_digest": good,
+        "fallback_reason": "latest-incoherent",
+    }
+    assert result["effects"] == [] and result["protected_window_ids"] == [900]
+    assert all(contents(sandbox.store)[p] == data for p, data in before.items())
+
+
+@pytest.mark.parametrize("login", [False, True], ids=["manual", "login"])
+@pytest.mark.parametrize("suffix", [".restore", ".permit"])
+def test_incoherent_fallback_still_refused_by_real_history_fence(
+    sandbox, tmp_path, monkeypatch, login, suffix
+):
+    good = sandbox.store.save_snapshot(incoherent_family_snapshot(1))
+    sandbox.store.save_snapshot(incoherent_family_snapshot(2, coherent=False))
+    runtime = tmp_path / "runtime"
+    runtime.mkdir(mode=0o700)
+    monkeypatch.setattr(reopen.locks, "runtime_root", lambda: runtime)
+    monkeypatch.setattr(reopen.locks, "operation_lock", sandbox.operation_lock)
+    identity = sandbox.current["identity"]
+    with sandbox.operation_lock(identity, effectful=False):
+        marker = restore_history.fence_path(identity).with_suffix(suffix)
+        marker.write_text("{")  # Fabricated torn retained history must never grant effects.
+        marker.chmod(0o600)
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="unresolved restore"):
+        invoke(sandbox, login=login, apply=True)
+    assert sandbox.diagnostic["snapshot_digest"] == good
+    assert sandbox.diagnostic["fallback_reason"] == "latest-incoherent"
+    assert "capture" not in sandbox.calls
+    assert contents(sandbox.store) == before and marker.read_text() == "{"
+
+
+@pytest.mark.parametrize("field", ["socket_inode", "socket_device"])
+@pytest.mark.parametrize("pin", [0, 2**256], ids=["zero", "very-large"])
+def test_incoherent_fallback_accepts_nonnegative_integer_pin_boundaries(sandbox, field, pin):
+    older = incoherent_family_snapshot(1)
+    latest = incoherent_family_snapshot(2, coherent=False)
+    older["identity"][field] = latest["identity"][field] = pin
+    good = sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    result, status = invoke(sandbox)
+    assert status == 0 and result["status"] == "dry-run"
+    assert result["snapshot_digest"] == good
+    assert [(w["window_id"], w["argv"]) for w in result["windows"]] == [(1, ["fabricated-app"])]
+    assert sandbox.diagnostic == {
+        "source_pointer": "last-display-valid",
+        "snapshot_digest": good,
+        "fallback_reason": "latest-incoherent",
+    }
+    assert result["effects"] == [] and result["protected_window_ids"] == [900]
+    assert all(contents(sandbox.store)[p] == data for p, data in before.items())
+
+
+@pytest.mark.parametrize("container", ["object", "array"])
+@pytest.mark.parametrize("alias", [True, 1.0], ids=["bool-vs-int", "float-vs-int"])
+def test_incoherent_fallback_rejects_nested_extra_metadata_aliases(sandbox, container, alias):
+    older = incoherent_family_snapshot(1)
+    latest = incoherent_family_snapshot(2, coherent=False)
+    older["identity"]["extra"] = {
+        "nested": {"value": 1} if container == "object" else [{"value": 1}]
+    }
+    latest["identity"]["extra"] = {
+        "nested": {"value": alias} if container == "object" else [{"value": alias}]
+    }
+    sandbox.store.save_snapshot(older)
+    sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    with pytest.raises(ValueError, match="another Niri instance"):
+        invoke(sandbox, apply=True)
+    assert sandbox.calls == [] and contents(sandbox.store) == before
+
+
+def test_incoherent_fallback_identity_object_key_order_is_irrelevant(sandbox, monkeypatch):
+    from niri_desktop_continuity.restore_selection import select_snapshot
+
+    older = incoherent_family_snapshot(1)
+    older["identity"]["extra"] = {"first": 1, "nested": {"a": True, "b": [2, 3]}}
+    latest = incoherent_family_snapshot(2, coherent=False)
+    latest["identity"] = dict(reversed(list(older["identity"].items())))
+    latest["identity"]["extra"] = {"nested": {"b": [2, 3], "a": True}, "first": 1}
+    good = sandbox.store.save_snapshot(older)
+    bad = sandbox.store.save_snapshot(latest)
+    before = contents(sandbox.store)
+    values = {good: older, bad: latest}
+    observed = {}
+
+    def read_preserving_order(kind, key):
+        # Store normally sorts object keys; retain distinct orders at selection's own boundary.
+        assert kind == "snapshots"
+        value = deepcopy(values[key])
+        observed[key] = (
+            list(value["identity"]),
+            list(value["identity"]["extra"]),
+            list(value["identity"]["extra"]["nested"]),
+        )
+        return value
+
+    monkeypatch.setattr(sandbox.store, "get", read_preserving_order)
+    selected = select_snapshot(sandbox.store)
+    assert selected.metadata() == {
+        "source_pointer": "last-display-valid",
+        "snapshot_digest": good,
+        "fallback_reason": "latest-incoherent",
+    }
+    assert [w["id"] for w in selected.snapshot["windows"]] == [1]
+    assert all(a != b for a, b in zip(observed[good], observed[bad], strict=True))
+    assert sandbox.calls == [] and contents(sandbox.store) == before

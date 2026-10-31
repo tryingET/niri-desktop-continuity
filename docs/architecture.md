@@ -39,7 +39,11 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   compaction, protected live windows) and the launch-once → adopt-own-new-windows → move → arrange
   executor with one receipt per run. No window is ever closed or launched twice.
 - `restore_selection`: default source selection with the display-unavailable fallback and the
-  same-instance fallback for an incoherent latest capture.
+  same-instance fallback for an explicitly `coherent: false` latest capture. Only this new family
+  requires complete typed identities on both sources: nonblank, NUL-free boot/socket strings and
+  nonnegative integer inode/device pins, excluding booleans/floats. All retained identity metadata
+  must match without numeric type coercion, projection or path normalization; no UUID grammar,
+  new persisted schema or historical socket lookup is introduced.
 - `restore`: Niri IPC transport (`LiveDesktop`) and the strict engine kept for history replay and
   disposition; `restore` (the CLI command) no longer uses its executor.
 - `autostart`: opt-in systemd user units (periodic capture, reopen at login) and their removal.
@@ -78,6 +82,13 @@ announced session. Trust is stated, not proved: an app is trusted to open its ow
 window of the same app ID that the user opens while its group is collecting could be adopted (stay
 idle during restore). Effect admission still uses `operation_lock(effectful=True)`, so unresolved strict
 histories block `--apply`; a source with a completed strict attempt returns that historical answer.
+
+Incoherent fallback changes source selection only: it writes no pointers and retains explicit-digest
+selection, display-unavailable/missing-pointer behavior, current-instance manual/login skips and
+history admission. Malformed identity or coherence now refuses only the incoherent fallback family.
+Selection diagnostics and restore stdout/receipt shapes are unchanged. Separately, the existing
+capture-only bounded retry can add `samples` and select later content/timestamps/digests: exact-output
+callers are not universally unaffected. Incoherence does not identify a historical focus-switch cause.
 
 ## Strict candidate boundary (no longer the ordinary path)
 

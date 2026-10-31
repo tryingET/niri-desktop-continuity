@@ -12,9 +12,11 @@ read_when:
 identity metadata. It samples twice and rejects coherence if topology, focus, active workspace,
 layer list or window-host process identity changes. The `capture` command then reads again after
 1 s, up to three readings in all, and saves the first coherent one or else the last; its output
-reports `samples` when it read more than once. This is bounded observation, not an atomic
-snapshot across processes. It never reads terminal contents or browser profiles, and never
-executes a discovered application binary. Session identity comes from Claude Code's per-PID
+reports `samples` when it read more than once. Exact-output consumers must allow that conditional
+field; retries can also change the saved content, timestamps and digest. Incoherence can result from
+changes or process-probe warnings; it does not establish that a focus switch caused an incident.
+This is bounded observation, not an atomic snapshot across processes. It never reads terminal
+contents or browser profiles, and never executes a discovered application binary. Session identity comes from Claude Code's per-PID
 registry and Pi's presence files; a Claude transcript is scanned only for its title records, to
 match sessions to windows. Niri IPC is the only invoked runtime CLI.
 
@@ -131,11 +133,14 @@ arranges columns; niri has no atomic focus-and-move.
 Manual and login restore without a digest prefer a readiness-valid `latest-observed` snapshot. If
 that coherent observation has no usable output, no active workspace, or windows on unavailable
 workspaces, they select the preserved `last-display-valid` snapshot, checking its readiness again. A
-genuinely absent latest pointer also permits this fallback. An incoherent latest observation (the
-desktop changed while it was read) selects `last-display-valid` only when both come from the same
-compositor instance (boot ID and Niri socket); otherwise restore refuses, so a desktop of an earlier
-session never stands in for a later one. Corrupt pointers, missing artifacts, invalid digests,
-unsafe private files and unsupported schemas fail closed and never trigger another selection. An
+genuinely absent latest pointer also permits this fallback. The incoherent fallback requires
+`coherent: false` explicitly on the latest observation; missing or nonboolean coherence refuses.
+Both identities must contain nonblank, NUL-free strings for `boot_id` and `niri_socket`, and actual
+nonnegative integers for `socket_inode` and `socket_device` (not booleans or floats). Complete
+identities, including any extra metadata, must match exactly without numeric type coercion or
+path normalization. No historical socket is reopened or checked on disk. Otherwise restore
+refuses, so a desktop of an earlier session never stands in for a later one. Corrupt pointers,
+missing artifacts, invalid digests, unsafe private files and unsupported schemas fail closed and never trigger another selection. An
 explicit `restore <digest>` never falls back. On fallback, both manual and login restore skip when
 either the latest observation or the selected snapshot belongs to the running compositor, so
 turning off a display never reopens an old desktop; the CLI then prints one JSON line on stderr with

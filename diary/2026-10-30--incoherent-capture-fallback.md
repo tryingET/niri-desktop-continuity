@@ -1,5 +1,5 @@
 ---
-summary: "One incoherent capture before a reboot blocked the login restore; capture now reads again and selection falls back within the same Niri instance."
+summary: "Require explicit incoherence and complete typed same-instance evidence before default restore fallback."
 read_when:
   - "Changing capture coherence, the capture command's retry or default restore snapshot selection."
 type: "diary"
@@ -7,24 +7,37 @@ type: "diary"
 
 # An incoherent last capture must not cost the whole desktop
 
-A login restore refused to reopen anything. The last periodic capture before the reboot was
-incoherent (the desktop changed between capture's two readings; a focus switch is enough), and
-default selection treated incoherence as a hard refusal, although a display-valid capture of the
-same session from one timer interval earlier was available. About 1% of stored captures were
-incoherent; the refusal only matters when one happens to be the last before a reboot.
+An incoherent latest observation can block default restore even when an earlier display-valid
+capture of that instance exists. Incoherence can reflect topology, focus, layer or process changes,
+or process-probe warnings. The earlier login-refusal report did not establish which predicate
+failed; a focus switch is a possible cause, not a proved explanation of that incident.
 
-Two changes, both read-only:
+Existing source behavior, unchanged by this hardening:
 
 - The `capture` command takes up to three readings, 1 s apart, and saves the first coherent one or
-  else the last. Only this command retries: approve, verify, reconcile and recovery still use a
-  single `probe.capture`, so their admission is unchanged. Output gains `samples` only when more
-  than one reading was taken, so existing exact-output callers are unaffected.
-- An incoherent `latest-observed` selects `last-display-valid` when both carry the same compositor
-  identity (boot ID, socket path, inode, device). A different identity refuses: the latest
-  session's desktop is unknown, and an earlier session's desktop must not stand in for it. The
-  workspace-reference check and the same-instance login skip apply as for the display fallback.
+  else the last. Only this command retries; other consumers still use a single `probe.capture`.
+  Output gains `samples` when more than one reading was taken. Exact-output callers are **not**
+  universally unaffected: they must allow this conditional field, and later readings can change
+  saved content, timestamps and digest. Capture-only bounded retry is not changed here.
+- Default restore has display-unavailable/missing-pointer fallback and an incoherent same-instance
+  fallback. Explicit digests never gain fallback semantics. Selection writes no pointers.
 
-Tests: the selection oracle names the fallback digest, the window and argv expected from the
-fabricated fixture, the `latest-incoherent` diagnostic, refusal for a different boot ID or socket
-inode, the login skip in the running instance and refusal without a valid fallback. The retry
-oracle lists the coherence sequence, the sample returned and the pauses taken.
+The narrow hardening requires literal `coherent: false` on latest, not merely readiness's broader
+"not true" classification. Both latest and fallback must carry complete typed compositor identities:
+nonblank, NUL-free `boot_id`/`niri_socket` strings and nonnegative integer `socket_inode`/`socket_device`
+pins, never booleans or floats. Full identity metadata must match without type coercion, projection
+or normalization. Boot IDs remain opaque strings, not a new UUID grammar; socket paths are not
+resolved, inspected or reopened. No persisted schema changes. These checks apply only to the new
+incoherent fallback family, not a general snapshot-schema rewrite.
+
+Tests use handwritten refusal/recipe oracles: missing/nonboolean coherence; missing, null, wrongly
+typed, blank/NUL string and negative-pin fields on each side and both; all four typed identity
+conflicts; metadata aliases and differing socket spelling. Positive fixtures include a fabricated
+61-window desktop, manual/login current-instance skips and explicit-digest compatibility. Corrupt
+or missing sources still refuse. A real lock/history path in a private test runtime refuses the new
+incoherent fallback with retained torn `.restore`/`.permit` evidence before any capture or effects.
+Restore stdout/receipt and selection diagnostic shapes remain unchanged.
+
+Scope: isolated source and fabricated focused tests only. No installation, live compositor/state,
+login service or runtime qualification is established. Independent inspection and delivery remain
+separate; source tests do not authorize live effects.

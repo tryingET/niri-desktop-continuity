@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from .model import readiness, require_snapshot
+from .model import digest, readiness, require_snapshot
 from .store import check_file
 
 DISPLAY_UNAVAILABLE = {
@@ -60,11 +60,24 @@ def _require_ready(value):
         raise ValueError("saved snapshot is not display-valid; refusing to reopen from it")
 
 
+def _require_complete_identity(identity):
+    # probe.compositor_identity records raw socket spelling and stat integer pins.
+    # Validate evidence only: no UUID/path normalization or old-socket filesystem lookup.
+    for key in ("boot_id", "niri_socket"):
+        value = identity.get(key)
+        if type(value) is not str or not value.strip() or "\x00" in value:
+            raise ValueError("complete typed compositor identity required for incoherent fallback")
+    for key in ("socket_inode", "socket_device"):
+        value = identity.get(key)
+        if type(value) is not int or value < 0:
+            raise ValueError("complete typed compositor identity required for incoherent fallback")
+
+
 def select_snapshot(store, explicit=None):
     """Prefer ready latest; fallback on display unavailability, incoherence or pointer absence.
 
-    An incoherent latest falls back only to a desktop of the same compositor instance: the
-    desktop changed while it was read, so an older valid reading of it is the best evidence.
+    An explicitly incoherent latest falls back only with complete typed, exactly matching
+    compositor identities. Incoherence alone does not identify its historical cause.
     Artifact, permission, schema and pointer errors propagate without another selection.
     Cached display metadata is not evidence; readiness is recomputed from the source.
     """
@@ -84,6 +97,10 @@ def select_snapshot(store, explicit=None):
         reasons = set(display["reasons"])
         if not reasons <= DISPLAY_UNAVAILABLE | {INCOHERENT}:
             _require_ready(value)
+        if INCOHERENT in reasons:
+            if value.get("coherent") is not False:
+                raise ValueError("latest snapshot coherent must be explicitly false for fallback")
+            _require_complete_identity(value["identity"])
         # Readiness also labels missing references as an unavailable workspace.
         # Invalid references must not authorize selection of a different desktop.
         workspace_ids = {workspace["id"] for workspace in value["workspaces"]}
@@ -101,9 +118,13 @@ def select_snapshot(store, explicit=None):
         raise ValueError("no display-valid saved desktop to reopen")
     value = _snapshot(store, fallback)
     _require_ready(value)
-    if reason == "latest-incoherent" and value["identity"] != latest_identity:
-        raise ValueError(
-            "latest capture is incoherent and the last display-valid one is from another "
-            "Niri instance; refusing to reopen"
-        )
+    if reason == "latest-incoherent":
+        _require_complete_identity(value["identity"])
+        # Bind all retained metadata, including extra fields, without bool/number aliases.
+        # ubs:ignore[python.ctcompare.secret_eq] -- Content address of identity, not auth.
+        if digest(value["identity"]) != digest(latest_identity):
+            raise ValueError(
+                "latest capture is incoherent and the last display-valid one is from another "
+                "Niri instance; refusing to reopen"
+            )
     return Selection(fallback, value, "last-display-valid", reason, latest_identity)
