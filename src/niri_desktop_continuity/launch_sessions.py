@@ -1,5 +1,5 @@
-"""Agent sessions a terminal tab can resume: Claude's registry, Pi's presence and the
-declarations the SessionStart hook writes. Nothing here launches anything."""
+"""Agent sessions a terminal tab can resume: Claude's registry, Pi's presence, nodecode's shell
+records and the declarations the SessionStart hook writes. Nothing here launches anything."""
 
 from __future__ import annotations
 
@@ -14,6 +14,7 @@ from .launch_proc import TERMINAL_MARKERS, read_cwd
 # Coding agents, by process name. Rerunning an agent's command line would replay its opening
 # prompt, so an agent comes back only through a session it announced (`hook`) or a built-in
 # reader (Claude registry, Pi presence). Adding an agent is one line here, never a module.
+# nodecode is not listed: its shell takes no prompt, so without a record it reopens as itself.
 AGENT_NAMES = {
     "claude": "claude",
     "codex": "codex",
@@ -50,6 +51,12 @@ def pi_presence_root() -> Path:
     if runtime:
         return Path(runtime) / "pi-session-presence"
     return Path.home() / ".local" / "state" / "pi-session-presence"
+
+
+def nodecode_presence_root() -> Path | None:
+    # nodecode writes these only where XDG_RUNTIME_DIR is absolute; there is no fallback.
+    runtime = os.environ.get("XDG_RUNTIME_DIR", "")
+    return Path(runtime) / "nodecode" / "shells" if runtime.startswith("/") else None
 
 
 def declaration_root() -> Path:
@@ -132,6 +139,31 @@ def pi_session(pid: int) -> dict | None:
         "label": labels[0] if labels else None,
         "labels": labels,
     }
+
+
+def nodecode_session(pid: int, start_ticks: int | None) -> dict | None:
+    """The session a nodecode shell says it is on (nodecode-shell record, version 1)."""
+    root = nodecode_presence_root()
+    if root is None or start_ticks is None:
+        return None
+    value = _private_json(root / f"{pid}.json")
+    # The shell's start time pins its record: a stale record under a reused pid never matches.
+    if (
+        not value
+        or value.get("version") != 1
+        or value.get("kind") != "nodecode-shell"
+        or value.get("pid") != pid
+        or value.get("start_ticks") != start_ticks
+    ):
+        return None
+    session_id, argv, cwd = value.get("session_id"), value.get("resume_argv"), value.get("cwd")
+    if not (isinstance(session_id, str) and SESSION_ID.fullmatch(session_id)):
+        return None
+    if not (isinstance(argv, list) and argv and all(isinstance(a, str) and a for a in argv)):
+        return None
+    if session_id not in argv or not (isinstance(cwd, str) and cwd.startswith("/")):
+        return None
+    return {"kind": "nodecode", "argv": list(argv), "cwd": cwd, "label": None}
 
 
 def declared_session(pid: int, start_ticks: int | None) -> dict | None:

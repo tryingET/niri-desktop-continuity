@@ -43,6 +43,9 @@ The release process is in [docs/release.md](docs/release.md).
 - `hook AGENT` for an agent's `SessionStart` hook (Claude Code, Codex, or any agent with
   `-- COMMAND ... {id}`): it records the session a terminal tab holds, so the tab resumes after a
   reboot, and records again when the session changes.
+- A nodecode tab resumes its session after a reboot: nodecode's shell records which session it is
+  on (nodecode 0.1.6 and later), and the tab reopens with the resume command it recorded. Without
+  such a record the tab reopens as its shell in the same profile, as before.
 - `capture --keep-days N` and `autostart --enable --keep-days N` keep the snapshots of the N most
   recent days that have captures. A day without captures does not count, and a snapshot that a
   pointer, receipt or other record names is always kept. Without the option nothing is deleted.

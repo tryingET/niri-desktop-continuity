@@ -17,7 +17,7 @@ field; retries can also change the saved content, timestamps and digest. Incoher
 changes or process-probe warnings; it does not establish that a focus switch caused an incident.
 This is bounded observation, not an atomic snapshot across processes. It never reads terminal
 contents or browser profiles, and never executes a discovered application binary. Session identity comes from Claude Code's per-PID
-registry and Pi's presence files; a Claude transcript is scanned only for its title records, to
+registry, Pi's presence files and nodecode's shell records; a Claude transcript is scanned only for its title records, to
 match sessions to windows. Niri IPC is the only invoked runtime CLI.
 
 `capture --include-titles` stores private window labels and session titles. Default labels
@@ -193,6 +193,12 @@ Where the hook line goes:
 - **angelX:** its hooks are tool hooks only (`PreToolUse`/`PostToolUse`, no session ID), so angelX
   cannot announce a session yet. Its tabs are refused, never replayed, until angelX gains a
   `SessionStart` hook. `declare` on its PID works meanwhile.
+
+A nodecode shell is not an agent in this sense (it takes no opening prompt). When its record in
+`$XDG_RUNTIME_DIR/nodecode/shells/<pid>.json` (version 1, written by nodecode itself) names this
+exact process (pid and start time), the tab reopens with the recorded `resume_argv`, which must
+name the recorded session, in the recorded directory. Otherwise the tab reopens as its shell in the
+same profile, as before.
 
 ### Restore read-query policy
 

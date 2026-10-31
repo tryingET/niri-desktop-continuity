@@ -22,6 +22,7 @@ LIMITATIONS = (
 REOPENS_AS = {
     "claude": "Claude Code session, resumed by id",
     "pi": "Pi session, resumed",
+    "nodecode": "nodecode session, resumed by id",
     "declared": "your declared command (declare)",
     "app": "application, relaunched from its command line",
     "command": "terminal running its last command again",

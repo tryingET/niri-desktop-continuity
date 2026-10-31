@@ -20,6 +20,7 @@ from .launch_sessions import declaration_root as declaration_root
 from .launch_sessions import declare as declare
 from .launch_sessions import declared_session as declared_session
 from .launch_sessions import hook_declaration as hook_declaration
+from .launch_sessions import nodecode_session as nodecode_session
 from .launch_sessions import pi_session as pi_session
 
 RECIPE_SCHEMA = "desktop-continuity.launch-recipe.v1"
@@ -129,10 +130,12 @@ def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
         tree = [shell, *descendants(shell, children)]
         found = None
         for candidate in tree:
+            start_ticks = by_pid.get(candidate, {}).get("start_ticks")
             found = (
                 claude_session(candidate)
                 or pi_session(candidate)
-                or declared_session(candidate, by_pid.get(candidate, {}).get("start_ticks"))
+                or nodecode_session(candidate, start_ticks)
+                or declared_session(candidate, start_ticks)
             )
             if found:
                 break

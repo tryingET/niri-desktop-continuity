@@ -110,6 +110,7 @@ recipe* per window:
 | `app` | launched **once** per saved instance from its desktop entry; its new windows fill the saved places |
 | `claude` | Ghostty, running `claude --resume <id>` in the session's directory (Claude Code's session registry) |
 | `pi` | Ghostty, running Pi's own resume command (Pi's presence directory) |
+| `nodecode` | Ghostty, running the resume command the nodecode shell recorded for its session (`$XDG_RUNTIME_DIR/nodecode/shells`) |
 | `declared` | Ghostty, running the command you gave `declare`, or the session an agent announced with `hook` |
 | `command` | Ghostty, running its last command again (for example `btop` or `npm run dev`) |
 | `shell` | Ghostty, opened in the same directory |
@@ -160,7 +161,7 @@ Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/d
 - **Makes no network requests of its own.** No telemetry, no daemon. The preview is static HTML
   with no scripts or remote assets, and no browser is launched for you.
 - **Never reads terminal contents or browser profiles.** Session ids come from Claude Code's
-  session registry and Pi's presence files. From a Claude Code transcript it takes only the
+  session registry, Pi's presence files and nodecode's shell records. From a Claude Code transcript it takes only the
   session title, to tell apart windows of one terminal process.
 
 Records stay private: `0700` directories and `0600` files under

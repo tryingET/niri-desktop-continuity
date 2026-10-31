@@ -22,7 +22,7 @@ RESTORE_SCHEMA = "desktop-continuity.restore-receipt.v1"
 SPAWN_TIMEOUT = 25.0
 QUIET = 5.0  # an app that stops opening windows for this long has restored what it will
 POLL_INTERVAL = 0.4
-SESSION_KINDS = {"claude", "pi", "declared"}
+SESSION_KINDS = {"claude", "pi", "nodecode", "declared"}
 TERMINAL_KINDS = {"shell", "command", *SESSION_KINDS}
 # Earlier controlled restores started Ghostty without the user's configuration; drop that.
 LOSSY_TERMINAL_FLAGS = {"--config-default-files=false"}
