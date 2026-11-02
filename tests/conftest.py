@@ -15,7 +15,9 @@ from niri_desktop_continuity import recovery_profile, reopen  # noqa: E402
 def no_live_desktop_or_owner_profile(tmp_path_factory, monkeypatch):
     # Tests that need either provide a fabricated one; anything else now fails the same way on
     # a developer desktop as on a runner, instead of touching the real socket or ~/.config.
-    monkeypatch.delenv("NIRI_SOCKET", raising=False)
+    # The display variables go too: jail workers assert that none of them reaches them.
+    for name in ("NIRI_SOCKET", "WAYLAND_DISPLAY", "WAYLAND_SOCKET", "DISPLAY"):
+        monkeypatch.delenv(name, raising=False)
     absent = tmp_path_factory.mktemp("no-owner-profile") / "absent" / "recovery-profile.json"
     monkeypatch.setattr(recovery_profile, "profile_path", lambda: absent)
     # Nor the operator's logind: a screen that locks during a run must not change results.
