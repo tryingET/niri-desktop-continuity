@@ -220,18 +220,29 @@ def capture(*, include_titles: bool = False, transport=None) -> dict:
     )
 
 
-def settled_capture(take, *, attempts: int = 3, pause: float = 1.0, sleep=None):
-    """Sample again while the desktop changes between one capture's two readings.
+def settled_capture(
+    take, *, attempts: int = 3, pause: float = 1.0, failure_pause: float = 10.0, sleep=None
+):
+    """Read again while the desktop changes between one capture's two readings, or a read fails.
 
-    A focus switch during the seconds a capture takes already makes it incoherent. Returns the
-    first coherent sample, or the last one, and how many samples were taken.
+    A focus switch during the seconds a capture takes already makes it incoherent, and a stalled
+    system can time out a Niri query. Returns the first coherent reading, else the last one that
+    succeeded, and how many readings were taken; raises the last failure only if none succeeded.
     """
+    value, failure = None, None
     for sample in range(1, attempts + 1):
         if sample > 1:
-            (sleep or time.sleep)(pause)
-        value = take()
+            (sleep or time.sleep)(failure_pause if failure else pause)
+        try:
+            reading = take()
+        except (subprocess.SubprocessError, OSError) as exc:
+            failure = exc
+            continue
+        value, failure = reading, None
         if value["coherent"]:
             break
+    if value is None:
+        raise failure
     return value, sample
 
 

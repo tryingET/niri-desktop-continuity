@@ -317,12 +317,17 @@ def test_store_oversize_refused_before_create(tmp_path):
 
 
 def test_cli_observation_failure_and_apply_optin(tmp_path, monkeypatch, capsys):
+    attempts = []
+
     def fail(**kwargs):
+        attempts.append(kwargs)
         raise subprocess.TimeoutExpired("niri", 10)
 
     monkeypatch.setattr(cli, "capture", fail)
+    monkeypatch.setattr(probe.time, "sleep", lambda seconds: None)
     root = ["--state-root", str(tmp_path / "private")]
     assert cli.main([*root, "capture"]) == 2
+    assert len(attempts) == 3  # a failed reading is read twice more before the error is reported
     assert json.loads(capsys.readouterr().err)["status"] == "error"
     assert cli.main([*root, "reconcile", "a" * 64]) == 2
     assert "requires --apply" in capsys.readouterr().err
@@ -473,6 +478,76 @@ def test_settled_capture_samples_again_until_coherent(coherence, expected, pause
     value, samples = probe.settled_capture(take, sleep=slept.append)
     assert (value["sample"], samples) == expected and slept == pauses
     assert value["coherent"] is coherence[expected[0] - 1]
+
+
+TIMEOUT = subprocess.TimeoutExpired(["niri", "msg", "--json", "windows"], 10)
+
+
+@pytest.mark.parametrize(
+    ("readings", "expected", "pauses"),
+    [
+        ([TIMEOUT, True], (2, 2), [10.0]),  # a stalled query: read again after 10 s
+        ([False, TIMEOUT, TIMEOUT], (1, 3), [1.0, 10.0]),  # an incoherent reading beats none
+        ([TIMEOUT, False, True], (3, 3), [10.0, 1.0]),
+    ],
+    ids=["timeout-then-steady", "incoherent-then-timeouts", "timeout-incoherent-steady"],
+)
+def test_settled_capture_reads_again_after_a_failed_reading(readings, expected, pauses):
+    taken, slept = [], []
+
+    def take():
+        item = readings[len(taken)]
+        taken.append(item)
+        if isinstance(item, BaseException):
+            raise item
+        return {"coherent": item, "sample": len(taken)}
+
+    value, samples = probe.settled_capture(take, sleep=slept.append)
+    assert (value["sample"], samples) == expected and slept == pauses
+
+
+def test_settled_capture_raises_the_last_failure_when_no_reading_succeeds():
+    failures = [TIMEOUT, subprocess.CalledProcessError(1, ["niri"]), FileNotFoundError("niri")]
+    taken, slept = [], []
+
+    def take():
+        taken.append(1)
+        raise failures[len(taken) - 1]
+
+    with pytest.raises(FileNotFoundError) as caught:
+        probe.settled_capture(take, sleep=slept.append)
+    assert caught.value is failures[2] and len(taken) == 3 and slept == [10.0, 10.0]
+
+
+def test_settled_capture_does_not_read_again_after_an_invalid_reading():
+    taken = []
+
+    def take():
+        taken.append(1)
+        raise ValueError("NIRI_SOCKET unavailable")
+
+    with pytest.raises(ValueError, match="NIRI_SOCKET"):
+        probe.settled_capture(take, sleep=lambda seconds: pytest.fail("no pause expected"))
+    assert taken == [1]
+
+
+def test_cli_capture_saves_the_reading_after_a_timeout(tmp_path, monkeypatch, capsys):
+    settled = snapshot()
+    readings = iter([TIMEOUT, settled])
+
+    def take(**_):
+        item = next(readings)
+        if isinstance(item, BaseException):
+            raise item
+        return deepcopy(item)
+
+    monkeypatch.setattr(cli, "capture", take)
+    monkeypatch.setattr(probe.time, "sleep", lambda seconds: None)
+    assert cli.main(["--state-root", str(tmp_path / "private"), "capture"]) == 0
+    result = json.loads(capsys.readouterr().out)
+    store = Store(tmp_path / "private")
+    assert result["samples"] == 2 and store.get("snapshots", result["snapshot_digest"]) == settled
+    assert store.pointer("latest-observed") == result["snapshot_digest"]
 
 
 def test_cli_capture_saves_the_settled_sample(tmp_path, monkeypatch, capsys):

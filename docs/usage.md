@@ -11,9 +11,10 @@ read_when:
 `capture` observes Niri outputs, workspaces, windows and layer surfaces, plus same-user process
 identity metadata. It samples twice and rejects coherence if topology, focus, active workspace,
 layer list or window-host process identity changes. The `capture` command then reads again after
-1 s, up to three readings in all, and saves the first coherent one or else the last; its output
-reports `samples` when it read more than once. Exact-output consumers must allow that conditional
-field; retries can also change the saved content, timestamps and digest. Incoherence can result from
+1 s, or after 10 s when a Niri query failed or timed out, up to three readings in all. It saves the
+first coherent reading, else the last one that succeeded, and fails only when every reading failed;
+its output reports `samples` when it read more than once. Exact-output consumers must allow that
+conditional field; retries can also change the saved content, timestamps and digest. Incoherence can result from
 changes or process-probe warnings; it does not establish that a focus switch caused an incident.
 This is bounded observation, not an atomic snapshot across processes. It never reads terminal
 contents or browser profiles, and never executes a discovered application binary. Session identity comes from Claude Code's per-PID
