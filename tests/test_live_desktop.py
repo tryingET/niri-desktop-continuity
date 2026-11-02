@@ -213,7 +213,7 @@ def test_decoding_and_nonzero_exit_not_retried(monkeypatch, response, status, er
 def test_unknown_query_names_refuse_before_any_client(monkeypatch):
     d = ClockDesktop()
     calls = install(monkeypatch, d, [])
-    for name in ("action", "spawn", "Windows", "", "--json"):
+    for name in ("action", "spawn", "Windows", "", "--json", "outputs"):
         with pytest.raises(ValueError, match="unsupported restore read query"):
             d._query(name)
     assert not calls
