@@ -2,7 +2,7 @@
 summary: "The strict restore engine, its history reader and restore-disposition are gone; any record it left now refuses effects by existing."
 read_when:
   - "Changing effect admission, operation_lock or how restore --apply treats earlier attempts."
-  - "Writing the changelog of the first release after 0.2.0."
+  - "Writing the 0.3.0 changelog."
 type: "diary"
 ---
 
@@ -15,11 +15,11 @@ retirement rather than keeping a read-only history reader, given what the record
 
 ## What changes for users
 
-For the changelog of the first release after 0.2.0:
+For the 0.3.0 changelog:
 
 - **Removed: `restore-disposition`** with its stages `inspect`, `propose`, `approve` and `apply`.
   It accounted for interrupted attempts of the strict engine. No release up to 0.1.2 contained it.
-  In 0.2.0 it exists but has nothing to work on, because nothing there can create such an attempt.
+  0.2.1 contains it, but there it has nothing to work on, because nothing can create such an attempt.
 - **Changed: a strict record now always refuses `restore --apply`, `reconcile` and `reconstruct`**
   for that compositor, with exit 2. The first two say "a strict restore record fences this
   compositor until it restarts; no action taken"; `reconstruct` keeps its one generic refusal.
@@ -56,8 +56,8 @@ Removed: the executor (`restore.py`, `restore_execute`, `restore_producer`, `res
 `restore_reader_io`, `restore_state`, `restore_geometry`, `restore_dimensions`,
 `restore_observation`, `restore_failure_observation`), the disposition families
 (`restore_disposition*`, `restore_exited*`) and `restore_wire`. That is 41 modules and 71 test
-files, with `docs/project/restore-ownership.md`, the candidate's design document. The last commit
-containing all of it is the 0.2.0 release commit.
+files, with `docs/project/restore-ownership.md`, the candidate's design document. The 0.2.1 release
+commit still has all of it.
 
 Kept, and why:
 
