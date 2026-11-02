@@ -4,6 +4,21 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.2.1] - 2026-11-02
+
+0.2.0 was tagged but never published, because its release build failed. 0.2.1 is the first release
+with everything listed under 0.2.0 in
+[CHANGELOG.md](https://github.com/tryingET/niri-desktop-continuity/blob/v0.2.1/CHANGELOG.md), plus:
+
+### Fixed
+
+- `capture` reads the desktop again when a Niri query fails or times out, waiting 10 s first, and
+  fails only when all three readings fail. One stalled query no longer costs a whole timer interval
+  of changes.
+- The test suite gives the same result in a desktop terminal as on a CI runner, and the two
+  installed-wheel tests that need a private uv cache skip with a reason when none is set. Their
+  failure stopped the 0.2.0 release build.
+
 ## [0.2.0] - 2026-11-02
 
 ### Changed
