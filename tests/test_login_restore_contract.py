@@ -9,7 +9,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from niri_desktop_continuity import cli, probe, reopen, restore
+from niri_desktop_continuity import cli, live_desktop, probe, reopen
 from niri_desktop_continuity.model import normalized_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -103,9 +103,9 @@ def sandbox(tmp_path, monkeypatch):
     monkeypatch.setattr(probe, "capture", capture)
     monkeypatch.setattr(probe, "compositor_identity", identity)
     monkeypatch.setattr(reopen.locks, "operation_lock", lock)
-    monkeypatch.setattr(restore, "LiveDesktop", Desktop)
+    monkeypatch.setattr(live_desktop, "LiveDesktop", Desktop)
     monkeypatch.setattr(reopen, "reopen", dry_restore)
-    monkeypatch.setattr(restore.subprocess, "run", forbidden)
+    monkeypatch.setattr(live_desktop.subprocess, "run", forbidden)
     state.argv = ["--state-root", str(store.root), "restore"]
     return state
 

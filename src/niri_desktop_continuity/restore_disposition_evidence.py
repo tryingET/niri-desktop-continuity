@@ -93,8 +93,8 @@ def controller_pids():
 
 def observe():
     """No session/profile inventory: double read of bounded Niri topology only."""
+    from .live_desktop import LiveDesktop
     from .probe import compositor_identity
-    from .restore import LiveDesktop
 
     desktop = LiveDesktop()
     identity = compositor_identity()

@@ -8,7 +8,7 @@ import traceback
 
 import pytest
 
-from niri_desktop_continuity.restore import LiveDesktop
+from niri_desktop_continuity.live_desktop import LiveDesktop
 
 
 class ClockDesktop(LiveDesktop):

@@ -8,7 +8,8 @@ from types import SimpleNamespace
 import pytest
 from test_reopen import IDENTITY, recipe, window
 
-from niri_desktop_continuity import cli, launch, operation_lock, probe, reopen, restore
+from niri_desktop_continuity import cli, launch, operation_lock, probe, reopen
+from niri_desktop_continuity.live_desktop import LiveDesktop
 from niri_desktop_continuity.model import digest, readiness, require_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -72,8 +73,6 @@ def desktop(tmp_path, monkeypatch):
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: runtime)
     monkeypatch.setattr(probe, "Niri", IPC)
     monkeypatch.setattr(probe, "compositor_identity", lambda: dict(IDENTITY))
-    monkeypatch.setattr(restore, "compositor_identity", lambda: dict(IDENTITY))
-    monkeypatch.setattr(probe, "compositor_identity", lambda: dict(IDENTITY))  # reopen engine
     monkeypatch.setattr(probe, "now", lambda: "2026-01-01T00:00:00+00:00")
     monkeypatch.setattr(probe, "window_processes", window_processes)
     monkeypatch.setattr(probe, "process_inventory", inventory)
@@ -84,8 +83,8 @@ def desktop(tmp_path, monkeypatch):
     monkeypatch.setattr(cli, "capture", observe)
     monkeypatch.setattr(subprocess, "run", forbidden)
     monkeypatch.setattr(subprocess, "Popen", forbidden)
-    monkeypatch.setattr(restore.LiveDesktop, "action", forbidden)
-    monkeypatch.setattr(restore.LiveDesktop, "spawn", forbidden)
+    monkeypatch.setattr(LiveDesktop, "action", forbidden)
+    monkeypatch.setattr(LiveDesktop, "spawn", forbidden)
     yield SimpleNamespace(
         root=tmp_path / "state", source=source, calls=calls, observations=observations
     )

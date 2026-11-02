@@ -320,9 +320,9 @@ def run(args):
 
 
 def run_restore(args, store):
+    from .live_desktop import LiveDesktop
     from .probe import compositor_identity
     from .reopen import reopen
-    from .restore import LiveDesktop
     from .restore_selection import select_snapshot
 
     desktop = LiveDesktop()

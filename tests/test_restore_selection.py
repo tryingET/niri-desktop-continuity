@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from niri_desktop_continuity import cli, probe, reopen, restore, restore_history
+from niri_desktop_continuity import cli, live_desktop, probe, reopen, restore_history
 from niri_desktop_continuity.model import normalized_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -85,12 +85,12 @@ def sandbox(tmp_path, monkeypatch):
         # No real desktop entries or user routes.json: only this test's fabricated recipes.
         return real_reopen(*args, **kwargs, entries=[], users={})
 
-    monkeypatch.setattr(restore, "LiveDesktop", Desktop)
+    monkeypatch.setattr(live_desktop, "LiveDesktop", Desktop)
     monkeypatch.setattr(probe, "compositor_identity", identity)
     monkeypatch.setattr(probe, "capture", capture)
     monkeypatch.setattr(reopen.locks, "operation_lock", lock)
     monkeypatch.setattr(reopen, "reopen", hermetic_reopen)
-    monkeypatch.setattr(restore.subprocess, "Popen", forbidden)
+    monkeypatch.setattr(live_desktop.subprocess, "Popen", forbidden)
     return state
 
 
