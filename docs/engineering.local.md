@@ -14,15 +14,9 @@ wheel works independently of the source checkout.
 
 `just check` covers lint, formatting, unit tests, Python 3.11 syntax and portable-source checks.
 It gives the same result in a desktop terminal as on a runner: every test runs without
-`NIRI_SOCKET`, `WAYLAND_DISPLAY`, `WAYLAND_SOCKET` and `DISPLAY`. Fixtures assume `umask 022`. The
-native jail tests (kernel 7.2.6 or later) bind only `/usr` and the checkout, so the checkout's
-`.venv` must come from an interpreter under `/usr` (`UV_PYTHON=/usr/bin/python3 uv sync --group dev`),
-and they bind sockets under `TMPDIR`, which must be a real directory with a short path. The two
-installed-wheel jail tests in `tests/test_restore_exited_installed.py` build the wheel offline from
-a copy of `UV_CACHE_DIR` and skip without it: point it at a small private cache, never your whole
-uv cache. Fill a fresh directory with one `uv build --wheel` of this checkout (the build backend)
-and `uv pip install pytest==9.1.1` into a scratch environment, which the installed-wheel query test
-in `tests/test_restore_queries.py` installs offline from whichever cache is in use.
+`NIRI_SOCKET`, `WAYLAND_DISPLAY`, `WAYLAND_SOCKET` and `DISPLAY`. Fixtures assume `umask 022`, and
+tests bind sockets under `TMPDIR`, which must be a real directory with a short path (socket paths
+are limited to 108 bytes).
 `just ci` additionally builds wheel and sdist and runs the installed-console smoke in a scratch
 virtual environment outside the checkout. Privacy regressions use Git only in fabricated scratch
 repositories. All effect tests use fake Niri transports and private test lock directories;

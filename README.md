@@ -22,7 +22,7 @@ defects fixed: each saved app instance is launched **once** (no second launch af
 replayed** from their command line. Apps start from their own menu entry, so wrappers, AppImages and
 sign-in or deep-link URLs are handled the way you launch them. Saved column widths now account for
 window borders, a fix carried over from the strict line. The strict controlled-Ghostty candidate
-that preceded it no longer drives `restore`; its reconstruction and disposition commands remain.
+that preceded it has been removed.
 Offline tests pass, and a real login restore of a mixed desktop (Claude Code and Pi sessions,
 browsers, notes and password-manager windows, shells and commands) placed 57 of 57 windows in 35
 seconds with no failures.
@@ -222,14 +222,3 @@ Scaffolded from `tpl-project-repo`, then adapted for a standalone Python package
 retain relative template provenance only; template updates are a maintainer concern, not an
 installation prerequisite. Private template snapshot context is excluded from version control
 and distribution. Apache-2.0: see [LICENSE](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE).
-
-
-The offline `exec-observed-unassociated` disposition v2 candidate uses explicit
-`restore-disposition inspect|propose --family exec-observed-unassociated`; omission preserves v1.
-It records partial accounting only, never retries or certifies restored native state. Review
-corrections require the actual `launch-indeterminate` witness, exact seven-field segment, tuple-based
-process identity and a live/expiry veto after the final capacity check. Earlier wrong-wire fixture
-results are not intended-family proof. The corrected implementation passed independent rereview,
-installed-wheel lifecycle checks on Python 3.13/3.14 and full isolated CI (1,671 tests).
-No live use or deployment is authorized by these offline results.
-See [the family contract](docs/usage.md#exec-observed-unassociated-disposition-v2-offline-candidate).

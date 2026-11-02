@@ -8,7 +8,7 @@ from types import SimpleNamespace
 
 import pytest
 
-from niri_desktop_continuity import cli, probe, reopen, restore, restore_history
+from niri_desktop_continuity import cli, live_desktop, probe, reopen
 from niri_desktop_continuity.model import normalized_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -85,12 +85,12 @@ def sandbox(tmp_path, monkeypatch):
         # No real desktop entries or user routes.json: only this test's fabricated recipes.
         return real_reopen(*args, **kwargs, entries=[], users={})
 
-    monkeypatch.setattr(restore, "LiveDesktop", Desktop)
+    monkeypatch.setattr(live_desktop, "LiveDesktop", Desktop)
     monkeypatch.setattr(probe, "compositor_identity", identity)
     monkeypatch.setattr(probe, "capture", capture)
     monkeypatch.setattr(reopen.locks, "operation_lock", lock)
     monkeypatch.setattr(reopen, "reopen", hermetic_reopen)
-    monkeypatch.setattr(restore.subprocess, "Popen", forbidden)
+    monkeypatch.setattr(live_desktop.subprocess, "Popen", forbidden)
     return state
 
 
@@ -707,11 +707,11 @@ def test_incoherent_fallback_still_refused_by_real_history_fence(
     monkeypatch.setattr(reopen.locks, "operation_lock", sandbox.operation_lock)
     identity = sandbox.current["identity"]
     with sandbox.operation_lock(identity, effectful=False):
-        marker = restore_history.fence_path(identity).with_suffix(suffix)
-        marker.write_text("{")  # Fabricated torn retained history must never grant effects.
+        marker = reopen.locks.fence_path(identity).with_suffix(suffix)
+        marker.write_text("{")  # A record refuses effects whatever it holds.
         marker.chmod(0o600)
     before = contents(sandbox.store)
-    with pytest.raises(ValueError, match="unresolved restore"):
+    with pytest.raises(ValueError, match="fences this compositor"):
         invoke(sandbox, login=login, apply=True)
     assert sandbox.diagnostic["snapshot_digest"] == good
     assert sandbox.diagnostic["fallback_reason"] == "latest-incoherent"
