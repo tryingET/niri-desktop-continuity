@@ -8,10 +8,10 @@ from test_recovery_orchestration import approve, command, execute, plan
 from test_recovery_orchestration import fixture as fixture  # noqa: F401 - pytest fixture
 from test_reopen import FakeDesktop, saved
 
-from niri_desktop_continuity import operation_lock, recovery, recovery_profile, restore
+from niri_desktop_continuity import operation_lock, recovery, recovery_profile, reopen
 from niri_desktop_continuity.reconcile import reconcile
 from niri_desktop_continuity.recovery_adapter import Adapter
-from niri_desktop_continuity.restore_producer import fence_path
+from niri_desktop_continuity.restore_history import fence_path
 from niri_desktop_continuity.store import Store
 
 IDENTITY = {"boot_id": "fabricated", "socket_device": 1, "socket_inode": 2}
@@ -22,7 +22,7 @@ def runtime(tmp_path, monkeypatch):
     root = tmp_path / "runtime"
     root.mkdir(mode=0o700)
     monkeypatch.setattr(operation_lock, "runtime_root", lambda: root)
-    monkeypatch.setattr(restore, "compositor_identity", lambda: dict(IDENTITY))
+    monkeypatch.setattr(reopen.probe, "compositor_identity", lambda: dict(IDENTITY))
 
 
 def retain_fence(identity, suffix=".restore"):
@@ -84,23 +84,25 @@ def test_dry_run_observer_cannot_inherit_ambient_effect_bypass(tmp_path):
                 pytest.fail("effectful callback inherited observation-only bypass")
         return saved([])
 
-    result = restore.restore(store, key, desktop, apply=False, observe=observe)
+    result = reopen.reopen(store, key, desktop, apply=False, observe=observe, entries=[], users={})
     assert calls == ["observe"]
     assert result["status"] == "dry-run" and desktop.actions == []
 
 
 def test_dry_run_checks_identity_before_observer(tmp_path, monkeypatch):
-    monkeypatch.setattr(restore, "compositor_identity", lambda: {})
+    monkeypatch.setattr(reopen.probe, "compositor_identity", lambda: {})
     store = Store(tmp_path / "state")
     key = store.put("snapshots", saved([]))
     calls = []
     with pytest.raises(ValueError, match="complete compositor"):
-        restore.restore(
+        reopen.reopen(
             store,
             key,
             FakeDesktop([]),
             apply=False,
             observe=lambda: calls.append("observe") or saved([]),
+            entries=[],
+            users={},
         )
     assert calls == []
 

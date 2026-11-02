@@ -8,7 +8,7 @@ from types import SimpleNamespace
 import pytest
 from test_reopen import IDENTITY, recipe, window
 
-from niri_desktop_continuity import cli, launch, operation_lock, probe, restore, restore_host
+from niri_desktop_continuity import cli, launch, operation_lock, probe, reopen, restore
 from niri_desktop_continuity.model import digest, readiness, require_snapshot
 from niri_desktop_continuity.store import Store
 
@@ -285,16 +285,13 @@ def test_given_extra_recipe_when_selected_then_dry_run_keeps_both_entries(deskto
 def test_given_unsupported_recipes_when_selected_then_plan_does_not_hide_them(desktop, capsys):
     result = invoke(desktop, capsys, "capture", "--window-id", "10", "--window-id", "0")
     value = Store(desktop.root).get("snapshots", result["snapshot_digest"])
-    plan = restore.plan_restore(value, [], value["workspaces"])
+    plan = reopen.plan(value, [], entries=[], users={})
     assert [
-        (e["window_id"], e["recipe"]["kind"], e["target_workspace_idx"]) for e in plan["entries"]
+        (s["window_id"], s["recipe"]["kind"], s["target_workspace_idx"]) for s in plan["slots"]
     ] == [(0, "app", 1), (10, "unknown", 2)]
     assert plan["unknown_workspace_idx"] == 2
-    assert plan["entries"][1]["recipe"]["reason"] == "no-recipe"
-    assert [e["saved_workspace_idx"] for e in plan["entries"]] == [1, 2]
-    for entry in plan["entries"]:
-        with pytest.raises(ValueError, match="unsupported launch kind"):
-            restore_host.admit(entry["recipe"])
+    assert plan["slots"][1]["recipe"]["reason"] == "no-recipe"
+    assert [s["saved_workspace_idx"] for s in plan["slots"]] == [1, 2]
     dry_run = invoke(desktop, capsys, "restore", result["snapshot_digest"])
     assert [(w["window_id"], w["kind"]) for w in dry_run["windows"]] == [
         (0, "app"),
@@ -307,8 +304,8 @@ def test_given_single_selection_when_dry_run_then_one_entry_and_saved_workspace(
     result = invoke(desktop, capsys, "capture", "--window-id", "30")
     selected = Store(desktop.root).get("snapshots", result["snapshot_digest"])
     assert not selected["windows"][0]["reopen"].get("extra")
-    plan = restore.plan_restore(selected, [], selected["workspaces"])
-    assert plan["workspace_names"] == {"1": "lab"}
+    plan = reopen.plan(selected, [], entries=[], users={})
+    assert plan["workspace_names"] == {1: "lab"}
     dry_run = invoke(desktop, capsys, "restore", result["snapshot_digest"])
     assert len(dry_run["windows"]) == 1
     entry = dry_run["windows"][0]

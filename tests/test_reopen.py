@@ -17,6 +17,7 @@ from niri_desktop_continuity import (  # noqa: E402
     launch_sessions,
     operation_lock,
     probe,
+    reopen,
     restore,
 )
 from niri_desktop_continuity.model import normalized_snapshot  # noqa: E402
@@ -33,7 +34,9 @@ def isolated(tmp_path, monkeypatch):
     # Declarations live in launch_sessions; launch re-exports the root for callers like these tests.
     for module in (launch, launch_sessions):
         monkeypatch.setattr(module, "declaration_root", lambda: runtime / "declared")
+    monkeypatch.setattr(probe, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
     monkeypatch.setattr(restore, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
+    monkeypatch.setattr(reopen, "session_locked", lambda: False)
     from niri_desktop_continuity import restore_host
 
     monkeypatch.setattr(restore_host, "route", lambda identity: None)
@@ -562,21 +565,23 @@ def test_plan_compacts_workspaces_and_sends_unknowns_last():
             window(3, 5, 1, reopen=recipe("pi", "ghostty", "-e", "pi")),
             window(4, 2, 1, reopen=recipe("claude", "ghostty", "-e", "claude", "--resume", "id")),
             window(5, 2, 1, tile=2, reopen=recipe("app", "obsidian")),
+            window(6, 9, 1, reopen=recipe("unknown")),  # nothing known on its saved workspace
         ]
     )
     current = [
         window(50, 1, 1, reopen=recipe("claude", "ghostty", "-e", "claude", "--resume", "id"))
     ]
-    plan = restore.plan_restore(snapshot, current, [])
-    by_id = {e["window_id"]: e for e in plan["entries"]}
+    plan = reopen.plan(snapshot, current, entries=[], users={})
+    by_id = {s["window_id"]: s for s in plan["slots"]}
     assert by_id[1]["target_workspace_idx"] == 1
     assert by_id[4]["target_workspace_idx"] == 2 and by_id[4]["status"] == "already-open"
     assert by_id[3]["target_workspace_idx"] == 3  # empty named workspace 3 is skipped
-    assert by_id[2]["target_workspace_idx"] == 4 and by_id[2]["column"] is None
+    assert by_id[2]["target_workspace_idx"] == 1 and by_id[2]["status"] == "not-reopened"
+    assert by_id[6]["target_workspace_idx"] == 4 and by_id[6]["column"] is None
     assert plan["unknown_workspace_idx"] == 4
-    assert plan["workspace_names"] == {"3": "lab"}
+    assert plan["workspace_names"] == {3: "lab"}
     assert plan["protected_window_ids"] == [50]
-    assert [e["window_id"] for e in plan["entries"]] == [1, 4, 5, 3, 2]
+    assert [s["window_id"] for s in plan["slots"]] == [2, 1, 4, 5, 3, 6]
 
 
 def test_plan_expands_extra_sessions_after_their_window():
@@ -597,8 +602,8 @@ def test_plan_expands_extra_sessions_after_their_window():
             )
         ]
     )
-    plan = restore.plan_restore(snapshot, [], [])
-    assert [(e["window_id"], e.get("extra_of"), e["column"]) for e in plan["entries"]] == [
+    plan = reopen.plan(snapshot, [], entries=[], users={})
+    assert [(s["window_id"], s.get("extra_of"), s["column"]) for s in plan["slots"]] == [
         (1, None, 1),
         (None, 1, None),
     ]
@@ -677,7 +682,7 @@ def observation(desktop):
     def observe():
         return {
             **saved(desktop.windows(), workspaces=desktop.workspaces()),
-            "identity": restore.compositor_identity(),
+            "identity": probe.compositor_identity(),
         }
 
     return observe
@@ -777,32 +782,32 @@ def test_app_reopens_in_its_saved_directory(tmp_path):
             window(
                 2, 1, 2, app="gone", reopen={**recipe("app", "gone", "."), "cwd": "/no/such/dir"}
             ),
-            window(3, 1, 3, reopen={**recipe("pi", "ghostty", "-e", "pi"), "cwd": str(checkout)}),
         ]
     )
     key = store.put("snapshots", snapshot)
     desktop = FakeDesktop([])
-    # Browser/general application ownership is unsupported; vanished cwd never falls back.
-    # Refuse a fabricated script rather than discover or execute any installed native Ghostty.
-    host = checkout / "ghostty"
-    host.write_text("#!/bin/sh\nexit 0\n")
-    host.chmod(0o700)
-    snapshot["windows"][2]["reopen"]["argv"][0] = str(host)
-    key = store.put("snapshots", snapshot)
-    result = restore.restore(
-        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
+    reopen.reopen(
+        store,
+        key,
+        desktop,
+        apply=True,
+        observe=observation(desktop),
+        spawn_timeout=1,
+        entries=[],
+        users={},
     )
-    assert desktop.actions == []
-    assert [w["status"] for w in result["windows"]] == ["unsupported"] * 3
-    assert result["status"] == "partial"
+    assert [action[1] for action in desktop.actions if action[0] == "spawn"] == [
+        ("sh", "-c", reopen.CHDIR_EXEC, "sh", str(checkout), *electron),
+        ("gone", "."),  # a vanished directory is not guessed at; niri's own directory applies
+    ]
 
 
 def test_saved_directory_wrapper_changes_directory_without_reinterpreting_arguments(tmp_path):
     argv = ["printf", "%s|", "a b", "$HOME", "`id`", "."]
-    wrapped = restore.spawn_argv({"kind": "app", "argv": argv, "cwd": str(tmp_path)})
+    wrapped = reopen.spawn_argv({"kind": "app", "argv": argv, "cwd": str(tmp_path)})
     shown = subprocess.run(wrapped, capture_output=True, text=True, check=True).stdout
     assert shown == "a b|$HOME|`id`|.|"
-    wrapped = restore.spawn_argv({"kind": "app", "argv": ["pwd", "-P"], "cwd": str(tmp_path)})
+    wrapped = reopen.spawn_argv({"kind": "app", "argv": ["pwd", "-P"], "cwd": str(tmp_path)})
     assert subprocess.run(wrapped, capture_output=True, text=True, check=True).stdout == (
         f"{tmp_path.resolve()}\n"
     )
@@ -812,17 +817,27 @@ def test_dry_run_has_no_effects_and_refuses_headless_snapshot(tmp_path):
     store = Store(tmp_path / "state")
     key = store.put("snapshots", saved([window(1, 1, 1, reopen=recipe("app", "x"))]))
     desktop = FakeDesktop([])
-    result = restore.restore(store, key, desktop, apply=False, observe=observation(desktop))
+    result = reopen.reopen(
+        store,
+        key,
+        desktop,
+        apply=False,
+        observe=observation(desktop),
+        entries=[],
+        users={},
+    )
     assert result["status"] == "dry-run" and desktop.actions == []
     headless = saved([window(1, 1, 1, reopen=recipe("app", "x"))])
     headless["outputs"] = []
     with pytest.raises(ValueError, match="display-valid"):
-        restore.restore(
+        reopen.reopen(
             store,
             store.put("snapshots", headless),
             desktop,
             apply=True,
             observe=observation(desktop),
+            entries=[],
+            users={},
         )
 
 
