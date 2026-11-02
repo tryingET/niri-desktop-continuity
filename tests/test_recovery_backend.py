@@ -303,6 +303,9 @@ def install_startup_code(site, code, name="ndc_test_hook"):
     """
     module, pth = site / f"{name}.py", site / f"{name}.pth"
     module.write_text(code)
+    # Python trusts bytecode by source size and whole-second mtime, which a rewrite can match.
+    for stale in site.glob(f"__pycache__/{name}.*.pyc"):
+        stale.unlink()
     pth.write_text(f"import {name}\n")
     return [pth, module]
 
@@ -581,3 +584,23 @@ for name in os.listdir('/proc/self/fd'):
 
 if __name__ == "__main__":
     raise SystemExit(backend_main())
+
+
+def test_a_rewritten_startup_hook_never_runs_as_its_old_bytecode(tmp_path):
+    # Same size and same whole second: Python's own bytecode check accepts the old hook, and the
+    # installed console then reads the previous case's fixture. Timing made that rare, not absent.
+    env = {k: v for k, v in os.environ.items() if k != "PYTHONDONTWRITEBYTECODE"}
+    seen = []
+    for value in "ab":
+        hooks = install_startup_code(tmp_path, f"print({value!r})\n", name="hook_under_test")
+        os.utime(hooks[1], (1_000_000_000, 1_000_000_000))
+        result = subprocess.run(
+            [sys.executable, "-c", "import hook_under_test"],
+            cwd=tmp_path,
+            env=env,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        seen.append(result.stdout.strip())
+    assert seen == ["a", "b"]
