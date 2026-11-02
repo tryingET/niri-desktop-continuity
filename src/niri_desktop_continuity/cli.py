@@ -18,24 +18,13 @@ from .probe import capture, settled_capture
 from .store import Store
 
 
-class _DispositionParser(argparse.ArgumentParser):
-    def error(self, message):
-        from .restore_disposition_failure import Refusal
-
-        raise Refusal("invalid-arguments")  # Never echo usage, values or parser messages.
-
-
-def parser(*, _disposition=False):
-    kind = _DispositionParser if _disposition else argparse.ArgumentParser
-    root = kind(description=__doc__)
+def parser():
+    root = argparse.ArgumentParser(description=__doc__)
     root.add_argument(
         "--version", action="version", version=f"niri-desktop-continuity {__version__}"
     )
     root.add_argument("--state-root", type=Path)
     commands = root.add_subparsers(dest="command", required=True)
-    from .restore_disposition_cli import add_parser
-
-    add_parser(commands)
     observe = commands.add_parser("capture", help="read Niri and same-user process metadata")
     observe.add_argument(
         "--include-titles", action="store_true", help="private labels; never publish"
@@ -173,10 +162,6 @@ def _select_capture(value, window_ids):
 
 
 def run(args):
-    if args.command == "restore-disposition":
-        from .restore_disposition_cli import run as run_disposition
-
-        return run_disposition(args)
     from .resolution_cli import run as run_resolution
     from .resolution_cli import selected
 
@@ -441,51 +426,8 @@ def _run_recovery(args, store):
     return value, 2 if value.get("status") in {"partial", "indeterminate"} else 0
 
 
-def _disposition_selected(argv):
-    # Parse the root grammar: option VALUES never select a command. Once the positional
-    # command is reached the remainder belongs to it, including private options/values.
-    selector = _DispositionParser(add_help=False)
-    selector.add_argument("--state-root")
-    selector.add_argument("--version", action="store_true")
-    selector.add_argument("--help", "-h", action="store_true")
-    selector.add_argument("command", nargs="?")
-    selector.add_argument("remainder", nargs=argparse.REMAINDER)
-    try:
-        args, _ = selector.parse_known_args(argv)
-    except ValueError:
-        return False
-    return args.command == "restore-disposition" and not (args.version or args.help)
-
-
-def _disposition_main(argv):
-    from .restore_disposition_failure import invocation, phase, report
-
-    with invocation() as tracker:
-        try:
-            with phase("parse"):
-                try:
-                    args = parser(_disposition=True).parse_args(argv)
-                except SystemExit as help_exit:
-                    if type(help_exit.code) is int and help_exit.code == 0:
-                        return 0  # Explicit argparse help/version only, not runtime cancellation.
-                    raise
-            with phase("route"):
-                value, status = run(args)
-            with phase("result"):
-                data = json.dumps(value, indent=2, sort_keys=True)
-                written = sys.stdout.write(data + "\n")
-                if type(written) is not int or written != len(data) + 1:
-                    raise OSError("incomplete disposition result output")
-                sys.stdout.flush()
-            return status
-        except BaseException as failure:
-            return report(tracker, failure, sys.stderr)
-
-
 def main(argv=None):
     argv = list(sys.argv[1:] if argv is None else argv)
-    if _disposition_selected(argv):
-        return _disposition_main(argv)
     args = parser().parse_args(argv)
     if args.command == "hook":
         return run_hook(args)
