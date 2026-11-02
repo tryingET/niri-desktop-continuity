@@ -17,6 +17,11 @@ cache into the jail to build the wheel offline. They now skip with a reason that
 `docs/engineering.local.md`, which describes the whole local test environment: display variables,
 `umask 022`, a `/usr`-based `.venv`, a short real `TMPDIR` and how to fill a private cache.
 
+The portability tests' scratch repository disabled the global and system git config, but git
+still read its default global ignore file, `~/.config/git/ignore`. Once that file listed
+`.ontology/`, the test that expects unignored development state to be refused passed on a runner
+and failed on the workstation. The fixture now also sets `core.excludesFile` to `/dev/null`.
+
 Proof: from a desktop shell, the 64 resource tests pass and the two installed-wheel tests skip with
 the stated reason; before the change the same command failed. umask handling was not added: the
 fixtures' umask need is documented, and nothing failed for it on this workstation.

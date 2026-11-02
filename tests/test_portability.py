@@ -46,6 +46,10 @@ def source_repo(tmp_path, monkeypatch):
             monkeypatch.delenv(key)
     monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
     monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    # Without a global config git still reads its default ignore file, ~/.config/git/ignore.
+    monkeypatch.setenv("GIT_CONFIG_COUNT", "1")
+    monkeypatch.setenv("GIT_CONFIG_KEY_0", "core.excludesFile")
+    monkeypatch.setenv("GIT_CONFIG_VALUE_0", os.devnull)
     subprocess.run(["git", "init", "--quiet", "--template=", str(tmp_path)], check=True)
     ignore = Path(__file__).resolve().parents[1] / ".gitignore"
     (tmp_path / ".gitignore").write_text(ignore.read_text())
