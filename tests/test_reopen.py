@@ -18,7 +18,6 @@ from niri_desktop_continuity import (  # noqa: E402
     operation_lock,
     probe,
     reopen,
-    restore,
 )
 from niri_desktop_continuity.model import normalized_snapshot  # noqa: E402
 from niri_desktop_continuity.store import Store  # noqa: E402
@@ -35,11 +34,7 @@ def isolated(tmp_path, monkeypatch):
     for module in (launch, launch_sessions):
         monkeypatch.setattr(module, "declaration_root", lambda: runtime / "declared")
     monkeypatch.setattr(probe, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
-    monkeypatch.setattr(restore, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
     monkeypatch.setattr(reopen, "session_locked", lambda: False)
-    from niri_desktop_continuity import restore_host
-
-    monkeypatch.setattr(restore_host, "route", lambda identity: None)
 
 
 def window(wid, workspace, column, *, app="com.mitchellh.ghostty", tile=1, reopen=None, **extra):
@@ -305,8 +300,8 @@ def test_declared_reopen_starts_a_fresh_session_from_a_handoff(monkeypatch):
         }
     }
     # A declared recipe reopens on its saved workspace like any other known recipe.
-    plan = restore.plan_restore(saved([window(1, 2, 1, reopen=recipes[1])]), [], [])
-    assert plan["entries"][0]["target_workspace_idx"] == 1
+    plan = reopen.plan(saved([window(1, 2, 1, reopen=recipes[1])]), [], entries=[], users={})
+    assert plan["slots"][0]["target_workspace_idx"] == 1
     assert plan["unknown_workspace_idx"] is None
     assert launch.clear_declaration(11) is True
     assert not path.exists()
@@ -646,10 +641,6 @@ class FakeDesktop:
             for ws in self.workspace_list
         ]
 
-    def outputs(self, *, deadline=None):
-        # Same explicit fabricated inventory as saved()/observation(), not a runtime fallback.
-        return [{"name": "DP-1", "logical": {"w": 1}, "current_mode": 0}]
-
     def ready(self):
         return True
 
@@ -686,88 +677,6 @@ def observation(desktop):
         }
 
     return observe
-
-
-def test_reopen_places_columns_after_protected_windows_and_restores_focus(tmp_path):
-    store = Store(tmp_path / "state")
-    key = store.put(
-        "snapshots",
-        saved(
-            [
-                window(1, 1, 1, app="brave", reopen=recipe("app", "brave")),
-                window(2, 1, 2, app="ghostty", reopen=recipe("pi", "ghostty", "-e", "pi")),
-                window(
-                    3, 1, 2, app="ghostty", tile=2, reopen=recipe("pi", "ghostty", "-e", "pi", "2")
-                ),
-                window(4, 2, 1, app="obsidian", reopen=recipe("app", "obsidian")),
-                window(5, 2, 1, reopen=recipe("unknown")),
-            ]
-        ),
-    )
-    live = [window(7, 1, 1, app="ghostty", is_focused=True), window(8, 1, 2, app="brave")]
-    desktop = FakeDesktop(live)
-    result = restore.restore(
-        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=2
-    )
-    # Legacy application recipes and terminals without an explicit cwd have no ownership grant.
-    # Positive multi-host placement now has a substantive topology oracle in test_restore_integration.
-    assert result["status"] == "partial"
-    assert {w["window_id"]: w["status"] for w in result["windows"]} == dict.fromkeys(
-        range(1, 6), "unsupported"
-    )
-    assert desktop.actions == [] and desktop.live == live
-    assert store.pointer("last-reopened") is None
-    assert len(store.get("receipts", result["receipt_digest"])["windows"]) == 5
-
-
-def test_reopen_records_undetected_spawn_and_never_moves_protected(tmp_path):
-    store = Store(tmp_path / "state")
-    key = store.put("snapshots", saved([window(1, 1, 1, app="x", reopen=recipe("app", "x"))]))
-    desktop = FakeDesktop([window(7, 1, 1, app="x")], fail_spawn={("x",)})
-    result = restore.restore(
-        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
-    )
-    assert result["windows"][0]["status"] == "unsupported"
-    assert result["status"] == "partial"
-    assert desktop.actions == [] and desktop.live[0]["id"] == 7
-
-
-def test_mismatched_app_id_never_supplies_ownership(tmp_path):
-    store = Store(tmp_path / "state")
-    key = store.put("snapshots", saved([window(1, 1, 1, app="x", reopen=recipe("app", "x"))]))
-    desktop = FakeDesktop([], mismatched_app={("x",)})
-    result = restore.restore(
-        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=1
-    )
-    assert result["windows"][0]["status"] == "unsupported"
-    assert desktop.actions == [] and not desktop.live
-
-
-def test_self_restoring_app_is_launched_once_then_awaited(tmp_path):
-    store = Store(tmp_path / "state")
-    snapshot = saved(
-        [
-            window(1, 1, 1, app="brave-browser", reopen=recipe("app", "brave")),
-            window(2, 1, 2, app="brave-browser", reopen=recipe("app", "brave")),
-            window(3, 1, 3, app="brave-browser", reopen=recipe("app", "brave")),
-        ]
-    )
-    key = store.put("snapshots", snapshot)
-
-    class Browser(FakeDesktop):
-        def spawn(self, argv):
-            super().spawn(argv)
-            # One launch restores two windows by itself.
-            self.next_id += 1
-            self.live.append(window(self.next_id, 1, len(self.live) + 1, app="brave-browser"))
-
-    desktop = Browser([])
-    result = restore.restore(
-        store, key, desktop, apply=True, observe=observation(desktop), spawn_timeout=2
-    )
-    assert desktop.actions == [] and desktop.live == []
-    assert [w["status"] for w in result["windows"]] == ["unsupported"] * 3
-    assert result["status"] == "partial" and store.pointer("last-reopened") is None
 
 
 def test_app_reopens_in_its_saved_directory(tmp_path):
