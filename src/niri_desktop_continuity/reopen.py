@@ -316,40 +316,16 @@ def reopen(
         raise ValueError(
             "the session is locked: Niri would not launch anything; unlock and run again"
         )
-    if apply:
-        from .restore_exited import historical_replay
-
-        replay = historical_replay(snapshot, snapshot_key)  # exited-shell v3 sources
-        if replay is not None:
-            return replay
+    source = snapshot.get("identity")
+    if apply and isinstance(source, dict):
+        # The lock below covers the running compositor; this source may come from an earlier one.
+        locks.require_clear(source)
     identity = probe.compositor_identity()
-    # An unresolved earlier attempt still blocks --apply; a dry run only serializes.
+    # A record of the retired strict engine blocks --apply; a dry run only serializes.
     with locks.operation_lock(identity, effectful=apply):
-        replay = historical(identity, snapshot_key) if apply else None
-        if replay is not None:
-            return replay
         current = observe()
         the_plan = plan(snapshot, current["windows"], entries=entries, users=users)
         return _run(store, snapshot_key, desktop, current, the_plan, apply, spawn_timeout)
-
-
-def historical(identity: dict, key: str) -> dict | None:
-    """A source the earlier strict engine already attempted gets its recorded answer, no effects."""
-    from . import restore_history as history
-
-    completed = history.admit(identity)[0]
-    found = next((h for h in completed if h["snapshot_digest"] == key), None)
-    if found is None:
-        return None
-    accepted = found["result"]["status"] == "operator-accepted-partial"
-    return {
-        "snapshot_digest": key,
-        "receipt_digest": found["receipt_digest"],
-        **found["result"],
-        "historical": True,
-        "fresh_native_verification": False,
-        **({"effects": [], "retry_authorized": False} if accepted else {}),
-    }
 
 
 def _run(store, snapshot_key, desktop, current, the_plan, apply, spawn_timeout) -> dict:

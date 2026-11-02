@@ -16,6 +16,29 @@ def runtime_root() -> Path:
     return Path(f"/run/user/{os.getuid()}")
 
 
+def fence_path(identity: dict) -> Path:
+    """Where the retired strict restore engine kept one compositor instance's attempts."""
+    pin = {key: identity.get(key) for key in ("boot_id", "socket_device", "socket_inode")}
+    return runtime_root() / "niri-desktop-continuity-locks" / f"{digest(pin)}.restore"
+
+
+def require_clear(identity: dict) -> None:
+    """Any record that engine left for this compositor refuses effects; none is read or removed.
+
+    Nothing writes these records any more, and they are named by boot and compositor socket, so
+    the fence ends with the compositor it belongs to. A check that fails refuses too.
+    """
+    fence = fence_path(identity)
+    for path in (fence, fence.with_suffix(".permit")):
+        try:
+            os.lstat(path)
+        except FileNotFoundError:
+            continue
+        raise ValueError(
+            "a strict restore record fences this compositor until it restarts; no action taken"
+        )
+
+
 @contextmanager
 def operation_lock(
     identity: dict,
@@ -60,8 +83,6 @@ def operation_lock(
                 "another continuity writer owns this compositor; no action taken"
             ) from None
         if effectful:
-            from .restore_history import require_clear
-
             require_clear(identity)
         # Only the explicitly pinned effect worker may receive this descriptor.
         # flock is retained by that worker's copy even if the coordinator exits.

@@ -34,7 +34,6 @@ def isolated(tmp_path, monkeypatch):
     for module in (launch, launch_sessions):
         monkeypatch.setattr(module, "declaration_root", lambda: runtime / "declared")
     monkeypatch.setattr(probe, "compositor_identity", lambda: {**IDENTITY, "boot_id": "new"})
-    monkeypatch.setattr(reopen, "session_locked", lambda: False)
 
 
 def window(wid, workspace, column, *, app="com.mitchellh.ghostty", tile=1, reopen=None, **extra):
