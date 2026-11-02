@@ -1,17 +1,12 @@
 """Structural original-byte evidence and ONE pre-fix pending-width family, never executable."""
 
-import hashlib
-import json
-import os
 import re
-import stat
 from copy import deepcopy
-from pathlib import Path
 
 from . import restore_geometry as geometry
 from . import restore_state as states
 from .model import digest
-from .store import check_file, private_directory
+from .store import evidence, json_bytes, raw  # noqa: F401 - names the strict readers still use
 
 PATTERN = [
     "prepared",
@@ -24,59 +19,6 @@ PATTERN = [
     "observed",
     "intent",
 ]
-
-
-def raw(path):
-    """Bound private path, inode and exact bytes; refuse replacement during the read."""
-    path = Path(path).absolute()
-    private_directory(path.parent, create=False)
-    parent = path.parent.stat()
-    check_file(path)
-    before = path.lstat()
-    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
-    with os.fdopen(fd, "rb") as stream:
-        opened = os.fstat(stream.fileno())
-        if (
-            not stat.S_ISREG(opened.st_mode)
-            or opened.st_uid != os.getuid()
-            or opened.st_nlink != 1
-            or opened.st_mode & 0o077
-        ):
-            raise ValueError("original evidence is not a private single-link regular file")
-        data = stream.read(16 * 1024 * 1024 + 1)
-        after = os.fstat(stream.fileno())
-    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns", "st_uid", "st_mode")
-    if len(data) > 16 * 1024 * 1024 or any(
-        len({getattr(s, k) for s in (before, opened, after, path.lstat())}) != 1 for k in fields
-    ):
-        raise ValueError("original evidence changed during read")
-    current_parent = path.parent.stat()
-    if (parent.st_dev, parent.st_ino) != (current_parent.st_dev, current_parent.st_ino):
-        raise ValueError("original evidence directory changed during read")
-    return data, {
-        "path": str(path),
-        "directory": {"device": parent.st_dev, "inode": parent.st_ino},
-        "device": after.st_dev,
-        "inode": after.st_ino,
-        "sha256": hashlib.sha256(data).hexdigest(),
-        "length": len(data),
-    }
-
-
-def json_bytes(data):
-    from .restore_wire import _finite_float, _nonfinite, _pairs
-
-    value = json.loads(
-        data, object_pairs_hook=_pairs, parse_constant=_nonfinite, parse_float=_finite_float
-    )
-    digest(value)
-    return value
-
-
-def evidence(path):
-    data, pin = raw(path)
-    value = json_bytes(data)
-    return value, {**pin, "digest": digest(value)}
 
 
 def structural(identity, *, strict=False, limits=None, counters=None, expected=(), reader=None):

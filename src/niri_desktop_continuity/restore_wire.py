@@ -9,6 +9,8 @@ import socket
 import struct
 import time
 
+from .store import _finite_float, _nonfinite, _pairs
+
 MAX_FRAME = 128 * 1024
 
 
@@ -16,26 +18,6 @@ def remaining(deadline: float) -> float:
     value = deadline - time.monotonic()
     if not math.isfinite(value) or value <= 0 or value > 300:
         raise TimeoutError("bootstrap absolute deadline exceeded or invalid")
-    return value
-
-
-def _pairs(items):
-    result = {}
-    for key, value in items:
-        if key in result:
-            raise ValueError("duplicate bootstrap field")
-        result[key] = value
-    return result
-
-
-def _nonfinite(_):
-    raise ValueError("nonfinite bootstrap number")
-
-
-def _finite_float(text: str) -> float:
-    value = float(text)
-    if not math.isfinite(value):
-        raise ValueError("nonfinite bootstrap number")
     return value
 
 

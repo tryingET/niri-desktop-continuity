@@ -5,8 +5,7 @@ from pathlib import Path
 
 import pytest
 
-from niri_desktop_continuity.restore_retained import evidence
-from niri_desktop_continuity.store import Store, sync_artifact
+from niri_desktop_continuity.store import Store, evidence, sync_artifact
 
 
 @pytest.mark.parametrize("failure", ["file", "directory"])
@@ -111,3 +110,49 @@ def test_existing_partial_json_is_not_repaired_by_put(tmp_path):
     with pytest.raises(ValueError):
         store.put("plans", value)
     assert path.read_bytes() == b'{"fabricated":'
+
+
+def stored(tmp_path):
+    store = Store(tmp_path / "store")
+    return store.path("receipts", store.put("receipts", {"fabricated": "immutable"}))
+
+
+def test_evidence_refuses_a_hard_linked_artifact(tmp_path):
+    path = stored(tmp_path)
+    os.link(path, tmp_path / "second-name")
+    with pytest.raises(ValueError):
+        evidence(path)
+
+
+def test_evidence_refuses_an_artifact_that_changes_during_the_read(tmp_path, monkeypatch):
+    path = stored(tmp_path)
+    fstat, calls = os.fstat, []
+
+    def changing(fd):
+        calls.append(fd)
+        if len(calls) == 2:  # after the bytes were read, before the closing comparison
+            with open(path, "ab") as stream:
+                stream.write(b"\n")
+        return fstat(fd)
+
+    monkeypatch.setattr(os, "fstat", changing)
+    with pytest.raises(ValueError, match="changed during read"):
+        evidence(path)
+
+
+def test_evidence_refuses_a_directory_replaced_during_the_read(tmp_path, monkeypatch):
+    path = stored(tmp_path)
+    fstat, calls = os.fstat, []
+
+    def replacing(fd):
+        calls.append(fd)
+        if len(calls) == 2:
+            aside = path.parent.with_name("aside")
+            path.parent.rename(aside)
+            path.parent.mkdir(mode=0o700)
+            (aside / path.name).rename(path)
+        return fstat(fd)
+
+    monkeypatch.setattr(os, "fstat", replacing)
+    with pytest.raises(ValueError, match="changed during read"):
+        evidence(path)

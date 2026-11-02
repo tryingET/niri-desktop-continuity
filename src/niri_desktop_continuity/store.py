@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import json
+import math
 import os
 import re
 import stat
@@ -16,6 +17,33 @@ from .model import digest, readiness, require_snapshot, verify
 RECOVERY_MARKERS = {"recovery-prepared", "recovery-ready", "recovery-terminal", "recovery-events"}
 KINDS = {"snapshots", "plans", "approvals", "used", "receipts", "previews"} | RECOVERY_MARKERS
 HEX = re.compile(r"[0-9a-f]{64}\Z")
+
+
+def _pairs(items):
+    result = {}
+    for key, value in items:
+        if key in result:
+            raise ValueError("duplicate JSON field")
+        result[key] = value
+    return result
+
+
+def _nonfinite(_):
+    raise ValueError("nonfinite JSON number")
+
+
+def _finite_float(text: str) -> float:
+    value = float(text)
+    if not math.isfinite(value):
+        raise ValueError("nonfinite JSON number")
+    return value
+
+
+def strict_json(text):
+    """Closed JSON: duplicate fields and non-finite numbers refuse at any depth."""
+    return json.loads(
+        text, object_pairs_hook=_pairs, parse_constant=_nonfinite, parse_float=_finite_float
+    )
 
 
 def default_root() -> Path:
@@ -148,6 +176,55 @@ def sync_artifact(pin: dict) -> None:
         os.close(directory)
 
 
+def raw(path):
+    """Bound private path, inode and exact bytes; refuse replacement during the read."""
+    path = Path(path).absolute()
+    private_directory(path.parent, create=False)
+    parent = path.parent.stat()
+    check_file(path)
+    before = path.lstat()
+    fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
+    with os.fdopen(fd, "rb") as stream:
+        opened = os.fstat(stream.fileno())
+        if (
+            not stat.S_ISREG(opened.st_mode)
+            or opened.st_uid != os.getuid()
+            or opened.st_nlink != 1
+            or opened.st_mode & 0o077
+        ):
+            raise ValueError("original evidence is not a private single-link regular file")
+        data = stream.read(16 * 1024 * 1024 + 1)
+        after = os.fstat(stream.fileno())
+    fields = ("st_dev", "st_ino", "st_size", "st_mtime_ns", "st_ctime_ns", "st_uid", "st_mode")
+    if len(data) > 16 * 1024 * 1024 or any(
+        len({getattr(s, k) for s in (before, opened, after, path.lstat())}) != 1 for k in fields
+    ):
+        raise ValueError("original evidence changed during read")
+    current_parent = path.parent.stat()
+    if (parent.st_dev, parent.st_ino) != (current_parent.st_dev, current_parent.st_ino):
+        raise ValueError("original evidence directory changed during read")
+    return data, {
+        "path": str(path),
+        "directory": {"device": parent.st_dev, "inode": parent.st_ino},
+        "device": after.st_dev,
+        "inode": after.st_ino,
+        "sha256": hashlib.sha256(data).hexdigest(),
+        "length": len(data),
+    }
+
+
+def json_bytes(data):
+    value = strict_json(data)
+    digest(value)
+    return value
+
+
+def evidence(path):
+    data, pin = raw(path)
+    value = json_bytes(data)
+    return value, {**pin, "digest": digest(value)}
+
+
 class Store:
     def __init__(self, root: Path | None = None, *, create=True):
         self.root = (root or default_root()).absolute()
@@ -182,8 +259,6 @@ class Store:
         try:
             self._create(path, content)
         except FileExistsError:
-            from .restore_retained import evidence
-
             existing, pin = evidence(path)
             # ubs:ignore[python.ctcompare.secret_eq] -- Artifact integrity, not auth.
             if existing != value or pin["digest"] != key:
@@ -195,15 +270,8 @@ class Store:
         path = self.path(kind, key)
         check_file(path)
         fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW)
-        from .restore_wire import _finite_float, _nonfinite, _pairs
-
         with os.fdopen(fd) as stream:
-            value = json.load(
-                stream,
-                object_pairs_hook=_pairs,
-                parse_constant=_nonfinite,
-                parse_float=_finite_float,
-            )
+            value = strict_json(stream.read())
         # ubs:ignore[python.ctcompare.secret_eq] -- Content address, not auth.
         if not isinstance(value, dict) or digest(value) != key:
             raise ValueError("artifact integrity mismatch")
