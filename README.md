@@ -85,15 +85,16 @@ systemctl --user start niri-desktop-continuity-capture.service
 ```
 
 At login the restore service waits for niri, and for you to unlock if the session is locked, then
-reopens your latest capture. Keep your hands off the keyboard and mouse until its result page opens:
-niri has no atomic focus-and-move, so input during the run can send a column to the wrong place.
+reopens your latest capture. Keep your hands off the keyboard and mouse until the run is over: niri
+has no atomic focus-and-move, so input during the run can send a column to the wrong place. When it
+is over, its result page opens; if none opens, the journal below says why.
 
 ## After a reboot: what happened
 
-When the run is over, its result page opens in your browser: that is your sign that the windows have
-settled. It says how many windows came back, lists every window that did not with the reason, and
-shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` (a session that was open
-already), `APP ALREADY RUNNING` (not launched again; the app restores its own windows) or
+When the run is over, it opens its result page in your browser with `xdg-open`: that is your sign
+that the run has ended. It says how many windows came back, lists every window that did not with the
+reason, and shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` (a session that
+was open already), `APP ALREADY RUNNING` (not launched again; the app restores its own windows) or
 `NOT BACK`. A run that was refused or skipped, for example because the capture came from the niri
 that is running now, writes no page; the journal below says why.
 
