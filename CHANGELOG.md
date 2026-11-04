@@ -6,8 +6,17 @@ The release process is in [docs/release.md](docs/release.md).
 
 ## [0.3.0] - 2026-11-04
 
-The strict restore engine is removed. `restore` has run the reopen engine since 0.2.0 (first
-published as 0.2.1), and nothing has run the strict engine since.
+Every reopen now leaves a page that shows what came back and what did not. The strict restore
+engine is removed: `restore` has run the reopen engine since 0.2.0 (first published as 0.2.1), and
+nothing has run the strict engine since.
+
+### Added
+
+- `restore --apply`, including the login run, writes a result page for its run and adds its path to
+  the output as `report`. Every saved window is marked `BACK`, `ALREADY OPEN` or `NOT BACK`, in green
+  or red, and the windows that did not come back are listed with the reason.
+  `preview --kind receipts` writes the page again for the latest run, or for any run by its receipt
+  digest.
 
 ### Removed
 
@@ -27,8 +36,8 @@ published as 0.2.1), and nothing has run the strict engine since.
 - A saved file with a duplicate field or a non-finite number is refused as before, now with
   "duplicate JSON field" or "nonfinite JSON number" instead of a message about a bootstrap frame.
 
-`capture`, `preview`, `restore` without `--apply`, `restore --apply` without such a record,
-`autostart`, `declare` and `hook` behave as in 0.2.1.
+Apart from the result page, `capture`, `preview`, `restore` without `--apply`, `restore --apply`
+without such a record, `autostart`, `declare` and `hook` behave as in 0.2.1.
 
 ## [0.2.1] - 2026-11-02
 

@@ -69,9 +69,13 @@ def parser():
     plan.add_argument("--saved-set", help="owner-private saved-set digest; additive mode only")
     plan.add_argument("--omit-association", action="append", default=[])
     preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
-    preview.add_argument("digest", nargs="?", help="default: the latest capture (snapshots only)")
     preview.add_argument(
-        "--kind", choices=["snapshots", "plans", "profile", "resolution"], default="snapshots"
+        "digest", nargs="?", help="default: the latest capture, or the latest restore --apply run"
+    )
+    preview.add_argument(
+        "--kind",
+        choices=["snapshots", "plans", "receipts", "profile", "resolution"],
+        default="snapshots",
     )
     check = commands.add_parser("verify", help="compare with a fresh read-only observation")
     check.add_argument("desired")
@@ -174,7 +178,11 @@ def run(args):
                 raise ValueError("--clear takes no command")
             return {"cleared": launch.clear_declaration(args.pid), "pid": args.pid}, 0
         return {"declared": launch.declare(args.pid, argv, cwd=args.cwd, label=args.label)}, 0
-    if args.command == "preview" and args.digest is None and args.kind != "snapshots":
+    if (
+        args.command == "preview"
+        and args.digest is None
+        and args.kind not in {"snapshots", "receipts"}
+    ):
         raise ValueError(f"--kind {args.kind} preview: digest required")
     if selected(args):
         return run_resolution(args)
@@ -249,6 +257,11 @@ def run(args):
             "selection": value["selection"],
             "affected": value["affected"],
         }, 0
+    if args.command == "preview" and args.kind == "receipts":
+        from .reopen_report import latest_run, write_report
+
+        page = write_report(store, args.digest or latest_run(store))
+        return {"html": str(page), "runtime_effects": "none", "approval": "not-granted"}, 0
     if args.command == "preview":
         from .map_preview import render_html, render_svg
 
@@ -340,6 +353,13 @@ def run_restore(args, store):
     if not 1 <= args.spawn_timeout <= 300:
         raise ValueError("spawn timeout must be 1..300 seconds")
     result = reopen(store, key, desktop, apply=args.apply, spawn_timeout=args.spawn_timeout)
+    if args.apply:
+        from .reopen_report import write_report
+
+        try:  # the run's result never depends on its page
+            result["report"] = str(write_report(store, result["receipt_digest"]))
+        except (ValueError, OSError, KeyError, TypeError) as exc:
+            result["report_error"] = str(exc)
     return result, 0 if result["status"] in {"dry-run", "reopened"} else 2
 
 

@@ -321,6 +321,19 @@ def saved_scope_html(plan):
     return "".join(rows)
 
 
+PAGE_CSS = """
+*{box-sizing:border-box}body{margin:0;background:var(--colors-neutral);color:var(--colors-on-surface);font-family:var(--typography-body-md-font-family);line-height:1.5}
+main{padding:var(--spacing-xl);max-width:1800px;margin:auto}h1,h2{font-family:var(--typography-display-font-family);font-weight:400}h1{font-size:clamp(32px,5vw,48px);margin:8px 0}h2{font-size:32px;margin-top:40px}h3{font-size:16px;font-weight:400}
+.kicker,small,.coordinate,code{font-family:var(--typography-label-caps-font-family)}.kicker{color:var(--colors-success);letter-spacing:.12em}.muted,small{color:var(--colors-secondary)}.warning{color:var(--colors-warning);border-left:4px solid var(--colors-warning);padding:16px;background:var(--colors-surface)}
+.workspace{border-top:1px solid var(--colors-muted);padding:8px 0 24px}.columns{display:flex;gap:16px;overflow:auto;padding-bottom:8px}.column{flex:0 0 240px}.coordinate{color:var(--colors-secondary);font-size:12px}.tile{padding:16px;background:var(--colors-surface);border:1px solid var(--colors-muted);border-radius:var(--rounded-sm);margin-bottom:8px;overflow-wrap:anywhere}.selected{border-color:var(--colors-success)}.tile p{margin:8px 0}small{font-size:11px}.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{padding:8px 16px;border-bottom:1px solid var(--colors-muted);text-align:left;vertical-align:top}td{overflow-wrap:anywhere}code{overflow-wrap:anywhere}.note{max-width:90ch}.reopen{display:block;margin-top:8px;color:var(--colors-primary)}.not-reopened{color:var(--colors-warning)}.reopen-summary{font-size:20px}#after-reboot td:first-child{white-space:nowrap}#after-reboot td code{font-size:13px}footer{margin-top:40px;border-top:1px solid var(--colors-muted);padding-top:16px}@media(max-width:600px){main{padding:16px}.column{flex-basis:210px}}
+"""
+
+
+def page_css() -> str:
+    """The design tokens and the shared page styles of every offline page."""
+    return (ASSETS / "tokens.css").read_text() + PAGE_CSS
+
+
 def render_html(snapshot, *, plan=None, plan_digest=None):
     require_snapshot(snapshot)
     selected = set((plan or {}).get("selection", {}).get("window_ids", []))
@@ -328,13 +341,7 @@ def render_html(snapshot, *, plan=None, plan_digest=None):
         "admission", {"status": "review-only", "blockers": [], "warnings": []}
     )
     status = readiness(snapshot)
-    css = (ASSETS / "tokens.css").read_text()
-    css += """
-*{box-sizing:border-box}body{margin:0;background:var(--colors-neutral);color:var(--colors-on-surface);font-family:var(--typography-body-md-font-family);line-height:1.5}
-main{padding:var(--spacing-xl);max-width:1800px;margin:auto}h1,h2{font-family:var(--typography-display-font-family);font-weight:400}h1{font-size:clamp(32px,5vw,48px);margin:8px 0}h2{font-size:32px;margin-top:40px}h3{font-size:16px;font-weight:400}
-.kicker,small,.coordinate,code{font-family:var(--typography-label-caps-font-family)}.kicker{color:var(--colors-success);letter-spacing:.12em}.muted,small{color:var(--colors-secondary)}.warning{color:var(--colors-warning);border-left:4px solid var(--colors-warning);padding:16px;background:var(--colors-surface)}
-.workspace{border-top:1px solid var(--colors-muted);padding:8px 0 24px}.columns{display:flex;gap:16px;overflow:auto;padding-bottom:8px}.column{flex:0 0 240px}.coordinate{color:var(--colors-secondary);font-size:12px}.tile{padding:16px;background:var(--colors-surface);border:1px solid var(--colors-muted);border-radius:var(--rounded-sm);margin-bottom:8px;overflow-wrap:anywhere}.selected{border-color:var(--colors-success)}.tile p{margin:8px 0}small{font-size:11px}.table-scroll{overflow:auto}table{border-collapse:collapse;width:100%}th,td{padding:8px 16px;border-bottom:1px solid var(--colors-muted);text-align:left;vertical-align:top}td{overflow-wrap:anywhere}code{overflow-wrap:anywhere}.note{max-width:90ch}.reopen{display:block;margin-top:8px;color:var(--colors-primary)}.not-reopened{color:var(--colors-warning)}.reopen-summary{font-size:20px}#after-reboot td:first-child{white-space:nowrap}#after-reboot td code{font-size:13px}footer{margin-top:40px;border-top:1px solid var(--colors-muted);padding-top:16px}@media(max-width:600px){main{padding:16px}.column{flex-basis:210px}}
-"""
+    css = page_css()
     body = [
         f'<p class="kicker">NIRI / DESKTOP CONTINUITY</p><h1>Your work, where you left it.</h1>'
         f'<p class="muted">Captured {escape(snapshot.get("captured_at"))} · {len(snapshot["windows"])} windows · '

@@ -102,6 +102,15 @@ enough, such as an agent tab with no announced session; windows of applications 
 running count as done. Exit status 2 also means a refused or interrupted run, and the journal says
 which.
 
+Each `restore --apply` also writes a result page and prints its path as `report`. It marks every
+saved window green when it came back (or was already open) and red when it did not, and lists the
+ones that did not come back with the reason. To write it again for the latest run, or for any run by
+its receipt digest:
+
+```sh
+niri-desktop-continuity preview --kind receipts    # prints the path of the page; open it in a browser
+```
+
 When the latest capture is unusable because it saw no display (a screen that was off) or caught the
 desktop changing, the restore can fall back to the last capture that saw a usable display. It then
 logs one line with the `fallback_reason` first. A digest you name never falls back.

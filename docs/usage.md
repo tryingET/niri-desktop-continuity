@@ -72,7 +72,8 @@ Do not drop extras to manufacture a one-launch plan. The proposed sequence, not 
 
 ### Preview and verification
 
-`preview [digest]` renders a stored snapshot offline (default: the latest capture); `--kind plans`
+`preview [digest]` renders a stored snapshot offline (default: the latest capture); `--kind receipts`
+renders the result page of a `restore --apply` run (see [Save and reopen](#save-and-reopen)); `--kind plans`
 renders current and desired maps plus admission blockers and always needs a digest. A snapshot
 preview labels every tile with how it reopens and adds an **After a reboot** ledger: per window
 (and per extra tab session) whether `restore --apply` would reopen it, its kind, exact command and
@@ -124,8 +125,15 @@ Niri launches nothing while the session is locked, so `--apply` refuses a locked
 `LockedHint`) before launching anything, and `--at-login` waits up to 10 minutes for the unlock. If the
 lock state cannot be read, the session counts as unlocked.
 
-Every run writes one receipt (`reopened`, `reopened-partially`, `interrupted` or `dry-run`); exit 2
-means some window did not come back. `last-reopened` points at the last fully reopened snapshot.
+A run that reaches the reopen engine writes one receipt (`reopened`, `reopened-partially`,
+`interrupted` or `dry-run`); an early refusal or a same-instance skip writes none. Exit 2 means some
+window did not come back, or the run was refused or interrupted. `last-reopened` points at the last
+snapshot reopened fully or partially. Each `--apply` receipt also gets an offline result page,
+`previews/<receipt-digest>.html`, returned as `report` in the output (`report_error` if it could
+not be written; the run's result and receipt are unchanged). It marks each saved window and tab
+session `BACK as window <id>`, `ALREADY OPEN` or `NOT BACK (<reason>)` and lists the misses with a
+plain-language reason. `preview --kind receipts [digest]` writes that page again for a stored
+`--apply` receipt, by default the newest; a dry-run receipt is refused.
 Reopening is not recovered memory: applications restore their own content. **Stay idle** while it
 arranges columns; niri has no atomic focus-and-move.
 

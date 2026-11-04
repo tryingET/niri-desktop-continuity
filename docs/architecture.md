@@ -30,6 +30,8 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
 - `map_preview`: escaped offline schematic and complete HTML ledger, including the per-window
   reopen ledger read from saved recipes (it never imports or runs `reopen`). CSS is packaged beside
   the module; no access to a source checkout or external design service is needed after installation.
+- `reopen_report`: the offline result page of one `restore --apply` run, read from its stored
+  receipt and the snapshot it reopened: each window back, already open or not back, with reasons.
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
   only: Claude session registry, Pi presence, nodecode shell records pinned to the shell's start
   time, declarations, the foreground job's command). One agent-name table

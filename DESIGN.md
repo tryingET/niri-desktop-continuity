@@ -73,7 +73,9 @@ columns run horizontally with tiles grouped inside them. Floating windows have a
 ## Colors
 
 Use the front-matter palette. Amber always means caution, not successful recovery. Teal may
-mark selected scope or a measured predicate, never unverified application state.
+mark selected scope or a measured predicate, never unverified application state. On a reopen
+result page, success marks a window Niri reported during the run (back, or already open) and error
+marks one that did not come back. Both repeat a text status; application content stays unverified.
 
 ## Typography
 
@@ -83,7 +85,9 @@ fallbacks only. Full identifiers remain available as text even if a compact tile
 ## Layout
 
 Read top to bottom: capture timestamp and privacy; admission warning; current map; desired map
-when supplied, otherwise the after-reboot reopen ledger; process/version/scope ledger; limitations. Horizontal overflow is explicit, not
+when supplied, otherwise the after-reboot reopen ledger; process/version/scope ledger; limitations.
+A reopen result page reads: the run and its source capture; the came-back summary; an interruption
+warning when there was one; the did-not-come-back list with reasons; the saved map with outcomes. Horizontal overflow is explicit, not
 silently dropped. SVG is a schematic, not a screenshot or pixel-perfect viewport reconstruction.
 
 ## Elevation and Depth
@@ -104,6 +108,10 @@ On snapshot previews each tile states its reopen outcome in text (`reopens as <k
 `not reopened (<reason>)`), and the after-reboot ledger lists every window and tab session with
 a count summary, the exact recorded command and a plain-language reason for each miss. A miss is
 amber (caution); a reopen is plain text, never teal, because a recipe is not verified state.
+On a reopen result page each tile states `BACK as window <id>`, `ALREADY OPEN` or
+`NOT BACK (<reason>)`, with a 4px left edge in success or error, and each tab session gets its own
+line. The did-not-come-back list gives the saved place, the window, a plain-language reason with
+its code and the launched command, or that nothing was launched.
 
 ## Do's and Don'ts
 
