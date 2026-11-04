@@ -14,8 +14,9 @@ nothing has run the strict engine since.
 
 - `restore --apply`, including the login run, writes a result page for its run, adds its path to
   the output as `report` and opens it in your browser as its last step, so you see when it is done
-  (`--no-open` skips that). Every saved window is marked `BACK`, `ALREADY OPEN` or `NOT BACK`, in
-  green or red, and the windows that did not come back are listed with the reason.
+  (`--no-open` skips that). Every saved window is marked `BACK`, `ALREADY OPEN`,
+  `APP ALREADY RUNNING` or `NOT BACK`, in green or red, and the windows that did not come back are
+  listed with the reason.
   `preview --kind receipts` writes the page again for the latest run, or for any run by its receipt
   digest.
 

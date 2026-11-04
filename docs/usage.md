@@ -131,7 +131,9 @@ window did not come back, or the run was refused or interrupted. `last-reopened`
 snapshot reopened fully or partially. Each `--apply` receipt also gets an offline result page,
 `previews/<receipt-digest>.html`, returned as `report` in the output (`report_error` if it could
 not be written; the run's result and receipt are unchanged). It marks each saved window and tab
-session `BACK as window <id>`, `ALREADY OPEN` or `NOT BACK (<reason>)` and lists the misses with a
+session `BACK as window <id>`, `ALREADY OPEN` (its session's resume command was open),
+`APP ALREADY RUNNING` (the app had a window, so none of its saved windows was launched) or
+`NOT BACK (<reason>)` and lists the misses with a
 plain-language reason. As the run's last step, after the layout and focus are restored, it asks Niri
 to open the page with `xdg-open` (`report_open: requested`); `--no-open` skips that
 (`report_open: skipped`), and a missing `xdg-open` or failed spawn becomes `report_open_error`

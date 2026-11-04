@@ -6,8 +6,8 @@
 
 **Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
 reopen on their workspaces, in their columns, at their widths. Coding-agent sessions in
-[Ghostty](https://ghostty.org) resume by id. What it cannot reopen safely stays closed and is
-reported.
+[Ghostty](https://ghostty.org) resume by id. Windows it knows it cannot reopen safely, such as X11
+apps and agent tabs without a known session, stay closed and are reported.
 
 It is a single command-line tool built on Python's standard library. Once you opt in, it saves your
 desktop every 15 minutes and reopens it at login. It runs no daemon and makes no network requests.
@@ -29,7 +29,7 @@ says how its window comes back after a reboot, or why it will not.</sub>
 | Codex, or another agent whose `SessionStart` hook passes its session id | The session it announced through `hook` |
 | A command in a Ghostty tab | The same command, started again (`btop`, `just dev`) |
 | A shell in a Ghostty tab | A shell in the same directory |
-| An X11 window, or an agent with no known session | Not reopened; the preview and the plan say why |
+| An X11 window, or an agent tab in Ghostty with no known session | Not reopened; the preview and the plan say why |
 
 Applications restore their own content. Tabs, documents and drafts are theirs to bring back.
 
@@ -39,7 +39,7 @@ Applications restore their own content. Tabs, documents and drafts are theirs to
 - Python 3.11 or newer. There are no third-party runtime dependencies.
 - `xdg-open` (xdg-utils), to open the result page. Without it the page is still written.
 - Ghostty, for terminal tabs and the sessions in them. Other terminals reopen as ordinary
-  applications, without what ran inside them.
+  applications; see [Limits](#limits).
 
 ## Install
 
@@ -61,8 +61,9 @@ niri-desktop-continuity capture
 niri-desktop-continuity preview    # prints the path of an offline HTML page; open it in a browser
 ```
 
-The page's **After a reboot** section lists every saved window with its reopen recipe (kind, command
-and directory) or the reason it will not reopen.
+The page's **After a reboot** section lists every saved window with its saved reopen recipe (kind,
+command and directory) or the reason it will not reopen. Your routes and desktop entries can change
+the command that actually runs; `restore` without `--apply` shows the plan for the current desktop.
 
 ![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-after-reboot.png)
 
@@ -91,9 +92,12 @@ niri has no atomic focus-and-move, so input during the run can send a column to 
 
 When the run is over, its result page opens in your browser: that is your sign that the windows have
 settled. It says how many windows came back, lists every window that did not with the reason, and
-shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` or `NOT BACK`.
+shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` (a session that was open
+already), `APP ALREADY RUNNING` (not launched again; the app restores its own windows) or
+`NOT BACK`. A run that was refused or skipped, for example because the capture came from the niri
+that is running now, writes no page; the journal below says why.
 
-![The result page of a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
+![The result page of a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN, APP ALREADY RUNNING and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
 
 <sub>A fabricated login run on the demo desktop: Thunderbird had started itself, Brave reopened two of
 its three windows, and the two windows that are never replayed stayed closed.</sub>
@@ -144,9 +148,10 @@ second time.
 ## Agent sessions
 
 A recognised agent (`claude`, `codex`, `pi`, `angel` or `angelx`, `aider`, `gemini`, `opencode`, `goose`,
-`crush`, `qwen`, `grok`, `cursor-agent`) comes back only through a session it announced or one you
-declared. It is never relaunched from its command line, which would replay its opening prompt and
-start the same work over.
+`crush`, `qwen`, `grok`, `cursor-agent`) in a Ghostty tab or in a window of its own comes back only
+through a session it announced or one you declared. It is never relaunched from its command line,
+which would replay its opening prompt and start the same work over. Other terminals are not looked
+inside; see [Limits](#limits).
 
 - **Claude Code and Pi:** read directly. Nothing to set up.
 - **nodecode 0.1.6 and later:** records its own session. Nothing to set up.
@@ -163,8 +168,8 @@ start the same work over.
   where a tab should come back.
 - **angelX:** cannot announce a session yet, so its tabs are not reopened unless you declare them.
 
-A session this tool cannot resume, such as a Claude Code session started inside another one (it has
-no registry entry), can come back as a fresh session. Declare it while it still runs:
+A session this tool cannot resume, such as a Claude Code session missing from Claude's session
+registry, can come back as a fresh session. Declare it while it still runs:
 
 ```sh
 niri-desktop-continuity declare --pid <pid> -- claude "Continue from docs/handoff.md"
@@ -182,8 +187,8 @@ When it saves and reopens your desktop:
   go after them. Input during the run can still misdirect a move, which is why you stay idle.
 - **It launches each saved application instance at most once.** Only new windows with that
   application's app ID are adopted, never a window of another application.
-- **It does not replay an agent it cannot resume.** A recognised agent without an announced session
-  or a declaration is not relaunched.
+- **It does not replay an agent it cannot resume.** A recognised agent in a Ghostty tab or in a
+  window of its own is not relaunched without an announced session or a declaration.
 - **It refuses what it cannot identify.** An X11 window, an AppImage it cannot resolve or a window
   whose process it cannot read is reported, not launched.
 - **It drops saved sign-in and deep links.** When an application falls back to its saved command
@@ -208,6 +213,9 @@ When it saves and reopens your desktop:
 - **Applications decide how many windows they reopen.** If a browser restores fewer windows than were
   saved, the rest are reported `not-detected`; it is never launched a second time.
 - **Sessions in other tabs of one Ghostty window reopen as separate windows.**
+- **Other terminals are not looked inside.** kitty, foot, Alacritty, WezTerm and the rest reopen
+  from their own command line: what you started in them is not reopened, but a command they were
+  launched with (`kitty -e …`) runs again, even an agent with its opening prompt.
 - **Workspaces are matched by position, not by monitor.** Windows return to the first, second or
   third workspace and so on, with empty gaps closed up; which monitor they were on is not restored.
   Saved workspace names are set again, even on a workspace that has another name now.

@@ -39,7 +39,9 @@ CSS = """
 LEGEND = (
     '<ul class="legend">'
     '<li class="back"><b>BACK</b>reopened and moved to its saved place</li>'
-    '<li class="back"><b>ALREADY OPEN</b>open before the run, left as it was</li>'
+    '<li class="back"><b>ALREADY OPEN</b>this session was open before the run, left as it was</li>'
+    '<li class="back"><b>APP ALREADY RUNNING</b>not launched again; the app restores its own windows'
+    "</li>"
     '<li class="missed"><b>NOT BACK</b>did not come back; the list below says why</li></ul>'
 )
 
@@ -65,6 +67,8 @@ def badge(row: dict) -> str:
     status = row.get("status")
     if status == "placed":
         return f"BACK as window {escape(row.get('restored_window_id'))}"
+    if status == "already-running":
+        return "APP ALREADY RUNNING"
     if status in BACK:
         return "ALREADY OPEN"
     return f"NOT BACK ({escape(code(row))})"

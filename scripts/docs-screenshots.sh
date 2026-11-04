@@ -16,6 +16,6 @@ shot() { # page, CSS height, output name[, CSS width, scale]
 mkdir -p docs/assets
 shot preview.html 1312 preview-map.png
 shot after-reboot.html 1219 preview-after-reboot.png
-shot result.html 1204 reopen-result.png
+shot result.html 1385 reopen-result.png
 shot social.html 640 social-preview.png 1280 1 # upload in repo Settings > Social preview
 uv run --frozen python scripts/check-portability.py

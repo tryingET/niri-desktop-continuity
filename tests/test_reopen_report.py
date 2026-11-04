@@ -105,7 +105,7 @@ def test_page_says_what_came_back_and_lists_every_miss_with_its_reason():
     assert ".back{" in markup and "var(--colors-success)" in markup
     assert ".missed{" in markup and "var(--colors-error)" in markup
     legend = markup[markup.index('class="legend"') : markup.index("</ul>")]
-    for term in ("BACK</b>", "ALREADY OPEN</b>", "NOT BACK</b>"):
+    for term in ("BACK</b>", "ALREADY OPEN</b>", "APP ALREADY RUNNING</b>", "NOT BACK</b>"):
         assert term in legend
 
 
@@ -366,4 +366,4 @@ def test_documentation_demo_run_is_fabricated_and_shows_all_three_outcomes():
     missed = section(markup, "did-not-come-back")
     for code in ("claude-session-unregistered", "xwayland-client", "not-detected"):
         assert f"<code>{code}</code>" in missed
-    assert "ALREADY OPEN" in tile(markup, 16) and "BACK as window 101" in tile(markup, 1)
+    assert "APP ALREADY RUNNING" in tile(markup, 16) and "BACK as window 101" in tile(markup, 1)
