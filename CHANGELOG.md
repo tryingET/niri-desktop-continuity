@@ -4,6 +4,21 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.3.1] - 2026-11-04
+
+No change to what the tool does; its documentation now says exactly that.
+
+### Fixed
+
+- `--help` for `restore` says it reopens the windows of a saved desktop and, without a digest, uses
+  the latest capture or the last display-valid one. `preview`, `inspect`, `reconcile` and `approve`
+  name their profile and resolution kinds.
+- The [usage guide](https://github.com/tryingET/niri-desktop-continuity/blob/v0.3.1/docs/usage.md)
+  now describes how adopted windows fill their places, when a session counts as already open, which
+  units `autostart` writes and what runs at enable time, which declaration or session decides for a
+  terminal tab, and when `capture` and `hook` fail, as the code does them.
+- The README and the PyPI page lead with a screenshot of the result page.
+
 ## [0.3.0] - 2026-11-04
 
 Every reopen now leaves a page that shows what came back and what did not. The strict restore
