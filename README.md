@@ -37,6 +37,7 @@ Applications restore their own content. Tabs, documents and drafts are theirs to
 
 - Linux with niri, and a systemd user session for the automatic save and reopen.
 - Python 3.11 or newer. There are no third-party runtime dependencies.
+- `xdg-open` (xdg-utils), to open the result page. Without it the page is still written.
 - Ghostty, for terminal tabs and the sessions in them. Other terminals reopen as ordinary
   applications, without what ran inside them.
 
@@ -83,17 +84,35 @@ systemctl --user start niri-desktop-continuity-capture.service
 ```
 
 At login the restore service waits for niri, and for you to unlock if the session is locked, then
-reopens your latest capture. Keep your hands off the keyboard and mouse until the windows settle:
+reopens your latest capture. Keep your hands off the keyboard and mouse until its result page opens:
 niri has no atomic focus-and-move, so input during the run can send a column to the wrong place.
 
 ## After a reboot: what happened
+
+When the run is over, its result page opens in your browser: that is your sign that the windows have
+settled. It says how many windows came back, lists every window that did not with the reason, and
+shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` or `NOT BACK`.
+
+![The result page of a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
+
+<sub>A fabricated login run on the demo desktop: Thunderbird had started itself, Brave reopened two of
+its three windows, and the two windows that are never replayed stayed closed.</sub>
+
+`restore --apply --no-open` writes the page without opening it. To write it again for the latest run,
+or for any run by its receipt digest:
+
+```sh
+niri-desktop-continuity preview --kind receipts    # prints the path of the page
+```
+
+The journal has the run in full:
 
 ```sh
 journalctl --user -b -u niri-desktop-continuity-restore
 ```
 
-The journal shows what the login run did. A run that got as far as reopening prints its receipt,
-and a copy is kept with your captures. The receipt's `status` is `reopened` when nothing failed and
+A run that got as far as reopening prints its receipt, with the page's path as `report`, and a copy
+is kept with your captures. The receipt's `status` is `reopened` when nothing failed and
 `reopened-partially` when some windows did not come back. Each window has its own `status`, for
 example `placed`, `already-running` or `not-detected`, and a refused window also has a `reason`.
 
@@ -101,15 +120,6 @@ A partial run exits with status 2, so systemd shows the unit as **failed**. One 
 enough, such as an agent tab with no announced session; windows of applications that were already
 running count as done. Exit status 2 also means a refused or interrupted run, and the journal says
 which.
-
-Each `restore --apply` also writes a result page and prints its path as `report`. It marks every
-saved window green when it came back (or was already open) and red when it did not, and lists the
-ones that did not come back with the reason. To write it again for the latest run, or for any run by
-its receipt digest:
-
-```sh
-niri-desktop-continuity preview --kind receipts    # prints the path of the page; open it in a browser
-```
 
 When the latest capture is unusable because it saw no display (a screen that was off) or caught the
 desktop changing, the restore can fall back to the last capture that saw a usable display. It then
@@ -125,7 +135,8 @@ niri-desktop-continuity restore <digest> --apply   # reopen an older one
 ```
 
 The dry run launches and moves nothing. Use `--apply` when windows are gone while you stay logged in,
-for example after closing them by mistake. It skips every saved window of an application that already
+for example after closing them by mistake. Like the login run, it opens its result page when it is
+done. It skips every saved window of an application that already
 has a window open, and every agent session already open with the same reopen command. A plain shell
 or command tab cannot be recognised as already open, so on a desktop where it still runs it opens a
 second time.
@@ -181,8 +192,9 @@ When it saves and reopens your desktop:
   nothing else and edit none of your configuration.
 - **Capture never runs a program it finds.** It reads each window's process and hashes its
   executable.
-- **No network requests, telemetry or daemon.** The preview is static HTML with no scripts or remote
-  assets, and no browser is opened for you.
+- **No network requests, telemetry or daemon.** The preview and the result page are static HTML with
+  no scripts or remote assets. The only page opened for you is the result page, once, at the end of
+  a reopen.
 - **It never reads terminal contents or browser profiles.** Session ids come from Claude Code's
   session registry, Pi's presence files and nodecode's shell records. From a Claude Code transcript
   it extracts only session titles, to tell apart windows of one terminal process.

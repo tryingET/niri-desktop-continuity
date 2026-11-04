@@ -110,7 +110,7 @@ a count summary, the exact recorded command and a plain-language reason for each
 amber (caution); a reopen is plain text, never teal, because a recipe is not verified state.
 On a reopen result page each tile states `BACK as window <id>`, `ALREADY OPEN` or
 `NOT BACK (<reason>)`, with a 4px left edge in success or error, and each tab session gets its own
-line. The did-not-come-back list gives the saved place, the window, a plain-language reason with
+line. A legend under the summary explains the three outcomes. The did-not-come-back list gives the saved place, the window, a plain-language reason with
 its code and the launched command, or that nothing was launched.
 
 ## Do's and Don'ts
@@ -120,4 +120,5 @@ its code and the launched command, or that nothing was launched.
 - Do label unavailable geometry, versions, output readiness and native state as unknown.
 - Do default to redacted window labels; included titles remain private local data.
 - Don't infer hidden Ghostty tabs from compositor windows or title heuristics.
-- Don't auto-open the operator's browser or restart any process.
+- Don't auto-open the operator's browser, except the reopen result page: once, as the last step of
+  a `restore --apply` run, through Niri with `xdg-open`, unless `--no-open`. Never restart a process.

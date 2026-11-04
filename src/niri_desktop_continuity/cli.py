@@ -118,6 +118,9 @@ def parser():
         help="wait for Niri, skip when the capture came from this compositor instance",
     )
     reopen.add_argument("--spawn-timeout", type=float, default=25.0)
+    reopen.add_argument(
+        "--no-open", action="store_true", help="do not open the result page when the run ends"
+    )
     declared = commands.add_parser(
         "declare", help="how to reopen a live terminal process that cannot be resumed"
     )
@@ -357,9 +360,17 @@ def run_restore(args, store):
         from .reopen_report import write_report
 
         try:  # the run's result never depends on its page
-            result["report"] = str(write_report(store, result["receipt_digest"]))
+            page = write_report(store, result["receipt_digest"])
         except (ValueError, OSError, KeyError, TypeError) as exc:
             result["report_error"] = str(exc)
+        else:
+            result["report"] = str(page)
+            if args.no_open:
+                result["report_open"] = "skipped"
+            else:  # the last action: the page opening tells the user the run is over
+                from .reopen_report import open_report
+
+                result.update(open_report(desktop, page))
     return result, 0 if result["status"] in {"dry-run", "reopened"} else 2
 
 

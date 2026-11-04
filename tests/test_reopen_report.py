@@ -104,6 +104,9 @@ def test_page_says_what_came_back_and_lists_every_miss_with_its_reason():
     assert "tab session: BACK" in tile(markup, 1) and "tab session: NOT BACK" in tile(markup, 1)
     assert ".back{" in markup and "var(--colors-success)" in markup
     assert ".missed{" in markup and "var(--colors-error)" in markup
+    legend = markup[markup.index('class="legend"') : markup.index("</ul>")]
+    for term in ("BACK</b>", "ALREADY OPEN</b>", "NOT BACK</b>"):
+        assert term in legend
 
 
 def test_page_has_no_active_content_and_escapes_every_saved_string():
@@ -220,26 +223,74 @@ def test_a_real_partial_run_writes_a_page_that_matches_its_receipt(engine):
     assert "NOT BACK" in tile(markup, 2) and "BACK as window" in tile(markup, 3)
 
 
-def test_restore_apply_reports_its_result_page(engine, monkeypatch):
+class Recorder:
+    """A desktop that records, in order, the reopen run and every spawn."""
+
+    def __init__(self, fail=None):
+        self.events, self.fail = [], fail
+
+    def spawn(self, argv):
+        if self.fail:
+            raise self.fail
+        self.events.append(("spawn", *argv))
+
+
+@pytest.fixture
+def cli_run(engine, monkeypatch):
+    from niri_desktop_continuity import reopen_report
+
+    desktop = Recorder()
     key = engine.save_snapshot(reopen_desktop())
 
-    def hermetic_reopen(store, snapshot_key, desktop, *, apply, spawn_timeout):
+    def hermetic_reopen(store, snapshot_key, live, *, apply, spawn_timeout):
+        live.events.append(("reopen", apply))
         status = "reopened-partially" if apply else "dry-run"
         value = receipt(snapshot_key, mixed_rows(), apply=apply, status=status)
         return {"receipt_digest": store.put("receipts", value), **value}
 
-    monkeypatch.setattr(live_desktop, "LiveDesktop", lambda: SimpleNamespace())
+    monkeypatch.setattr(live_desktop, "LiveDesktop", lambda: desktop)
     monkeypatch.setattr(reopen, "reopen", hermetic_reopen)
+    monkeypatch.setattr(reopen_report.shutil, "which", lambda name: f"/fabricated/{name}")
     args = SimpleNamespace(snapshot=key, at_login=False, apply=True, spawn_timeout=25)
-    result, status = cli.run_restore(args, engine)
+    args.no_open = False
+    return SimpleNamespace(args=args, desktop=desktop, store=engine, module=reopen_report)
+
+
+def test_restore_apply_writes_its_result_page_and_opens_it_last(cli_run):
+    result, status = cli.run_restore(cli_run.args, cli_run.store)
     assert status == 2 and result["status"] == "reopened-partially"
-    assert Path(result["report"]) == engine.root / "previews" / f"{result['receipt_digest']}.html"
-    assert "6 of 10 came back" in Path(result["report"]).read_text()
-    stored = engine.get("receipts", result["receipt_digest"])
-    assert "report" not in stored  # the receipt itself is unchanged
-    args.apply = False
-    dry, status = cli.run_restore(args, engine)
-    assert status == 0 and "report" not in dry
+    page = cli_run.store.root / "previews" / f"{result['receipt_digest']}.html"
+    assert Path(result["report"]) == page and "6 of 10 came back" in page.read_text()
+    # Oracle: the reopen ran, then exactly one spawn opened exactly this page.
+    assert cli_run.desktop.events == [
+        ("reopen", True),
+        ("spawn", "/fabricated/xdg-open", str(page)),
+    ]
+    assert result["report_open"] == "requested"
+    stored = cli_run.store.get("receipts", result["receipt_digest"])
+    assert "report" not in stored and "report_open" not in stored  # the receipt is unchanged
+    cli_run.args.apply = False
+    dry, status = cli.run_restore(cli_run.args, cli_run.store)
+    assert status == 0 and "report" not in dry and "report_open" not in dry
+    assert cli_run.desktop.events[-1] == ("reopen", False)
+
+
+def test_no_open_writes_the_page_but_opens_nothing(cli_run):
+    cli_run.args.no_open = True
+    result, _ = cli.run_restore(cli_run.args, cli_run.store)
+    assert Path(result["report"]).is_file() and result["report_open"] == "skipped"
+    assert cli_run.desktop.events == [("reopen", True)]
+
+
+def test_a_missing_or_failing_opener_never_changes_the_runs_result(cli_run, monkeypatch):
+    monkeypatch.setattr(cli_run.module.shutil, "which", lambda name: None)
+    result, status = cli.run_restore(cli_run.args, cli_run.store)
+    assert status == 2 and result["report_open_error"] == "xdg-open not found"
+    assert Path(result["report"]).is_file() and cli_run.desktop.events == [("reopen", True)]
+    monkeypatch.setattr(cli_run.module.shutil, "which", lambda name: f"/fabricated/{name}")
+    cli_run.desktop.fail = OSError("niri is gone")
+    result, status = cli.run_restore(cli_run.args, cli_run.store)
+    assert status == 2 and result["report_open_error"] == "niri is gone"
 
 
 def test_recipe_helper_is_the_preview_fixture():
@@ -263,13 +314,16 @@ def test_a_page_that_cannot_be_written_never_changes_the_runs_result(engine, mon
     def broken(store, key):
         raise OSError("disk full")
 
-    monkeypatch.setattr(live_desktop, "LiveDesktop", lambda: SimpleNamespace())
+    desktop = Recorder()
+    monkeypatch.setattr(live_desktop, "LiveDesktop", lambda: desktop)
     monkeypatch.setattr(reopen, "reopen", hermetic_reopen)
     monkeypatch.setattr(reopen_report, "write_report", broken)
     args = SimpleNamespace(snapshot=key, at_login=False, apply=True, spawn_timeout=25)
+    args.no_open = False
     result, status = cli.run_restore(args, engine)
     assert status == 0 and result["status"] == "reopened"
     assert result["report_error"] == "disk full" and "report" not in result
+    assert desktop.events == []  # a page that was not written is never opened
 
 
 def test_times_are_shown_in_the_local_time_zone(monkeypatch):
@@ -286,3 +340,30 @@ def test_times_are_shown_in_the_local_time_zone(monkeypatch):
         time.tzset()
     # Oracle: 20:41 and 15:39 UTC are 21:41 and 16:39 in Berlin on 2 November (CET, +01:00).
     assert "Reopened 2026-11-02 21:41+01:00 from the capture of 2026-11-02 16:39+01:00" in markup
+
+
+def test_documentation_demo_run_is_fabricated_and_shows_all_three_outcomes():
+    # The README screenshot of the result page is rendered from this fixture, never a real run.
+    import importlib.util
+
+    path = Path(__file__).resolve().parents[1] / "scripts/demo-desktop.py"
+    spec = importlib.util.spec_from_file_location("demo_desktop", path)
+    demo = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(demo)
+    source = demo.demo_snapshot()
+    run = demo.demo_receipt(source)
+    statuses = {row["window_id"]: row["status"] for row in run["windows"]}
+    # Handwritten oracle over the demo's 23 windows: 8-10 are Brave, 2 the unregistered Claude
+    # session, 7 the X11 IDE, 16 Thunderbird (garden-api 1-7, web 8-11, notes 12-15, chat 16-18,
+    # ops 19-23); 19 placed windows plus Thunderbird came back.
+    assert (
+        len(statuses) == 23 and statuses[10] == "not-detected" and statuses[16] == "already-running"
+    )
+    assert statuses[2] == statuses[7] == "not-reopened"
+    assert sum(status == "placed" for status in statuses.values()) == 19
+    markup = render_report(run, source)
+    assert "20 of 23 came back" in markup and "3 did not" in markup
+    missed = section(markup, "did-not-come-back")
+    for code in ("claude-session-unregistered", "xwayland-client", "not-detected"):
+        assert f"<code>{code}</code>" in missed
+    assert "ALREADY OPEN" in tile(markup, 16) and "BACK as window 101" in tile(markup, 1)

@@ -132,7 +132,10 @@ snapshot reopened fully or partially. Each `--apply` receipt also gets an offlin
 `previews/<receipt-digest>.html`, returned as `report` in the output (`report_error` if it could
 not be written; the run's result and receipt are unchanged). It marks each saved window and tab
 session `BACK as window <id>`, `ALREADY OPEN` or `NOT BACK (<reason>)` and lists the misses with a
-plain-language reason. `preview --kind receipts [digest]` writes that page again for a stored
+plain-language reason. As the run's last step, after the layout and focus are restored, it asks Niri
+to open the page with `xdg-open` (`report_open: requested`); `--no-open` skips that
+(`report_open: skipped`), and a missing `xdg-open` or failed spawn becomes `report_open_error`
+without changing the run's result. `preview --kind receipts [digest]` writes that page again for a stored
 `--apply` receipt, by default the newest; a dry-run receipt is refused.
 Reopening is not recovered memory: applications restore their own content. **Stay idle** while it
 arranges columns; niri has no atomic focus-and-move.

@@ -1,11 +1,13 @@
 """Offline result page of one `restore --apply` run: what came back, what did not and why.
 
-Reads only the stored receipt and the snapshot it reopened. No launch, network or desktop access.
+Rendering reads only the stored receipt and the snapshot it reopened: no launch, network or desktop
+access. `open_report` is the one effect: at the end of a run it asks Niri to open the page.
 """
 
 from __future__ import annotations
 
 import shlex
+import shutil
 from datetime import datetime
 from pathlib import Path
 
@@ -27,7 +29,19 @@ CSS = """
 .missed .outcome,.outcome.missed,.summary .missed,.why{color:var(--colors-error)}
 .outcome{display:block;margin-top:8px;font-family:var(--typography-label-caps-font-family);font-size:12px}
 #did-not-come-back td:first-child{white-space:nowrap}#did-not-come-back td code{font-size:13px}
+.summary{font-family:var(--typography-display-font-family);font-size:40px;line-height:1.2;margin:32px 0 16px}
+.summary strong{font-weight:400}.legend{display:flex;flex-wrap:wrap;gap:8px 24px;padding:0;margin:0 0 8px;list-style:none}
+.legend li{border-left:4px solid var(--colors-muted);padding:2px 0 2px 12px;color:var(--colors-secondary)}
+.legend li.back{border-color:var(--colors-success)}.legend li.missed{border-color:var(--colors-error)}
+.legend b{font-family:var(--typography-label-caps-font-family);font-size:12px;font-weight:400;margin-right:8px}
+.legend .back b{color:var(--colors-success)}.legend .missed b{color:var(--colors-error)}
 """
+LEGEND = (
+    '<ul class="legend">'
+    '<li class="back"><b>BACK</b>reopened and moved to its saved place</li>'
+    '<li class="back"><b>ALREADY OPEN</b>open before the run, left as it was</li>'
+    '<li class="missed"><b>NOT BACK</b>did not come back; the list below says why</li></ul>'
+)
 
 
 def local_time(value) -> str:
@@ -164,10 +178,10 @@ def render_report(receipt: dict, snapshot: dict, *, key: str | None = None) -> s
         f"{'private titles included' if titles else 'window titles redacted'}"
         + (f"<br>Receipt <code>{escape(key)}</code>" if key else "")
         + "</p>",
-        f'<p class="reopen-summary summary"><strong class="back">{back} of {len(rows)} came back'
-        "</strong> · "
+        f'<p class="summary"><strong class="back">{back} of {len(rows)} came back</strong> · '
         + (f'<span class="missed">{missed} did not</span>' if missed else "nothing was left out")
         + "</p>",
+        LEGEND,
     ]
     if receipt.get("status") == "interrupted":
         body.append(
@@ -180,8 +194,7 @@ def render_report(receipt: dict, snapshot: dict, *, key: str | None = None) -> s
     body.append(
         '<footer class="muted">Offline · no network · this page changes nothing. BACK means Niri '
         "reported a new window of that application during the run and it was moved to its saved "
-        "place; ALREADY OPEN means it was open before the run and left as it was. Applications "
-        "restore their own content.</footer>"
+        "place; applications restore their own content.</footer>"
     )
     return (
         '<!doctype html><html lang="en"><head><meta charset="utf-8">'
@@ -215,3 +228,15 @@ def latest_run(store) -> str:
         if receipt.get("schema") == RESTORE_SCHEMA and receipt.get("apply") is True:
             return key
     raise ValueError("no restore --apply run yet; nothing to show")
+
+
+def open_report(desktop, page: Path) -> dict:
+    """Ask Niri to open the page with xdg-open, as the run's last step; report what happened."""
+    opener = shutil.which("xdg-open")
+    if opener is None:
+        return {"report_open_error": "xdg-open not found"}
+    try:
+        desktop.spawn([opener, str(page)])
+    except (OSError, ValueError) as exc:
+        return {"report_open_error": str(exc)}
+    return {"report_open": "requested"}

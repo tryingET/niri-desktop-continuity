@@ -2,18 +2,23 @@
 """Fabricated demo desktop for documentation screenshots. Never render a real capture for docs.
 
 Usage: demo-desktop.py OUTPUT_DIRECTORY
-Writes preview.html (the page `preview` writes), after-reboot.html (only its reopen ledger) and
-social.html (a 2:1 link-preview card of its heading and first workspace).
+Writes preview.html (the page `preview` writes), after-reboot.html (only its reopen ledger),
+result.html (the page a fabricated `restore --apply` run leaves) and social.html (a 2:1
+link-preview card of its heading and first workspace).
 """
 
 from __future__ import annotations
 
+import os
 import sys
+import time
 from pathlib import Path
 
+from niri_desktop_continuity import reopen as engine
 from niri_desktop_continuity.launch import RECIPE_SCHEMA
 from niri_desktop_continuity.map_preview import render_html
 from niri_desktop_continuity.model import normalized_snapshot
+from niri_desktop_continuity.reopen_report import render_report
 
 GHOSTTY = 2210  # one single-instance terminal process owns every terminal window
 TERMINAL = "com.mitchellh.ghostty"
@@ -245,12 +250,50 @@ def demo_snapshot() -> dict:
     )
 
 
+def demo_receipt(snapshot: dict) -> dict:
+    """A fabricated login run: Thunderbird started itself first, Brave reopened two of its three
+    windows, the two windows that are never replayed stayed closed and everything else returned."""
+    the_plan = engine.plan(snapshot, [], entries=[], users={})
+    groups = {id(s): g for g in the_plan["groups"] for s in g["slots"]}
+    brave = [w["id"] for w in snapshot["windows"] if w["app_id"] == "brave-browser"]
+    rows, placed = [], 0
+    for slot in the_plan["slots"]:
+        row = engine.row(slot, groups.get(id(slot)))
+        if row.get("status") == "not-reopened":
+            pass
+        elif row["window_id"] == brave[-1]:
+            row["status"] = "not-detected"
+        elif row["app_id"] == "org.mozilla.Thunderbird":
+            row["status"] = "already-running"
+        else:
+            placed += 1
+            row["status"], row["restored_window_id"] = "placed", 100 + placed
+        rows.append(row)
+    return {
+        "schema": engine.RESTORE_SCHEMA,
+        "snapshot_digest": "0" * 64,
+        "started_at": "2026-09-18T19:02:00+00:00",
+        "finished_at": "2026-09-18T19:02:41+00:00",
+        "apply": True,
+        "protected_window_ids": [],
+        "unknown_workspace_idx": None,
+        "groups": len(the_plan["groups"]),
+        "windows": rows,
+        "effects": [],
+        "status": "reopened-partially",
+        "failures": sum(row["status"] in {"not-reopened", "not-detected"} for row in rows),
+    }
+
+
 if __name__ == "__main__":
     if len(sys.argv) != 2:
         raise SystemExit(__doc__)
     out = Path(sys.argv[1])
     out.mkdir(parents=True, exist_ok=True)
+    os.environ["TZ"] = "UTC"  # the result page shows local time; the docs show the same everywhere
+    time.tzset()
     markup = render_html(demo_snapshot())
+    (out / "result.html").write_text(render_report(demo_receipt(demo_snapshot()), demo_snapshot()))
     (out / "preview.html").write_text(markup)
     # The same page with every other section hidden, so a viewport screenshot shows the ledger.
     only = "main>:not(#after-reboot){display:none}#after-reboot{border-top:0;padding-top:0}"
