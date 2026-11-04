@@ -24,8 +24,8 @@ says how its window comes back after a reboot, or why it will not.</sub>
 |---|---|
 | An application | Launched once per saved instance, from your own route, its desktop entry or its saved command line. New windows with its app ID fill the saved places. |
 | Claude Code in Ghostty | `claude --resume <id>`, in the session's directory |
-| Pi in Ghostty | Pi's own resume command for that session |
-| nodecode in Ghostty | The resume command nodecode recorded for its session (nodecode 0.1.6 and later); without a record, like any other command |
+| Pi in Ghostty | Pi's own resume command for that session (needs a Pi extension, see [Agent sessions](#agent-sessions)) |
+| nodecode in Ghostty | The resume command nodecode recorded for its session (nodecode 0.1.5 and later); without a record, like any other command |
 | Codex, or another agent whose `SessionStart` hook passes its session id | The session it announced through `hook` |
 | A command in a Ghostty tab | The same command, started again (`btop`, `just dev`) |
 | A shell in a Ghostty tab | A shell in the same directory |
@@ -48,8 +48,8 @@ pipx install niri-desktop-continuity
 # or: uv tool install niri-desktop-continuity
 ```
 
-Releases are also on [GitHub](https://github.com/tryingET/niri-desktop-continuity/releases), with
-`SHA256SUMS`. What changed is in the
+Releases since 0.1.2 are also on
+[GitHub](https://github.com/tryingET/niri-desktop-continuity/releases), with `SHA256SUMS`. What changed is in the
 [changelog](https://github.com/tryingET/niri-desktop-continuity/blob/main/CHANGELOG.md).
 
 ## Quick start
@@ -155,20 +155,36 @@ which would replay its opening prompt and start the same work over. A terminal o
 that was started with an agent on its command line (`kitty -e claude …`) stays closed for the same
 reason; see [Limits](#limits).
 
-- **Claude Code and Pi:** read directly. Nothing to set up.
-- **nodecode 0.1.6 and later:** records its own session. Nothing to set up.
+- **Claude Code:** read from its per-process session registry, `~/.claude/sessions/<pid>.json`.
+  That registry is an undocumented part of Claude Code
+  ([anthropics/claude-code#100824](https://github.com/anthropics/claude-code/issues/100824)), so
+  the [`SessionStart` hook](https://code.claude.com/docs/en/hooks) below is the documented way to
+  cover every session.
+- **Pi:** needs the `session-presence` extension from
+  [`@tryinget/pi-little-helpers`](https://github.com/tryingET/pi-extensions/tree/main/packages/pi-little-helpers),
+  which records each Pi process's session. Install it with
+  `pi install npm:@tryinget/pi-little-helpers`
+  ([Pi packages](https://github.com/earendil-works/pi/blob/main/packages/coding-agent/docs/packages.md));
+  as with any Pi package, its extensions run code, so review it first.
+- **nodecode 0.1.5 and later:** records its own session
+  ([nodecode#52](https://github.com/nodecode-ai/nodecode/pull/52),
+  [release 0.1.5](https://github.com/nodecode-ai/nodecode/releases/tag/v0.1.5)). Nothing to set up.
 - **Codex, or another agent whose `SessionStart` hook passes its session id as JSON:** add one hook
   command to the agent's settings.
 
   ```sh
-  niri-desktop-continuity hook claude                           # also covers Claude sessions missing from its registry
+  niri-desktop-continuity hook claude                           # in ~/.claude/settings.json, hooks.SessionStart
   niri-desktop-continuity hook codex                            # in ~/.codex/hooks.json; trust it once with /hooks
   niri-desktop-continuity hook myagent -- myagent --resume {id} # any other agent
   ```
 
-  Codex sessions inside its shared daemon cannot be tied to a tab; start Codex with `--no-daemon`
-  where a tab should come back.
-- **angelX:** cannot announce a session yet, so its tabs are not reopened unless you declare them.
+  See [Codex hooks](https://developers.openai.com/codex/hooks). Interactive Codex sessions run in a
+  shared background server by default, which cannot be tied to a tab; start Codex with
+  [`--no-daemon`](https://developers.openai.com/codex/cli/reference) where a tab should come back.
+- **angelX:** gained a `SessionStart` hook in
+  [angelX#22](https://github.com/newjordan/angelX/pull/22), merged on 2 November 2026.
+  `niri-desktop-continuity hook angelx` is meant for it but has not been tested with it yet. Until
+  your angelX announces its session, its tabs are not reopened unless you declare them.
 
 A session this tool cannot resume, such as a Claude Code session missing from Claude's session
 registry, can come back as a fresh session. Declare it while it still runs:
@@ -204,7 +220,8 @@ When it saves and reopens your desktop:
   no scripts or remote assets. The only page opened for you is the result page, once, at the end of
   a reopen.
 - **It never reads terminal contents or browser profiles.** Session ids come from Claude Code's
-  session registry, Pi's presence files and nodecode's shell records. From a Claude Code transcript
+  session registry, Pi's presence files (from the extension above) and nodecode's shell records.
+  From a Claude Code transcript
   it extracts only session titles, to tell apart windows of one terminal process.
 
 ## Limits
@@ -271,6 +288,27 @@ Releases follow
 [docs/release.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/release.md);
 the preview's visual rules are in
 [DESIGN.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/DESIGN.md).
+
+## Credits
+
+- [niri](https://github.com/niri-wm/niri), by [Ivan Molodetskikh (YaLTeR)](https://github.com/YaLTeR)
+  and contributors. [Mastodon](https://mastodon.online/@YaLTeR)
+- [Ghostty](https://ghostty.org/), by [Mitchell Hashimoto](https://mitchellh.com) and contributors.
+  [X](https://x.com/mitchellh) · [Mastodon](https://hachyderm.io/@mitchellh)
+- [Claude Code](https://github.com/anthropics/claude-code), by [Anthropic](https://www.anthropic.com).
+  [X](https://x.com/AnthropicAI)
+- [Pi](https://github.com/earendil-works/pi), created by [Mario Zechner](https://mariozechner.at),
+  with Pi contributors. [X](https://x.com/badlogicgames) ·
+  [Mastodon](https://mastodon.gamedev.place/@badlogic) ·
+  [Bluesky](https://bsky.app/profile/mariozechner.at)
+- [nodecode](https://github.com/nodecode-ai/nodecode), by [Nodecode AI](https://nodecode.ai/).
+- [Codex](https://github.com/openai/codex), by [OpenAI](https://github.com/openai).
+  [X](https://x.com/OpenAIDevs)
+- [angelX](https://github.com/newjordan/angelX), by [Jordan Newman (newjordan)](https://github.com/newjordan)
+  and contributors. [X](https://x.com/FrostForger)
+- Pi session presence comes from
+  [pi-little-helpers](https://github.com/tryingET/pi-extensions/tree/main/packages/pi-little-helpers),
+  by [tryingET](https://github.com/tryingET).
 
 ## License
 

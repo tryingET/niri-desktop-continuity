@@ -89,7 +89,8 @@ or another refusal. Focus is reported separately. Native application state stays
 
 `capture` attaches a reopen recipe to every window (`reopen`): kind `app` (process argv and cwd),
 `claude` (`claude --resume <id>` inside the same terminal, from `~/.claude/sessions/<pid>.json`),
-`pi` (the presence directory's `resumeArgv`), `command` (the job in the tab's foreground, as it
+`pi` (the presence file's `resumeArgv`, written by the `session-presence` extension of
+`@tryinget/pi-little-helpers`), `command` (the job in the tab's foreground, as it
 was started: `just dev`, `bash start.sh`; a helper it detached or a background job is ignored),
 `shell` (terminal in the same directory) or `unknown` with a reason. Only Ghostty is read as a terminal:
 the terminal recipes use its `--working-directory` and `-e`, so other terminals are recorded as
@@ -210,9 +211,11 @@ Where the hook line goes:
   skips a new hook until you trust it once with `/hooks`. By default Codex runs sessions in a shared
   app-server daemon outside the terminal; such sessions cannot be tied to a tab, so start Codex with
   `--no-daemon` where a tab should come back.
-- **angelX:** its hooks are tool hooks only (`PreToolUse`/`PostToolUse`, no session ID), so angelX
-  cannot announce a session yet. Its tabs are refused, never replayed, until angelX gains a
-  `SessionStart` hook. `declare` on its PID works meanwhile.
+- **angelX:** releases before [angelX#22](https://github.com/newjordan/angelX/pull/22) (merged
+  2 November 2026) have tool hooks only (`PreToolUse`/`PostToolUse`, no session ID) and cannot
+  announce a session; their tabs are refused, never replayed. #22 adds a `SessionStart` hook in
+  `~/.angelX/hooks.json`; `hook angelx` (resume command `angelx --resume {id}`) is meant for it but
+  is untested with it. `declare` on its PID works either way.
 
 A nodecode shell is not an agent in this sense (it takes no opening prompt). When its record in
 `$XDG_RUNTIME_DIR/nodecode/shells/<pid>.json` (version 1, written by nodecode itself) names this
