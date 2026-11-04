@@ -17,7 +17,8 @@ Alpha, for niri on Linux only.
 
 <sub>The page that opens when the reopen is over, for a fabricated login run on the demo desktop:
 Thunderbird had started itself, Brave reopened two of its three windows, and the two windows that
-are never replayed stayed closed.</sub>
+are never replayed stayed closed. Watch the
+[39-second tour](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/announce/niri-desktop-continuity-0.3.1.mp4).</sub>
 
 ## What comes back
 

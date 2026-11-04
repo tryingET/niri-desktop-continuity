@@ -19,6 +19,68 @@ PNG_ASSETS = Path("docs/assets")
 PNG_SIGNATURE = b"\x89PNG\r\n\x1a\n"
 PNG_CHUNKS = {"IHDR", "PLTE", "tRNS", "IDAT", "IEND", "sRGB", "gAMA", "cHRM", "pHYs", "bKGD"}
 MAX_PNG_BYTES = 512 * 1024
+# The release announcement video is the only reviewed video: rendered from the fabricated demo
+# desktop with every metadata box stripped (`ffmpeg -map_metadata -1 -fflags +bitexact`). Its
+# boxes are walked; text-bearing ones are refused. Codec-private bytes inside mdat are not parsed.
+MP4_ASSETS = Path("docs/announce")
+MAX_MP4_BYTES = 8 * 1024 * 1024
+MP4_CONTAINERS = {"moov", "trak", "mdia", "minf", "stbl", "dinf", "edts", "mvex", "moof", "traf"}
+MP4_METADATA = {"udta", "meta", "ilst", "keys", "uuid", "xml "}
+# ffmpeg always writes this skeleton, which holds no text: udta > meta (version 0) > an unnamed
+# "mdir" handler > an empty ilst. A udta box is admitted only with exactly these bytes.
+EMPTY_UDTA = (
+    struct.pack(">I", 53)
+    + b"meta"
+    + bytes(4)
+    + struct.pack(">I", 33)
+    + b"hdlr"
+    + bytes(8)
+    + b"mdirappl"
+    + bytes(9)
+    + struct.pack(">I", 8)
+    + b"ilst"
+)
+MP4_HANDLERS = {b"", b"VideoHandler", b"SoundHandler"}
+
+
+def mp4_problems(data: bytes) -> list[str]:
+    if len(data) > MAX_MP4_BYTES:
+        return [f"MP4 asset exceeds {MAX_MP4_BYTES} bytes"]
+    if data[4:8] != b"ftyp":
+        return ["invalid MP4 asset"]
+    problems: set[str] = set()
+
+    def walk(start: int, end: int) -> bool:
+        offset = start
+        while offset < end:
+            if end - offset < 8:
+                return False
+            size, kind = (
+                struct.unpack(">I", data[offset : offset + 4])[0],
+                data[offset + 4 : offset + 8],
+            )
+            header = 8
+            if size == 1 and end - offset >= 16:
+                size, header = struct.unpack(">Q", data[offset + 8 : offset + 16])[0], 16
+            if size < header or offset + size > end:
+                return False
+            name = kind.decode("latin-1")
+            if name == "udta" and data[offset + header : offset + size] == EMPTY_UDTA:
+                pass
+            elif name in MP4_METADATA:
+                problems.add(f"MP4 box {name} not allowed (metadata can carry private text)")
+            elif name == "hdlr":
+                handler = data[offset + header + 24 : offset + size].rstrip(b"\x00")
+                if handler not in MP4_HANDLERS:
+                    problems.add("MP4 handler name not allowed (it can carry private text)")
+            elif name in MP4_CONTAINERS and not walk(offset + header, offset + size):
+                return False
+            offset += size
+        return True
+
+    if not walk(0, len(data)):
+        return ["invalid MP4 asset"]
+    return sorted(problems)
 
 
 def png_problems(data: bytes) -> list[str]:
@@ -121,6 +183,9 @@ def check() -> list[str]:
             continue
         if Path(name).parent == PNG_ASSETS and path.suffix == ".png":
             failures.extend(f"{name}: {problem}" for problem in png_problems(path.read_bytes()))
+            continue
+        if Path(name).parent == MP4_ASSETS and path.suffix == ".mp4":
+            failures.extend(f"{name}: {problem}" for problem in mp4_problems(path.read_bytes()))
             continue
         try:
             content = path.read_text(encoding="utf-8")
