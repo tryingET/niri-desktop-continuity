@@ -178,7 +178,13 @@ profiles, two processes of one app) each keep their own command line, launched o
 
 An agent process (`claude`, `codex`, `pi`, `angel`/`angelx`, `aider`, `gemini`, `opencode`, `goose`,
 `crush`, `qwen`, `grok`, `cursor-agent`) is never relaunched from its command line. It comes back
-from Claude Code's session registry, Pi's presence file, a `declare`, or a session it announced:
+from Claude Code's session registry, Pi's presence file, a `declare`, or a session it announced.
+A terminal other than Ghostty (kitty, foot, Alacritty, WezTerm, Konsole and others) reopens from
+its own command line; when any word of that line, including the text of an `sh -c` argument,
+names such an agent, the window is refused as `agent-in-other-terminal` instead. A word that only
+looks like an agent's name, such as a title, refuses too: refusing is the safe mistake.
+
+An agent announces its session through its `SessionStart` hook:
 
 ```sh
 # an agent's SessionStart hook; reads {"session_id": ..., "cwd": ...} on stdin

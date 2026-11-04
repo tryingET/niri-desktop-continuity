@@ -38,7 +38,14 @@ nothing has run the strict engine since.
 - A saved file with a duplicate field or a non-finite number is refused as before, now with
   "duplicate JSON field" or "nonfinite JSON number" instead of a message about a bootstrap frame.
 
-Apart from the result page, `capture`, `preview`, `restore` without `--apply`, `restore --apply`
+### Fixed
+
+- A terminal other than Ghostty that was started with a coding agent on its command line
+  (`kitty -e claude <prompt>`, `foot codex`) is no longer reopened, which replayed the agent's
+  opening prompt. It is reported as `agent-in-other-terminal`. Every word of that command line is
+  checked, so a terminal titled after an agent stays closed too.
+
+Apart from the result page and this fix, `capture`, `preview`, `restore` without `--apply`, `restore --apply`
 without such a record, `autostart`, `declare` and `hook` behave as in 0.2.1.
 
 ## [0.2.1] - 2026-11-02

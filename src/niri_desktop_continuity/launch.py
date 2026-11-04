@@ -30,6 +30,45 @@ CLAUDE_TITLE_PREFIX = "✳ "
 XWAYLAND_BRIDGE = "xwayland-satellite"
 # A type-2 AppImage runs its payload from a temporary FUSE mount named .mount_<name><random>.
 APPIMAGE_MOUNT_PREFIX = ".mount_"
+# Terminals other than Ghostty are not looked inside: they reopen from their own command line, so
+# an agent named on it (`kitty -e claude <prompt>`, `foot codex`) would replay its opening prompt.
+OTHER_TERMINALS = frozenset(
+    {
+        "alacritty",
+        "blackbox",
+        "contour",
+        "cool-retro-term",
+        "foot",
+        "footclient",
+        "gnome-terminal",
+        "gnome-terminal-server",
+        "guake",
+        "kgx",
+        "kitty",
+        "konsole",
+        "lxterminal",
+        "mate-terminal",
+        "ptyxis",
+        "qterminal",
+        "rio",
+        "rxvt",
+        "sakura",
+        "st",
+        "terminator",
+        "terminology",
+        "tilda",
+        "tilix",
+        "urxvt",
+        "urxvtc",
+        "uxterm",
+        "warp-terminal",
+        "wezterm",
+        "wezterm-gui",
+        "xfce4-terminal",
+        "xterm",
+        "yakuake",
+    }
+)
 
 
 def _unescape_mount_field(value: str) -> str:
@@ -68,7 +107,18 @@ def refusal(recipe: dict) -> str | None:
         program = Path(argv[0]).name.lower()
     if program in AGENT_NAMES:
         return "claude-session-unregistered" if program == "claude" else "agent-session-unannounced"
+    if program in OTHER_TERMINALS and embedded_agent(argv[1:]):
+        return "agent-in-other-terminal"
     return None if argv else "no-launch-command"
+
+
+def embedded_agent(arguments: list[str]) -> bool:
+    """Whether any word of a terminal's arguments names a coding agent, also inside `sh -c` text.
+
+    Errs on the safe side: a title that happens to be an agent's name keeps the window closed.
+    """
+    words = (word.strip("'\"") for argument in arguments for word in argument.split())
+    return any(Path(word).name.lower() in AGENT_NAMES for word in words if word)
 
 
 def is_terminal(app_id: str, comm: str) -> bool:

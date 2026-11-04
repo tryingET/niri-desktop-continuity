@@ -151,8 +151,9 @@ second time.
 A recognised agent (`claude`, `codex`, `pi`, `angel` or `angelx`, `aider`, `gemini`, `opencode`, `goose`,
 `crush`, `qwen`, `grok`, `cursor-agent`) in a Ghostty tab or in a window of its own comes back only
 through a session it announced or one you declared. It is never relaunched from its command line,
-which would replay its opening prompt and start the same work over. Other terminals are not looked
-inside; see [Limits](#limits).
+which would replay its opening prompt and start the same work over. A terminal of another kind
+that was started with an agent on its command line (`kitty -e claude …`) stays closed for the same
+reason; see [Limits](#limits).
 
 - **Claude Code and Pi:** read directly. Nothing to set up.
 - **nodecode 0.1.6 and later:** records its own session. Nothing to set up.
@@ -188,8 +189,9 @@ When it saves and reopens your desktop:
   go after them. Input during the run can still misdirect a move, which is why you stay idle.
 - **It launches each saved application instance at most once.** Only new windows with that
   application's app ID are adopted, never a window of another application.
-- **It does not replay an agent it cannot resume.** A recognised agent in a Ghostty tab or in a
-  window of its own is not relaunched without an announced session or a declaration.
+- **It does not replay an agent it cannot resume.** A recognised agent in a Ghostty tab, in a
+  window of its own or on another terminal's command line is not relaunched without an announced
+  session or a declaration.
 - **It refuses what it cannot identify.** An X11 window, an AppImage it cannot resolve or a window
   whose process it cannot read is reported, not launched.
 - **It drops saved sign-in and deep links.** When an application falls back to its saved command
@@ -215,8 +217,9 @@ When it saves and reopens your desktop:
   saved, the rest are reported `not-detected`; it is never launched a second time.
 - **Sessions in other tabs of one Ghostty window reopen as separate windows.**
 - **Other terminals are not looked inside.** kitty, foot, Alacritty, WezTerm and the rest reopen
-  from their own command line: what you started in them is not reopened, but a command they were
-  launched with (`kitty -e …`) runs again, even an agent with its opening prompt.
+  from their own command line: what you started in them is not reopened, and a command they were
+  launched with (`kitty -e htop`) runs again. If any word of that command line names a recognised
+  agent, the window stays closed and is reported, even when the word was only a title.
 - **Workspaces are matched by position, not by monitor.** Windows return to the first, second or
   third workspace and so on, with empty gaps closed up; which monitor they were on is not restored.
   Saved workspace names are set again, even on a workspace that has another name now.

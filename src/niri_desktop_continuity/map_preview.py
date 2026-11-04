@@ -34,6 +34,8 @@ NOT_REOPENED = {
     "its command line would start the work over",
     "agent-session-unannounced": "coding agent without an announced session (see `hook`); "
     "its command line would start the work over",
+    "agent-in-other-terminal": "coding agent on the command line of a terminal other than Ghostty; "
+    "reopening it would replay its opening prompt",
     "appimage-mount-unresolved": "AppImage temporary mount not traced to its image file",
     "process-title-unresolved": "the program rewrote its command line and no program file "
     "matches it",

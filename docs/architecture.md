@@ -36,7 +36,8 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
   only: Claude session registry, Pi presence, nodecode shell records pinned to the shell's start
   time, declarations, the foreground job's command). One agent-name table
-  refuses agent surfaces without an announced session; `hook` declares an agent's announced session.
+  refuses agent surfaces without an announced session, including an agent named on another
+  terminal's command line; `hook` declares an agent's announced session.
   Titles match sessions to windows and are never stored.
 - `routes`: where an app is launched from: user `routes.json`, desktop entry (XDG search, Desktop
   Entry `Exec` quoting, field codes dropped) or the captured command line without URL operands.
