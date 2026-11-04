@@ -12,8 +12,9 @@ read_when:
 identity metadata. It samples twice and rejects coherence if topology, focus, active workspace,
 layer list or window-host process identity changes. The `capture` command then reads again after
 1 s, or after 10 s when a Niri query failed or timed out, up to three readings in all. It saves the
-first coherent reading, else the last one that succeeded, and fails only when every reading failed;
-its output reports `samples` when it read more than once. Exact-output consumers must allow that
+first coherent reading, else the last one that succeeded. It fails when every reading failed, and
+at once, without another reading, on any other error, such as Niri output it cannot parse; its
+output reports `samples` when it read more than once. Exact-output consumers must allow that
 conditional field; retries can also change the saved content, timestamps and digest. Incoherence can result from
 changes or process-probe warnings; it does not establish that a focus switch caused an incident.
 This is bounded observation, not an atomic snapshot across processes. It never reads terminal
@@ -95,8 +96,8 @@ was started: `just dev`, `bash start.sh`; a helper it detached or a background j
 `shell` (terminal in the same directory) or `unknown` with a reason. Only Ghostty is read as a terminal:
 the terminal recipes use its `--working-directory` and `-e`, so other terminals are recorded as
 `app` (their own command line, nothing that ran inside). Titles are used only to match a
-session to its window when one terminal process owns several windows; they, and the session
-titles used for matching, are not stored unless `--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
+session to its window when one terminal process owns several windows or several sessions; they,
+and the session titles used for matching, are not stored unless `--include-titles` is given. Sessions found in extra tabs of a window become `extra` recipes.
 
 `restore [digest]` prints the plan: every saved window with its group, route (`terminal`,
 `desktop:<entry>`, `argv` or `user`), exact launch command and status (`planned`, `already-open`,
@@ -106,16 +107,17 @@ titles used for matching, are not stored unless `--include-titles` is given. Ses
    engine, for the running compositor or for the one the source came from, refuses `--apply` until
    that compositor restarts. No released version wrote such records.
 2. Groups launch one after another. An app group is every saved window of one process; it is spawned
-   **once** through Niri. New windows whose app ID equals the group's are adopted, in arrival order,
-   into the saved places, until the saved number arrived, none arrived for 5 s, or `--spawn-timeout`
-   (default 25 s) passed. Windows of other apps are never adopted. Fewer windows leave the remaining
-   places `not-detected`; there is no second launch. Extra windows stay where the app put them and
-   cannot be taken by a later group.
+   **once** through Niri. New windows whose app ID equals the group's are collected until the saved
+   number arrived, none arrived for 5 s after the first, or `--spawn-timeout` (default 25 s) passed,
+   and then fill the saved places in window-ID order. Windows of other apps are never adopted. Fewer
+   windows leave the remaining places `not-detected`; there is no second launch. Extra windows that
+   arrived during that wait stay where the app put them; a window of the same app that arrives
+   later can be adopted by a later group of that app.
 3. An app with any window already open is not launched and its windows are not touched
-   (`already-running`). A Claude, Pi or declared session whose resume command is already open is
-   `already-open`.
-4. Each saved Ghostty window is its own launch: `--gtk-single-instance=false`, the saved directory and
-   `-e` command, with your normal configuration (`--config-default-files=false` from earlier controlled
+   (`already-running`). A Claude, Pi, nodecode or declared session whose saved command line is
+   already running, compared argument for argument, is `already-open`.
+4. Each saved Ghostty window is its own launch: `--gtk-single-instance=false` (unless the saved
+   command line already sets single-instance), the saved directory and `-e` command, with your normal configuration (`--config-default-files=false` from earlier controlled
    restores is dropped).
 5. Adopted windows move to their saved workspace (saved workspaces compact to consecutive indices;
    windows without a known place go to one new last workspace), then columns are rebuilt after the
@@ -169,7 +171,7 @@ turning off a display never reopens an old desktop; the CLI then prints one JSON
 2. The desktop entry (XDG data directories, yours first) whose file name or `StartupWMClass` equals the
    app ID, case-insensitive, or whose `Exec` program is the captured executable. `Exec` is parsed by
    the Desktop Entry Specification's quoting rules; field codes such as `%U` are dropped, so no file or
-   URL is passed. Hidden, `Terminal=true` and failing `TryExec` entries are skipped.
+   URL from the capture is passed. Arguments written literally in `Exec` stay. Hidden, `Terminal=true` and failing `TryExec` entries are skipped.
 3. The captured command line, without operands that contain `://` (sign-in links, deep links).
 
 Rule 2 applies only when the snapshot has a single instance of that app. Two instances (two browser
@@ -196,9 +198,10 @@ niri-desktop-continuity hook myagent -- myagent --resume {id}
 
 `hook` finds the nearest ancestor process with the agent's name and declares the resume command for
 it, pinned to that process's start time (a reused PID never matches). A later `SessionStart` (a new
-session or thread switch) replaces the declaration. The program is resolved to an absolute path,
-because Niri's `PATH` can differ from the agent's. `hook` prints nothing on stdout (agents feed a
-`SessionStart` hook's stdout into their context) and exits 0 or 1, never 2. If the agent is not inside
+session or thread switch) replaces the declaration. The program is resolved to an absolute path
+when it is on the agent's `PATH`, because Niri's `PATH` can differ; otherwise it is kept as given.
+`hook` prints nothing on stdout (agents feed a `SessionStart` hook's stdout into their context) and,
+once its arguments parse, exits 0 or 1, never 2; malformed arguments exit 2 like any command. If the agent is not inside
 a terminal, nothing is declared and one line on stderr says so. Without an announced session, the tab
 is reported `agent-session-unannounced` (Claude: `claude-session-unregistered`); an agent running in
 its own window is refused the same way rather than relaunched with its opening prompt.
@@ -236,9 +239,12 @@ return bound. Exhaustion leaves the original error, not a new launch or permissi
 
 `restore --at-login` first waits up to 60 s for Niri and does nothing when the saved identity
 matches the running compositor instance. `autostart --enable [--interval-minutes N]
-[--keep-days N]` installs `niri-desktop-continuity-capture.timer` and
-`niri-desktop-continuity-restore.service` (wanted by `graphical-session.target`); `autostart
---disable` removes them; `autostart` alone reports status. `capture --keep-days N` then deletes
+[--keep-days N]` writes three units: `niri-desktop-continuity-capture.service`, its
+`niri-desktop-continuity-capture.timer` (wanted by `timers.target`, started at once) and
+`niri-desktop-continuity-restore.service` (wanted by `graphical-session.target`, run at the next
+login). Nothing is captured or reopened at enable time. `autostart --disable` removes the units and
+keeps your captures; `autostart` alone reports whether they are installed and enabled, not whether
+they ran. `capture --keep-days N` then deletes
 snapshots saved before the N most recent days that have captures (a day without captures does not
 count). A snapshot that a pointer, receipt, plan, approval, preview, recovery marker or the restore
 history names is always kept; without the option nothing is deleted.
@@ -260,8 +266,9 @@ recovered; the preview marks such commands), otherwise `unknown` (`process-title
 reopen the terminal surface that runs PID when nothing can resume it, e.g. a fresh session started
 from a handoff: `declare --pid 4242 -- claude "Continue from docs/handoff.md"`. The declaration
 lives in the per-boot runtime directory (`/run/user/<uid>/niri-desktop-continuity-declared`, 0600),
-is pinned to the process start time so a reused pid never matches, applies only when no native
-Claude or Pi session is found, and becomes kind `declared`. `declare --pid PID --clear` removes it.
+is pinned to the process start time so a reused pid never matches, and becomes kind `declared`.
+Capture looks at the tab's processes from the shell down, and the first one with a Claude, Pi or
+nodecode session or a declaration decides; on one process a session wins over a declaration. `declare --pid PID --clear` removes it.
 
 ## Planning
 

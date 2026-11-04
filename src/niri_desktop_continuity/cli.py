@@ -68,7 +68,10 @@ def parser():
     plan.add_argument("--mode", choices=["replacement", "additive"], default="replacement")
     plan.add_argument("--saved-set", help="owner-private saved-set digest; additive mode only")
     plan.add_argument("--omit-association", action="append", default=[])
-    preview = commands.add_parser("preview", help="offline HTML/SVG only; no browser launch")
+    preview = commands.add_parser(
+        "preview",
+        help="offline page of a capture, plan or restore run; profile/resolution print JSON",
+    )
     preview.add_argument(
         "digest", nargs="?", help="default: the latest capture, or the latest restore --apply run"
     )
@@ -80,11 +83,14 @@ def parser():
     check = commands.add_parser("verify", help="compare with a fresh read-only observation")
     check.add_argument("desired")
     check.add_argument("--kind", choices=["snapshots", "reconstruction"], default="snapshots")
-    inspect = commands.add_parser("inspect", help="inspect reconstruction history without effects")
+    inspect = commands.add_parser(
+        "inspect", help="inspect reconstruction or resolution history without effects"
+    )
     inspect.add_argument("attempt")
     inspect.add_argument("--kind", choices=["reconstruction", "resolution"], required=True)
     approval = commands.add_parser(
-        "approve", help="write exact one-use layout or reconstruction approval"
+        "approve",
+        help="write an exact one-use approval: layout, reconstruction, profile or resolution",
     )
     approval.add_argument("plan")
     approval.add_argument("--kind", choices=["profile", "resolution"])
@@ -98,7 +104,9 @@ def parser():
     reconstruct.add_argument("approval")
     reconstruct.add_argument("--apply", action="store_true")
     reconstruct.add_argument("--acknowledge-non-atomic-focus", action="store_true")
-    apply = commands.add_parser("reconcile", help="explicitly apply approved supported layout only")
+    apply = commands.add_parser(
+        "reconcile", help="apply an approved supported layout, or an approved resolution"
+    )
     apply.add_argument("approval")
     apply.add_argument("--kind", choices=["resolution"])
     apply.add_argument("--apply", action="store_true")
@@ -107,9 +115,11 @@ def parser():
         action="store_true",
         help="operator must remain idle; Niri focus+move cannot be atomic",
     )
-    reopen = commands.add_parser("restore", help="reopen every window of a saved desktop")
+    reopen = commands.add_parser("restore", help="reopen the windows of a saved desktop")
     reopen.add_argument(
-        "snapshot", nargs="?", help="snapshot digest; default latest display-valid capture"
+        "snapshot",
+        nargs="?",
+        help="snapshot digest; default: the latest capture, or the last display-valid one",
     )
     reopen.add_argument("--apply", action="store_true", help="without it: dry-run plan only")
     reopen.add_argument(
