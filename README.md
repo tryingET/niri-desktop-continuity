@@ -13,10 +13,11 @@ It is a single command-line tool built on Python's standard library. Once you op
 desktop every 15 minutes and reopens it at login. It runs no daemon and makes no network requests.
 Alpha, for niri on Linux only.
 
-![Offline preview of a fabricated demo desktop: a project workspace with Claude Code and Pi sessions, a dev server and an X11 IDE, then a browser workspace; each tile says whether it reopens after a reboot](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-map.png)
+![The result page that opens after a reboot, for a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN, APP ALREADY RUNNING and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
 
-<sub>The offline preview of a fabricated demo desktop, first two of its five workspaces. Every tile
-says how its window comes back after a reboot, or why it will not.</sub>
+<sub>The page that opens when the reopen is over, for a fabricated login run on the demo desktop:
+Thunderbird had started itself, Brave reopened two of its three windows, and the two windows that
+are never replayed stayed closed.</sub>
 
 ## What comes back
 
@@ -96,12 +97,8 @@ that the run has ended. It says how many windows came back, lists every window t
 reason, and shows your saved desktop with each window marked `BACK`, `ALREADY OPEN` (a session that
 was open already), `APP ALREADY RUNNING` (not launched again; the app restores its own windows) or
 `NOT BACK`. A run that was refused or skipped, for example because the capture came from the niri
-that is running now, writes no page; the journal below says why.
-
-![The result page of a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN, APP ALREADY RUNNING and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
-
-<sub>A fabricated login run on the demo desktop: Thunderbird had started itself, Brave reopened two of
-its three windows, and the two windows that are never replayed stayed closed.</sub>
+that is running now, writes no page; the journal below says why. The image at the top of this
+README is such a page.
 
 `restore --apply --no-open` writes the page without opening it. To write it again for the latest run,
 or for any run by its receipt digest:

@@ -14,7 +14,7 @@ shot() { # page, CSS height, output name[, CSS width, scale]
     magick "$work/$3" -strip -define png:exclude-chunks=all -colors 96 "PNG8:docs/assets/$3"
 }
 mkdir -p docs/assets
-shot preview.html 1312 preview-map.png
+shot preview.html 1312 preview-map.png # no longer in the README, but released PyPI pages link it
 shot after-reboot.html 1219 preview-after-reboot.png
 shot result.html 1385 reopen-result.png
 shot social.html 640 social-preview.png 1280 1 # upload in repo Settings > Social preview
