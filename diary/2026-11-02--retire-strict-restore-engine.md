@@ -89,9 +89,9 @@ Porting found one real difference between the planners. `plan_restore` sent ever
 recipe to the spare workspace; `reopen.plan` keeps it on its saved workspace when that workspace has
 a known place, and only otherwise sends it to the spare. The tests now pin what ships.
 
-The evidence for the records themselves is from one machine, which had none. Another machine was
-not inspected. If it holds one, `restore --apply` refuses there until its compositor restarts, and
-that is the intended failure.
+The evidence for the records themselves is from two machines, and neither had one: the second,
+checked read-only after the merge, held only an ordinary `.lock`. A machine that does hold one
+refuses `restore --apply` until its compositor restarts, and that is the intended failure.
 
 The commits run in an order that keeps each one green: pin retained behaviour first, retire the
 suites while source is untouched, switch admission, remove the command, delete the modules.

@@ -4,6 +4,32 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.3.0] - 2026-11-04
+
+The strict restore engine is removed. `restore` has run the reopen engine since 0.2.0 (first
+published as 0.2.1), and nothing has run the strict engine since.
+
+### Removed
+
+- `restore-disposition` and its stages `inspect`, `propose`, `approve` and `apply`. It handled
+  interrupted runs of the strict engine, so in 0.2.1 it had nothing to work on.
+
+### Changed
+
+- A record left by the strict engine now always refuses `restore --apply`, `reconcile` and
+  `reconstruct` in its Niri session, with exit 2, until Niri restarts. The first two say "a strict
+  restore record fences this compositor until it restarts; no action taken". Before, a completed
+  record returned its recorded result for the same capture and let a different capture proceed.
+  Records live under `$XDG_RUNTIME_DIR/niri-desktop-continuity-locks/`, and no published release
+  writes them, so you are unlikely to have one.
+- `restore --apply` also looks for such a record for the Niri session the capture came from, not
+  only for the running one.
+- A saved file with a duplicate field or a non-finite number is refused as before, now with
+  "duplicate JSON field" or "nonfinite JSON number" instead of a message about a bootstrap frame.
+
+`capture`, `preview`, `restore` without `--apply`, `restore --apply` without such a record,
+`autostart`, `declare` and `hook` behave as in 0.2.1.
+
 ## [0.2.1] - 2026-11-02
 
 0.2.0 was tagged but never published, because its release build failed. 0.2.1 is the first release

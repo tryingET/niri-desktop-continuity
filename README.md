@@ -16,16 +16,17 @@ why it will not.</sub>
 
 ## Status
 
-This branch brings every application back again. It is the 0.1.2 restorer with its three known
+This release brings every application back again. It is the 0.1.2 restorer with its three known
 defects fixed: each saved app instance is launched **once** (no second launch after a wait), only
 **new windows of that app** are adopted (never an unrelated window), and coding agents are **never
 replayed** from their command line. Apps start from their own menu entry, so wrappers, AppImages and
 sign-in or deep-link URLs are handled the way you launch them. Saved column widths now account for
 window borders, a fix carried over from the strict line. The strict controlled-Ghostty candidate
 that preceded it has been removed.
-Offline tests pass, and a real login restore of a mixed desktop (Claude Code and Pi sessions,
+Offline tests pass. Real login restores of a mixed desktop (Claude Code, Pi and nodecode sessions,
 browsers, notes and password-manager windows, shells and commands) placed 57 of 57 windows in 35
-seconds with no failures.
+seconds, and later 71 of 72 in 48 seconds. The one left out was a coding agent that had announced
+no session, which by design is not replayed.
 
 ## Why
 
