@@ -1,7 +1,7 @@
 [project]
 name = "niri-desktop-continuity"
 version = "0.3.0"
-description = "Save your niri desktop and reopen it after a reboot: windows on their workspaces, in column order"
+description = "Save your niri desktop and reopen it after a reboot: windows on their workspaces and columns, agent sessions in Ghostty resumed, skipped windows reported"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

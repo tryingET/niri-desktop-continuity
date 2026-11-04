@@ -5,221 +5,240 @@
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE)
 
 **Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
-reopen on their workspaces in their column order, Claude Code and Pi sessions resume by id, and
-anything that cannot be reopened safely is reported, never guessed.
+reopen on their workspaces, in their columns, at their widths. Coding-agent sessions in
+[Ghostty](https://ghostty.org) resume by id. What it cannot reopen safely stays closed and is
+reported.
+
+It is a single command-line tool built on Python's standard library. Once you opt in, it saves your
+desktop every 15 minutes and reopens it at login. It runs no daemon and makes no network requests.
+Alpha, for niri on Linux only.
 
 ![Offline preview of a fabricated demo desktop: a project workspace with Claude Code and Pi sessions, a dev server and an X11 IDE, then a browser workspace; each tile says whether it reopens after a reboot](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-map.png)
 
-<sub>The offline preview page for a fabricated demo desktop (not anyone's real one): the first two
-of its five workspaces, 23 windows in all. Every tile says how it comes back after a reboot, or
-why it will not.</sub>
+<sub>The offline preview of a fabricated demo desktop, first two of its five workspaces. Every tile
+says how its window comes back after a reboot, or why it will not.</sub>
 
-## Status
+## What comes back
 
-This release brings every application back again. It is the 0.1.2 restorer with its three known
-defects fixed: each saved app instance is launched **once** (no second launch after a wait), only
-**new windows of that app** are adopted (never an unrelated window), and coding agents are **never
-replayed** from their command line. Apps start from their own menu entry, so wrappers, AppImages and
-sign-in or deep-link URLs are handled the way you launch them. Saved column widths now account for
-window borders, a fix carried over from the strict line. The strict controlled-Ghostty candidate
-that preceded it has been removed.
-Offline tests pass. Real login restores of a mixed desktop (Claude Code, Pi and nodecode sessions,
-browsers, notes and password-manager windows, shells and commands) placed 57 of 57 windows in 35
-seconds, and later 71 of 72 in 48 seconds. The one left out was a coding agent that had announced
-no session, which by design is not replayed.
+| Window | How it reopens |
+|---|---|
+| An application | Launched once per saved instance, from your own route, its desktop entry or its saved command line. New windows with its app ID fill the saved places. |
+| Claude Code in Ghostty | `claude --resume <id>`, in the session's directory |
+| Pi in Ghostty | Pi's own resume command for that session |
+| nodecode in Ghostty | The resume command nodecode recorded for its session (nodecode 0.1.6 and later); without a record, like any other command |
+| Codex, or another agent whose `SessionStart` hook passes its session id | The session it announced through `hook` |
+| A command in a Ghostty tab | The same command, started again (`btop`, `just dev`) |
+| A shell in a Ghostty tab | A shell in the same directory |
+| An X11 window, or an agent with no known session | Not reopened; the preview and the plan say why |
 
-## Why
+Applications restore their own content. Tabs, documents and drafts are theirs to bring back.
 
-niri's scrolling columns make it easy to build a desktop that is worth keeping: a workspace per
-project, terminals running agents and dev servers, a browser and notes beside them. A reboot or a
-crash throws all of it away, and rebuilding it by hand, window by window and column by column, takes
-longer than the reboot did.
+## Requirements
 
-This small tool saves the shape of your desktop every 15 minutes and, at your next login, puts it
-back. From a real reboot of the maintainer's desktop:
+- Linux with niri, and a systemd user session for the automatic save and reopen.
+- Python 3.11 or newer. There are no third-party runtime dependencies.
+- Ghostty, for terminal tabs and the sessions in them. Other terminals reopen as ordinary
+  applications, without what ran inside them.
 
-- **26 windows saved, 25 reopened at login in 49 seconds**, every one on its saved workspace in
-  its saved column order.
-- Claude Code and Pi sessions **resumed by id**.
-- Two sessions that could not be resumed came back as **fresh sessions started from their handoff
-  notes** (`declare`), instead of replaying their opening prompts.
-- The one miss, an X11 app, was **reported in the receipt, not guessed**.
-
-## Quickstart
-
-Requires Linux, niri and Python 3.11+, with [Ghostty](https://ghostty.org) as your terminal. No
-runtime dependencies.
+## Install
 
 ```sh
 pipx install niri-desktop-continuity
 # or: uv tool install niri-desktop-continuity
 ```
 
-Every release is also on [GitHub Releases](https://github.com/tryingET/niri-desktop-continuity/releases)
-with checksums; what changed is in the [changelog](https://github.com/tryingET/niri-desktop-continuity/blob/main/CHANGELOG.md).
+Releases are also on [GitHub](https://github.com/tryingET/niri-desktop-continuity/releases), with
+`SHA256SUMS`. What changed is in the
+[changelog](https://github.com/tryingET/niri-desktop-continuity/blob/main/CHANGELOG.md).
 
-Save your desktop and check what would come back:
+## Quick start
 
-```sh
-niri-desktop-continuity capture    # save windows, workspaces and a reopen recipe per window
-niri-desktop-continuity preview    # write an offline HTML map of the latest capture; open the printed path
-niri-desktop-continuity restore    # dry run: the placement plan, as JSON; nothing is launched
-```
-
-Reopen it: automatically at every login, which is all most desktops need:
+**1. Save once and look at what would come back.**
 
 ```sh
-niri-desktop-continuity autostart --enable --keep-days 3  # capture every 15 min, keep 3 capture days, reopen at login
-niri-desktop-continuity restore --apply      # by hand: reopen the latest capture now
+niri-desktop-continuity capture
+niri-desktop-continuity preview    # prints the path of an offline HTML page; open it in a browser
 ```
 
-At login the restore service runs `restore --apply --at-login` for you; it waits for Niri, and
-skips when the capture came from the same Niri instance. By hand you need `restore --apply` only
-when saved windows are gone while you stay logged in, for example after closing them by mistake,
-or to reopen an older capture by its digest. It launches each saved application that is not
-running and each saved terminal tab that is not open. A plain shell or command tab cannot be
-recognised as already open, so on a desktop where it still runs it opens a second time.
+The page's **After a reboot** section lists every saved window with its reopen recipe (kind, command
+and directory) or the reason it will not reopen.
 
-A session that cannot be resumed (for example, a Claude Code session started from inside another
-one, which keeps no transcript) is not reopened. If you would rather it came back as a fresh
-session, say so while it is still running:
+![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-after-reboot.png)
+
+**2. Turn on the automatic save and reopen.**
+
+```sh
+niri-desktop-continuity autostart --enable --keep-days 3
+```
+
+This writes three systemd user units and starts the timer. The timer captures every 15 minutes and
+keeps the captures of the 3 most recent days that have any, plus every capture a receipt or pointer
+still names. The restore service reopens at login. `autostart` alone shows whether the units are
+installed and enabled; `autostart --disable` removes them and keeps your captures.
+
+**3. Reboot.** Before a planned reboot, save the last few minutes too:
+
+```sh
+systemctl --user start niri-desktop-continuity-capture.service
+```
+
+At login the restore service waits for niri, and for you to unlock if the session is locked, then
+reopens your latest capture. Keep your hands off the keyboard and mouse until the windows settle:
+niri has no atomic focus-and-move, so input during the run can send a column to the wrong place.
+
+## After a reboot: what happened
+
+```sh
+journalctl --user -b -u niri-desktop-continuity-restore
+```
+
+The journal shows what the login run did. A run that got as far as reopening prints its receipt,
+and a copy is kept with your captures. The receipt's `status` is `reopened` when nothing failed and
+`reopened-partially` when some windows did not come back. Each window has its own `status`, for
+example `placed`, `already-running` or `not-detected`, and a refused window also has a `reason`.
+
+A partial run exits with status 2, so systemd shows the unit as **failed**. One refused window is
+enough, such as an agent tab with no announced session; windows of applications that were already
+running count as done. Exit status 2 also means a refused or interrupted run, and the journal says
+which.
+
+When the latest capture is unusable because it saw no display (a screen that was off) or caught the
+desktop changing, the restore can fall back to the last capture that saw a usable display. It then
+logs one line with the `fallback_reason` first. A digest you name never falls back.
+
+## Restore by hand
+
+```sh
+niri-desktop-continuity restore                    # dry run: the plan for the current desktop as JSON
+niri-desktop-continuity restore --apply            # reopen the latest capture now
+niri-desktop-continuity history --kind snapshots   # older captures, by digest
+niri-desktop-continuity restore <digest> --apply   # reopen an older one
+```
+
+The dry run launches and moves nothing. Use `--apply` when windows are gone while you stay logged in,
+for example after closing them by mistake. It skips every saved window of an application that already
+has a window open, and every agent session already open with the same reopen command. A plain shell
+or command tab cannot be recognised as already open, so on a desktop where it still runs it opens a
+second time.
+
+## Agent sessions
+
+A recognised agent (`claude`, `codex`, `pi`, `angel` or `angelx`, `aider`, `gemini`, `opencode`, `goose`,
+`crush`, `qwen`, `grok`, `cursor-agent`) comes back only through a session it announced or one you
+declared. It is never relaunched from its command line, which would replay its opening prompt and
+start the same work over.
+
+- **Claude Code and Pi:** read directly. Nothing to set up.
+- **nodecode 0.1.6 and later:** records its own session. Nothing to set up.
+- **Codex, or another agent whose `SessionStart` hook passes its session id as JSON:** add one hook
+  command to the agent's settings.
+
+  ```sh
+  niri-desktop-continuity hook claude                           # also covers Claude sessions missing from its registry
+  niri-desktop-continuity hook codex                            # in ~/.codex/hooks.json; trust it once with /hooks
+  niri-desktop-continuity hook myagent -- myagent --resume {id} # any other agent
+  ```
+
+  Codex sessions inside its shared daemon cannot be tied to a tab; start Codex with `--no-daemon`
+  where a tab should come back.
+- **angelX:** cannot announce a session yet, so its tabs are not reopened unless you declare them.
+
+A session this tool cannot resume, such as a Claude Code session started inside another one (it has
+no registry entry), can come back as a fresh session. Declare it while it still runs:
 
 ```sh
 niri-desktop-continuity declare --pid <pid> -- claude "Continue from docs/handoff.md"
 ```
 
-`<pid>` is any process in that terminal (for example from `pgrep -a claude`). The declaration
-lives until the next reboot, applies only to that exact process, and `declare --pid <pid> --clear`
-removes it.
+`<pid>` is the agent's process (`pgrep -a claude`). The declaration holds while that exact process
+runs, at most until the next reboot, and `declare --pid <pid> --clear` removes it. Captures from then
+on record it; run `capture` to record it now.
 
-## Check before you restart
+## Guarantees
 
-`preview` writes a standalone HTML page and prints its path. Its **After a reboot** section lists
-every saved window: whether it reopens, as what, with the exact command and directory, or why it
-will not.
+When it saves and reopens your desktop:
 
-![The "After a reboot" section of the preview for the same demo desktop: 21 of 23 reopen; an unregistered Claude session and an X11 IDE will not, each with its reason](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/preview-after-reboot.png)
+- **It never closes a window, and never moves one that was open before the run.** Reopened columns
+  go after them. Input during the run can still misdirect a move, which is why you stay idle.
+- **It launches each saved application instance at most once.** Only new windows with that
+  application's app ID are adopted, never a window of another application.
+- **It does not replay an agent it cannot resume.** A recognised agent without an announced session
+  or a declaration is not relaunched.
+- **It refuses what it cannot identify.** An X11 window, an AppImage it cannot resolve or a window
+  whose process it cannot read is reported, not launched.
+- **It drops saved sign-in and deep links.** When an application falls back to its saved command
+  line, arguments containing `://` are removed.
+- **Nothing runs at login unless you opt in** with `autostart --enable`. Saving and reopening install
+  nothing else and edit none of your configuration.
+- **Capture never runs a program it finds.** It reads each window's process and hashes its
+  executable.
+- **No network requests, telemetry or daemon.** The preview is static HTML with no scripts or remote
+  assets, and no browser is opened for you.
+- **It never reads terminal contents or browser profiles.** Session ids come from Claude Code's
+  session registry, Pi's presence files and nodecode's shell records. From a Claude Code transcript
+  it extracts only session titles, to tell apart windows of one terminal process.
 
-<sub>Same fabricated demo desktop, first workspace's rows. `restore` prints the same plan as
-JSON.</sub>
+## Limits
+
+- **Reopening is not restoring memory.** This tool does not recover unsaved drafts, scrollback, shell
+  state or the order of hidden tabs.
+- **X11 applications are not reopened**, because niri does not reveal which program owns an X11
+  window.
+- **Applications decide how many windows they reopen.** If a browser restores fewer windows than were
+  saved, the rest are reported `not-detected`; it is never launched a second time.
+- **Sessions in other tabs of one Ghostty window reopen as separate windows.**
+- **Workspaces are matched by position, not by monitor.** Windows return to the first, second or
+  third workspace and so on, with empty gaps closed up; which monitor they were on is not restored.
+  Saved workspace names are set again, even on a workspace that has another name now.
+- **Column widths and floating positions come back; tile heights and floating sizes do not.**
+
+## Your data
+
+Captures, receipts and previews are private: `0700` directories and `0600` files under
+`$XDG_STATE_HOME/niri-desktop-continuity` (usually `~/.local/state/niri-desktop-continuity`), or
+under `--state-root DIR`. Window and session titles are left out unless you run
+`capture --include-titles`. Reopen commands still contain command lines and working directories, so
+do not publish captures or previews.
 
 ## How it works
 
-Each `capture` reads niri's IPC and same-user process metadata, and records a private *reopen
-recipe* per window:
+`capture` reads the desktop from niri's IPC twice, to check that it held still, and reads the `/proc`
+entries of your own processes. It saves a content-addressed snapshot with a reopen recipe for every
+window. `restore --apply` takes a lock for the running niri instance and launches the saved
+applications through niri, one after another. It adopts their new windows, moves them to their saved
+workspaces and columns, and writes a receipt. The
+[architecture](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/architecture.md)
+explains the modules, and
+[usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md) documents the
+commands and their options.
 
-| Kind | How it comes back |
-|---|---|
-| `app` | launched **once** per saved instance from its desktop entry; its new windows fill the saved places |
-| `claude` | Ghostty, running `claude --resume <id>` in the session's directory (Claude Code's session registry) |
-| `pi` | Ghostty, running Pi's own resume command (Pi's presence directory) |
-| `nodecode` | Ghostty, running the resume command the nodecode shell recorded for its session (`$XDG_RUNTIME_DIR/nodecode/shells`) |
-| `declared` | Ghostty, running the command you gave `declare`, or the session an agent announced with `hook` |
-| `command` | Ghostty, running its last command again (for example `btop` or `npm run dev`) |
-| `shell` | Ghostty, opened in the same directory |
-| `unknown` | not reopened, with the reason, for example `xwayland-client` or `agent-session-unannounced` |
+The tool also has experimental planning, layout and reconstruction commands. None of them is needed
+to save and reopen a desktop; see
+[recovery](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/recovery.md).
 
-`restore --apply` takes one lock per compositor, then launches the groups one after another. An app
-group is every saved window of one process (for example six Brave windows): it is launched once, and
-new windows with that app's ID are adopted until the saved number arrived, they stop arriving, or the
-spawn timeout passes. An app that is already running is not launched again and its windows are not
-touched. Each saved Ghostty window is its own launch, with your normal Ghostty configuration. Adopted
-windows go to their saved workspaces and columns, with saved widths and floating positions, after any
-windows that were already open. Every run writes one receipt; exit 2 means some window did not come back.
+## Status
 
-**Where apps launch from.** First an entry in `$XDG_CONFIG_HOME/niri-desktop-continuity/routes.json`,
-then the desktop entry whose name or `StartupWMClass` equals the app ID, or whose program is the
-captured executable, then the captured command line without URL or deep-link operands. A second
-instance of the same app (for example a second browser profile) keeps its own command line, because one
-menu entry cannot tell two profiles apart. `restore` without `--apply` prints each window's route.
-
-```json
-{"routes": {"brave-browser": {"argv": ["brave", "--profile-directory=Work"]}}}
-```
-
-**Agent sessions.** An agent comes back only through a session it announced. Claude Code and Pi are
-read directly. Any agent with session hooks announces itself with one hook line in its own settings,
-for example in Claude Code's `settings.json` under `hooks.SessionStart`:
-`{"type": "command", "command": "niri-desktop-continuity hook claude"}`. Codex takes the same command
-in `~/.codex/hooks.json` (trust it once with `/hooks`; sessions in Codex's shared daemon cannot be tied
-to a tab, so use `--no-daemon` where a tab should come back). angelX has tool hooks only, so its tabs
-are refused until it can announce a session. Any other agent passes its own resume command:
-`niri-desktop-continuity hook myagent -- myagent --resume {id}`. A new session or thread switch
-replaces the record, so the newest session wins.
-Details: [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md#save-and-reopen).
-
-## What it never does
-
-- **Never closes a window, and never moves one that was open before the run.** Reopened columns
-  go after them.
-- **Never launches an app twice** in one run, and never adopts a window of another app.
-- **Never replays what it cannot resume.** A coding agent (Claude, Codex, Pi, angelX, Gemini, Aider
-  and others) without an announced session is not relaunched from its command line, which would
-  start the same work over. A captured sign-in URL or `app://` deep link is never opened again.
-- **Never guesses.** An X11 window (niri reports only the `xwayland-satellite` bridge), an
-  unresolvable AppImage mount or an unreadable process is reported with a reason, not launched.
-- **Never runs anything at login unless you opt in.** `autostart --enable` writes three systemd user
-  units, `--disable` removes them. Nothing else installs a service or edits your configuration.
-- **Never executes a discovered binary while capturing.** Executables are hashed, not run.
-- **Makes no network requests of its own.** No telemetry, no daemon. The preview is static HTML
-  with no scripts or remote assets, and no browser is launched for you.
-- **Never reads terminal contents or browser profiles.** Session ids come from Claude Code's
-  session registry, Pi's presence files and nodecode's shell records. From a Claude Code transcript it takes only the
-  session title, to tell apart windows of one terminal process.
-
-Records stay private: `0700` directories and `0600` files under
-`$XDG_STATE_HOME/niri-desktop-continuity` (default `~/.local/state/niri-desktop-continuity`, or
-`--state-root <dir>`). Window titles and session titles are redacted unless you
-`capture --include-titles`. Recipes still contain command lines and working directories, so treat
-captures and previews as private and do not publish them.
-
-## Honest limits
-
-- **niri on Linux only.** No other compositor or platform is planned. Alpha software.
-- **Reopening is not restoring memory.** Applications bring back their own content. Unsaved drafts,
-  scrollback, shell state and the order of hidden tabs are not recovered.
-- **X11 applications are not reopened**, because niri does not reveal which X11 program owns a
-  window.
-- **Sessions inside terminals need Ghostty.** Other terminals (kitty, WezTerm, foot, Alacritty)
-  reopen like any app, from their own entry, without their sessions. In Ghostty, Claude Code, Pi and
-  hook-announced agents resume by id; other programs get their last command run again, or a shell in
-  the same directory. Sessions found in extra tabs of one Ghostty window reopen as separate windows.
-- **Apps decide how many windows they reopen.** A browser that restores fewer windows than were saved
-  leaves the rest reported as `not-detected`; it is never launched a second time. Extra windows stay
-  where the app put them.
-- **Placement follows logical workspace order on the current output.** Normal Niri empty-workspace
-  creation/cleanup is supported; there is no arbitrary workspace-creation feature or source-monitor
-  affinity restoration. Protected workspace names are not changed.
-- **Saved widths and floating positions come back; tile heights do not.** A window that cannot be
-  placed in its saved column goes to the end of its workspace.
-- **Stay idle while it arranges columns** (usually under a minute). niri has no atomic
-  focus-and-move, so input during the run can land in the wrong column.
-- Exact restart or migration of a still-running window is **not** supported and stays blocked.
-
-## Beyond reopening
-
-The same CLI also plans blocked restart proposals and has a loss-bounded saved-conversation
-reconstruction path, which needs a separately owned adapter that does not ship here. It also has
-an experimental single-column reorder. None of these is needed to save and reopen a desktop. See
-[planning, reconstruction and resolution](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/recovery.md).
+Alpha. Before 1.0 a minor release may change the CLI output or the saved-state format, and its
+changelog entry says how. On the maintainer's desktop, a login restore on 2 November 2026 reopened
+71 of 72 windows in 48 seconds: 30 Claude Code, 24 Pi and 6 nodecode sessions, plus applications,
+commands and shells. The one left out was an agent tab with no announced session.
 
 ## Develop
 
 ```sh
 uv sync --group dev
-just check         # lint, formatting, tests, portable-source/privacy check
-just build         # wheel + sdist
-just ci            # check + build
-just screenshots   # re-render docs/assets from the fabricated demo desktop (Chromium + ImageMagick)
+just check         # lint, formatting, tests, portable-source and privacy check
+just ci            # check, build the wheel and sdist, then smoke-test the installed wheel
+just screenshots   # re-render the README images from the fabricated demo desktop
 ```
 
-Tests never contact a real compositor; [releasing](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/release.md) describes versions, tags and
-rollback. [Architecture](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/architecture.md) explains the module
-boundaries, [DESIGN.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/DESIGN.md) is the preview's visual contract and [usage](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/usage.md) has
-every command's details. Screenshots come only from `scripts/demo-desktop.py`, and
-`just check` refuses PNG metadata that could carry private text.
+Tests never contact a real compositor. The README images are rendered from the fabricated desktop in
+`scripts/demo-desktop.py`, and `just check` rejects PNG metadata that could carry private text.
+Releases follow
+[docs/release.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/release.md);
+the preview's visual rules are in
+[DESIGN.md](https://github.com/tryingET/niri-desktop-continuity/blob/main/DESIGN.md).
 
-Scaffolded from `tpl-project-repo`, then adapted for a standalone Python package. Copier answers
-retain relative template provenance only; template updates are a maintainer concern, not an
-installation prerequisite. Private template snapshot context is excluded from version control
-and distribution. Apache-2.0: see [LICENSE](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE).
+## License
+
+Apache-2.0. See [LICENSE](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE).
