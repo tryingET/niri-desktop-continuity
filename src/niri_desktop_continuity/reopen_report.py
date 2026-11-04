@@ -6,6 +6,7 @@ Reads only the stored receipt and the snapshot it reopened. No launch, network o
 from __future__ import annotations
 
 import shlex
+from datetime import datetime
 from pathlib import Path
 
 from .map_preview import NOT_REOPENED, escape, groups, label, page_css
@@ -27,6 +28,15 @@ CSS = """
 .outcome{display:block;margin-top:8px;font-family:var(--typography-label-caps-font-family);font-size:12px}
 #did-not-come-back td:first-child{white-space:nowrap}#did-not-come-back td code{font-size:13px}
 """
+
+
+def local_time(value) -> str:
+    """A stored UTC timestamp in this machine's time zone, to the minute; else as stored."""
+    try:
+        moment = datetime.fromisoformat(str(value)).astimezone()
+    except ValueError:
+        return str(value)
+    return moment.isoformat(sep=" ", timespec="minutes")
 
 
 def came_back(row: dict) -> bool:
@@ -148,8 +158,9 @@ def render_report(receipt: dict, snapshot: dict, *, key: str | None = None) -> s
     titles = snapshot.get("privacy", {}).get("titles_included") is True
     body = [
         '<p class="kicker">NIRI / DESKTOP CONTINUITY</p><h1>What came back</h1>'
-        f'<p class="muted">Reopened {escape(receipt.get("started_at"))} from the capture of '
-        f"{escape(snapshot.get('captured_at'))} · run status {escape(receipt.get('status'))} · "
+        f'<p class="muted">Reopened {escape(local_time(receipt.get("started_at")))} from the '
+        f"capture of {escape(local_time(snapshot.get('captured_at')))} · run status "
+        f"{escape(receipt.get('status'))} · "
         f"{'private titles included' if titles else 'window titles redacted'}"
         + (f"<br>Receipt <code>{escape(key)}</code>" if key else "")
         + "</p>",

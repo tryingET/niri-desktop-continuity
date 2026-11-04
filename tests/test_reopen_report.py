@@ -270,3 +270,19 @@ def test_a_page_that_cannot_be_written_never_changes_the_runs_result(engine, mon
     result, status = cli.run_restore(args, engine)
     assert status == 0 and result["status"] == "reopened"
     assert result["report_error"] == "disk full" and "report" not in result
+
+
+def test_times_are_shown_in_the_local_time_zone(monkeypatch):
+    import time
+
+    monkeypatch.setenv("TZ", "Europe/Berlin")
+    time.tzset()
+    try:
+        source = reopen_desktop()
+        source["captured_at"] = "2026-11-02T15:39:50.498260+00:00"
+        markup = render_report(receipt("a" * 64, mixed_rows()), source)
+    finally:
+        monkeypatch.undo()
+        time.tzset()
+    # Oracle: 20:41 and 15:39 UTC are 21:41 and 16:39 in Berlin on 2 November (CET, +01:00).
+    assert "Reopened 2026-11-02 21:41+01:00 from the capture of 2026-11-02 16:39+01:00" in markup
