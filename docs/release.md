@@ -18,7 +18,8 @@ the saved-state layout under the state root, reopen recipes and the systemd unit
 ## One authoritative release
 
 The git tag `vX.Y.Z` and the GitHub Release with that name are the release; PyPI carries the same
-files. `pyproject.toml`, `niri_desktop_continuity.__version__`, `niri-desktop-continuity --version`
+wheel and source archive. A version-matched announcement video, when present, is a GitHub-only
+asset included in `SHA256SUMS`. `pyproject.toml`, `niri_desktop_continuity.__version__`, `niri-desktop-continuity --version`
 and the newest `CHANGELOG.md` heading must name the same version; a test enforces it, and the
 release workflow refuses a tag that does not match.
 
@@ -33,7 +34,8 @@ release workflow refuses a tag that does not match.
 4. The `release` workflow builds once from the tag, checks that the tag names the packaged
    version, runs `just ci`, uploads the wheel and sdist to PyPI through trusted publishing in the
    `pypi` environment (deployable from `v*` tags only), and then creates the GitHub Release with
-   the same files, `SHA256SUMS` and notes generated from the version's `CHANGELOG.md` entry
+   the same distributions, the optional `docs/announce/niri-desktop-continuity-X.Y.Z.mp4`, `SHA256SUMS`
+   covering distributions and video, and notes generated from the version's `CHANGELOG.md` entry
    (`scripts/release-notes.py`). Releases in this repository are immutable: files cannot be added
    after publishing, which is why the release is created together with its files.
 5. Verify: download the release assets and run `sha256sum -c SHA256SUMS`; install with

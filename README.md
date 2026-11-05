@@ -4,21 +4,52 @@
 [![PyPI](https://img.shields.io/pypi/v/niri-desktop-continuity)](https://pypi.org/project/niri-desktop-continuity/)
 [![license](https://img.shields.io/badge/license-Apache--2.0-blue)](https://github.com/tryingET/niri-desktop-continuity/blob/main/LICENSE)
 
-**Reboot, log in, and your [niri](https://github.com/YaLTeR/niri) desktop comes back.** Windows
-reopen on their workspaces, in their columns, at their widths. Coding-agent sessions in
-[Ghostty](https://ghostty.org) resume by id. Windows it knows it cannot reopen safely, such as X11
-apps and agent tabs without a known session, stay closed and are reported.
+**Reopen your [niri](https://github.com/YaLTeR/niri) desktop after a real reboot—for example,
+to start a new kernel.** Supported windows reopen on their workspaces, in their columns, at their
+widths. Coding-agent conversations in [Ghostty](https://ghostty.org) resume by id in new processes.
+Windows it knows it cannot reopen safely, such as X11 apps and agent tabs without a known session,
+stay closed and are reported. This reconstructs a desktop; it does not restore process memory.
 
 It is a single command-line tool built on Python's standard library. Once you opt in, it saves your
 desktop every 15 minutes and reopens it at login. It runs no daemon and makes no network requests.
 Alpha, for niri on Linux only.
 
-![The result page that opens after a reboot, for a fabricated login run on the demo desktop: 20 of 23 came back and 3 did not, a legend for BACK, ALREADY OPEN, APP ALREADY RUNNING and NOT BACK, the three misses with their reasons, then the saved desktop with each window marked](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)
+## Video tour
 
-<sub>The page that opens when the reopen is over, for a fabricated login run on the demo desktop:
-Thunderbird had started itself, Brave reopened two of its three windows, and the two windows that
-are never replayed stayed closed. Watch the
-[39-second tour](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/announce/niri-desktop-continuity-0.3.1.mp4).</sub>
+**Planned reboot. Sudden blackout. A way back.**
+
+[![Watch the 52-second video tour: snapshot your desktop, plan an OS update or face an unexpected power cut, then reopen supported windows from a usable saved snapshot. Preview: the fabricated result page.](https://raw.githubusercontent.com/tryingET/niri-desktop-continuity/main/docs/assets/reopen-result.png)](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/announce/niri-desktop-continuity-0.3.2.mp4)
+
+**[Watch the 52-second tour](https://github.com/tryingET/niri-desktop-continuity/blob/main/docs/announce/niri-desktop-continuity-0.3.2.mp4)**
+— MP4, no audio, fabricated demo desktop. Click the preview above or this link to open the video.
+The snapshot saves desktop layout and reopen recipes, not the OS or application memory. You install
+the OS updates with your normal tools; this tool reopens your desktop afterward. Or the power cuts
+out while you are working: a usable snapshot saved beforehand can provide a way back after boot.
+
+<sub>The preview shows the page that opens when the reopen is over. Thunderbird had started itself,
+Brave reopened two of its three windows, and the two windows that are never replayed stayed
+closed.</sub>
+
+## Why not suspend or hibernate?
+
+If you only want to stop using the computer and later continue the **same running system**, use
+[suspend or hibernate](https://wiki.archlinux.org/title/Power_management/Suspend_and_hibernate)
+when supported and working on your machine. They preserve the running session, including
+application memory that this tool cannot recover. Hibernation can power the machine off; powering
+off alone is not a reason to use this tool.
+
+This tool is for **a fresh session after a real reboot**, such as booting a new kernel, or reopening
+captured windows after session loss. Hibernation resumes the old system; it does not perform that
+fresh start. This tool launches new processes, resumes recorded agent conversations and rebuilds
+window placement. Applications recover their own tabs and documents; unsaved drafts, terminal
+scrollback and in-memory jobs are not restored. It can complement hibernation, not replace its
+memory preservation.
+
+After a crash or unexpected power cut, reopening needs a usable capture saved **before** the loss,
+a surviving disk and snapshot, and an OS that boots. Changes since the last successful capture may
+be lost; this tool does not repair a damaged OS or disk. **Completed hibernation and hybrid sleep
+can also survive power loss**; ordinary suspend-to-RAM cannot if RAM loses power. The distinction
+is recovery after an unplanned loss while working, not a claim that only this tool handles outages.
 
 ## What comes back
 

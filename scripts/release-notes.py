@@ -35,7 +35,7 @@ pipx install {PACKAGE}=={version}
 ## Verify
 
 Built once from `{tag}` by the [release workflow]({workflow}) after `just ci` passed on it. The
-same files are on [PyPI](https://pypi.org/project/{PACKAGE}/{version}/), uploaded through trusted
+same wheel and source archive are on [PyPI](https://pypi.org/project/{PACKAGE}/{version}/), uploaded through trusted
 publishing. Check the files attached here with `sha256sum -c SHA256SUMS`.
 """
 

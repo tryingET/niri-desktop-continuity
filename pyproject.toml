@@ -1,7 +1,7 @@
 [project]
 name = "niri-desktop-continuity"
-version = "0.3.1"
-description = "Save your niri desktop and reopen it after a reboot: windows on their workspaces and columns, agent sessions in Ghostty resumed, skipped windows reported"
+version = "0.3.2"
+description = "Reopen Niri windows, rebuild workspace layout and resume recorded agent conversations after a real reboot—not restore process memory"
 readme = "README.md"
 requires-python = ">=3.11"
 license = "Apache-2.0"

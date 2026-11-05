@@ -1,11 +1,9 @@
 #!/usr/bin/env python3
-"""Generate the niri-desktop-continuity 0.3.1 announcement film as a Director HTML composition.
+"""Generate the niri-desktop-continuity 0.3.2 tour as a Director HTML composition.
 
 Usage: build.py DIRECTOR_CHECKOUT OUTPUT_DIRECTORY
-Writes OUTPUT_DIRECTORY/announce.html and copies the four fonts it uses from the Director checkout
-(Inter, Instrument Serif, JetBrains Mono; all under the SIL Open Font License) beside it.
-See README.md here for rendering. Every window, title, session id and command below is fabricated
-(the README's demo desktop); nothing comes from a real capture.
+Writes OUTPUT_DIRECTORY/announce.html and copies its four SIL Open Font License fonts beside it.
+Every window, title, session id and command is fabricated. No desktop capture or OS update runs.
 """
 
 from __future__ import annotations
@@ -15,15 +13,15 @@ import shutil
 import sys
 from pathlib import Path
 
+VIDEO_VERSION = "0.3.2"
+W, H, FPS, DURATION = 1920, 1080, 30, 52
 FONTS = {
     "Inter-Regular.ttf": "crates/director-core/assets/fonts/Inter-Regular.ttf",
     "Inter-Bold.ttf": "crates/director-core/assets/fonts/Inter-Bold.ttf",
     "InstrumentSerif-Italic.ttf": "examples/assets/fonts/InstrumentSerif-Italic.ttf",
     "JetBrainsMono-Regular.ttf": "examples/assets/fonts/JetBrainsMono-Regular.ttf",
 }
-W, H, FPS, DURATION = 1920, 1080, 30, 39
-
-# The demo desktop's first workspace: columns of (title, app id, status, detail).
+# The fabricated README desktop's first workspace, grouped into columns.
 COLUMNS = [
     [
         ("Fix flaky login test", "com.mitchellh.ghostty", "back", "claude --resume 7c1e2f0a"),
@@ -43,8 +41,8 @@ COLUMNS = [
 CSS = """
 @font-face { font-family:Inter; src:url("assets/fonts/Inter-Regular.ttf"); font-weight:400; }
 @font-face { font-family:Inter; src:url("assets/fonts/Inter-Bold.ttf"); font-weight:700; }
-@font-face { font-family:"Instrument Serif"; src:url("assets/fonts/InstrumentSerif-Italic.ttf"); font-weight:400; font-style:italic; }
-@font-face { font-family:"JetBrains Mono"; src:url("assets/fonts/JetBrainsMono-Regular.ttf"); font-weight:400; }
+@font-face { font-family:"Instrument Serif"; src:url("assets/fonts/InstrumentSerif-Italic.ttf"); font-style:italic; }
+@font-face { font-family:"JetBrains Mono"; src:url("assets/fonts/JetBrainsMono-Regular.ttf"); }
 html, body { margin:0; background:#0b1418; }
 * { box-sizing:border-box; margin:0; padding:0; }
 #film { position:relative; width:1920px; height:1080px; overflow:hidden; background:#0b1418; font-family:Inter; color:#eaf0e8; }
@@ -53,9 +51,9 @@ html, body { margin:0; background:#0b1418; }
 .fade { animation:fadein .4s ease-out both; }
 .tag { position:absolute; left:120px; top:84px; font-family:"JetBrains Mono"; font-size:22px; letter-spacing:5px; color:#8ed7c3; text-transform:uppercase; }
 .num { position:absolute; right:120px; top:84px; font-family:"JetBrains Mono"; font-size:22px; letter-spacing:5px; color:#456268; }
-.title { position:absolute; left:120px; top:136px; font-family:"Instrument Serif"; font-style:italic; font-size:104px; line-height:1.05; color:#eaf0e8; }
-.sub { position:absolute; left:124px; font-family:"JetBrains Mono"; font-size:26px; color:#a8bab5; }
-.mint { color:#8ed7c3; } .coral { color:#ffafa9; } .amber { color:#f5c875; }
+.title { position:absolute; left:120px; top:136px; font-family:"Instrument Serif"; font-style:italic; font-size:104px; line-height:1.05; }
+.sub { position:absolute; left:124px; top:268px; font-family:"JetBrains Mono"; font-size:26px; color:#a8bab5; }
+.mint { color:#8ed7c3; } .coral { color:#ffafa9; }
 
 .desk { position:absolute; left:120px; top:316px; width:1680px; height:676px; border-radius:18px;
   background:#0f1c21; border:1px solid #2b444b; box-shadow:0 40px 90px rgba(0,0,0,.45); padding:26px 30px; }
@@ -63,22 +61,41 @@ html, body { margin:0; background:#0b1418; }
 .cols { display:flex; gap:22px; }
 .col { width:383px; display:flex; flex-direction:column; gap:18px; }
 .tile { position:relative; height:262px; border-radius:10px; background:#192c32; border:1px solid #2f4a51; padding:24px 26px; overflow:hidden; }
-.tile .t { font-size:30px; font-weight:700; color:#eaf0e8; line-height:1.15; }
+.tile .t { font-size:30px; font-weight:700; line-height:1.15; }
 .tile .a { font-family:"JetBrains Mono"; font-size:20px; color:#6f8c91; margin-top:8px; }
 .tile .d { font-family:"JetBrains Mono"; font-size:22px; color:#a8bab5; margin-top:14px; }
 .tile .badge { position:absolute; left:26px; bottom:20px; font-family:"JetBrains Mono"; font-size:26px; letter-spacing:3px; }
 .edge { position:absolute; left:0; top:0; width:8px; height:262px; }
 .edge.back { background:#8ed7c3; } .edge.missed { background:#ffafa9; }
 
+.capture { position:absolute; left:120px; top:352px; width:1680px; display:flex; gap:48px; }
+.blueprint { width:620px; height:480px; border:2px solid #8ed7c3; border-radius:16px; padding:32px; background:#101d22; }
+.blueprint .label { font-family:"JetBrains Mono"; font-size:26px; color:#8ed7c3; margin-bottom:28px; }
+.bpcols { display:flex; gap:18px; }
+.bpcol { width:170px; display:flex; flex-direction:column; gap:18px; }
+.bptile { height:132px; border:2px solid #456268; background:#192c32; border-radius:8px; }
+.bptile.short { height:90px; }
+.savecard { width:1012px; height:480px; border:1px solid #2f4a51; border-left:8px solid #8ed7c3; border-radius:16px; background:#192c32; padding:36px 40px; }
+.savecard .cmd { font-family:"JetBrains Mono"; font-size:32px; color:#8ed7c3; margin-bottom:32px; }
+.snaprow { font-size:34px; margin-top:20px; color:#eaf0e8; }
+.snaprow.muted { font-size:28px; color:#a8bab5; }
+.saved { margin-top:30px; font-family:"JetBrains Mono"; font-size:26px; letter-spacing:3px; color:#8ed7c3; }
+
+.update-track { position:absolute; left:120px; top:360px; display:flex; gap:30px; }
+.step { position:relative; width:540px; height:420px; border:1px solid #2f4a51; border-radius:16px; background:#192c32; padding:36px; }
+.step .label { font-family:"JetBrains Mono"; font-size:26px; color:#8ed7c3; letter-spacing:2px; }
+.step .big { font-size:54px; line-height:1.15; font-weight:700; margin-top:32px; }
+.step .detail { font-size:30px; color:#a8bab5; margin-top:26px; }
+.step .bar { position:absolute; left:36px; bottom:40px; width:468px; height:8px; background:#456268; }
+.step .progress { height:8px; background:#8ed7c3; width:468px; }
+
 .cards { position:absolute; left:120px; top:360px; width:1680px; display:flex; flex-wrap:wrap; gap:28px; }
 .card { width:826px; height:214px; border-radius:16px; background:#192c32; border:1px solid #2f4a51; padding:34px 40px; position:relative; overflow:hidden; }
-.card .n { font-size:50px; font-weight:700; color:#eaf0e8; }
+.card .n { font-size:50px; font-weight:700; }
 .card .c { font-family:"JetBrains Mono"; font-size:30px; color:#8ed7c3; margin-top:26px; }
 .card .h { position:absolute; right:40px; top:44px; font-family:"JetBrains Mono"; font-size:22px; letter-spacing:2px; color:#6f8c91; }
 .card .bar { position:absolute; left:0; top:0; width:6px; height:214px; background:#8ed7c3; }
 
-.pill { position:absolute; left:120px; top:78px; font-family:"JetBrains Mono"; font-size:22px; letter-spacing:4px; color:#0b1418;
-  background:#8ed7c3; padding:8px 18px; border-radius:8px; }
 .page { position:absolute; left:120px; top:322px; width:1680px; height:710px; border-radius:18px; background:#101d22;
   border:1px solid #2b444b; box-shadow:0 40px 90px rgba(0,0,0,.5); padding:40px 54px; overflow:hidden; }
 .page .k { font-family:"JetBrains Mono"; font-size:18px; letter-spacing:4px; color:#8ed7c3; }
@@ -89,38 +106,34 @@ html, body { margin:0; background:#0b1418; }
 .legend .li.x { border-left:6px solid #ffafa9; }
 .legend .lk { font-family:"JetBrains Mono"; font-size:22px; color:#8ed7c3; }
 .legend .x .lk { color:#ffafa9; }
-.miss { display:flex; align-items:center; gap:30px; height:88px; border-top:1px solid #2b444b; margin-top:0px; }
-.miss:first-of-type { margin-top:26px; }
-.miss .w { width:480px; flex-shrink:0; font-size:32px; font-weight:700; color:#eaf0e8; }
+.miss { display:flex; align-items:center; gap:30px; height:88px; border-top:1px solid #2b444b; }
+.miss .w { width:480px; flex-shrink:0; font-size:32px; font-weight:700; }
 .miss .r { width:660px; flex-shrink:0; font-size:27px; color:#ffafa9; }
 .miss .code { font-family:"JetBrains Mono"; font-size:22px; color:#ffafa9; }
 
 .rules { position:absolute; left:120px; top:360px; width:1680px; display:flex; flex-direction:column; gap:30px; }
-.rule { display:flex; align-items:center; gap:30px; font-size:52px; font-weight:700; color:#eaf0e8; }
+.rule { display:flex; align-items:center; gap:30px; font-size:52px; font-weight:700; }
 .rule .m { width:16px; height:56px; border-radius:4px; background:#8ed7c3; }
-.rule .s { font-weight:400; color:#a8bab5; font-size:40px; }
-
 .end { position:absolute; left:0; top:0; width:1920px; height:1080px; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:30px; }
-.end .logo { font-family:"Instrument Serif"; font-style:italic; font-size:150px; line-height:1; letter-spacing:-2px; color:#eaf0e8; }
+.end .logo { font-family:"Instrument Serif"; font-style:italic; font-size:150px; line-height:1; letter-spacing:-2px; }
 .end .ver { font-family:"JetBrains Mono"; font-size:30px; letter-spacing:6px; color:#0b1418; background:#8ed7c3; padding:10px 22px; border-radius:10px; }
-.end .cmd { font-family:"JetBrains Mono"; font-size:40px; color:#eaf0e8; background:#192c32; border:1px solid #2f4a51; padding:22px 40px; border-radius:14px; }
+.end .promise { font-size:44px; color:#8ed7c3; }
+.end .cmd { font-family:"JetBrains Mono"; font-size:40px; background:#192c32; border:1px solid #2f4a51; padding:22px 40px; border-radius:14px; }
 .end .url { font-family:"JetBrains Mono"; font-size:28px; color:#8ed7c3; }
-.end .cr { font-size:24px; color:#6f8c91; margin-top:24px; }
-.halo { position:absolute; left:460px; top:250px; width:1000px; height:560px; border-radius:280px;
-  background:linear-gradient(90deg, #8ed7c3, #2f6f74, #ffafa9); filter:blur(150px); opacity:.0; }
+.end .cr { font-size:24px; color:#6f8c91; }
+.blackout { position:absolute; left:0; top:0; width:1920px; height:1080px; background:#000000; }
+.blackout .shout { position:absolute; left:120px; top:380px; font-family:Inter; font-weight:700; font-size:160px; color:#ffafa9; }
+.blackout .hope { position:absolute; left:124px; top:600px; font-size:42px; color:#8ed7c3; }
+.blackout .loss { position:absolute; left:124px; top:680px; font-family:"JetBrains Mono"; font-size:32px; color:#a8bab5; }
 
 @keyframes fadein { from { opacity:0; } to { opacity:1; } }
-@keyframes fadeout { from { opacity:1; } to { opacity:0; } }
 @keyframes fadeup { from { opacity:0; transform:translateY(34px); } to { opacity:1; transform:translateY(0px); } }
 @keyframes slidein { from { opacity:0; transform:translateX(110px); } to { opacity:1; transform:translateX(0px); } }
 @keyframes rise { from { opacity:0; transform:translateY(90px); } to { opacity:1; transform:translateY(0px); } }
-@keyframes fall { from { opacity:1; transform:translateY(0px) rotate(0deg); } to { opacity:0; transform:translateY(420px) rotate(9deg); } }
-@keyframes fallb { from { opacity:1; transform:translateY(0px) rotate(0deg); } to { opacity:0; transform:translateY(460px) rotate(-8deg); } }
-@keyframes dim { from { opacity:1; } to { opacity:.18; } }
 @keyframes fly { from { opacity:0; transform:translateY(-120px) scale(.72); } to { opacity:1; transform:translateY(0px) scale(1); } }
 @keyframes ghost { from { opacity:0; transform:scale(.94); } to { opacity:.55; transform:scale(1); } }
 @keyframes pop { from { opacity:0; transform:scale(.6); } to { opacity:1; transform:scale(1); } }
-@keyframes glow { from { opacity:0; } to { opacity:.32; } }
+@keyframes fill { from { width:0px; } to { width:468px; } }
 """
 
 
@@ -133,114 +146,180 @@ def anim(*parts: str) -> str:
 
 
 def desk(mode: str, t0: float) -> str:
-    """One workspace. mode: 'build' (tiles slide in), 'fall' (tiles drop away), 'back' (return)."""
-    dims = f", dim .7s ease-in {t0 + 1.5:.2f}s both" if mode == "fall" else ""
+    """Animate the fabricated desktop arriving, or reopening with explicit misses."""
+    label = (
+        "DP-1 / WORKSPACE 1 · GARDEN-API"
+        if mode == "build"
+        else "STAY IDLE UNTIL REOPENING FINISHES · DEMO WORKSPACE 1"
+    )
     out = [
-        f'<div class="desk"{anim(f"fadeup .7s cubic-bezier(.2,.9,.2,1) {t0:.2f}s both{dims}")}>',
-        '<div class="ws">DP-1 / WORKSPACE 1 · GARDEN-API</div><div class="cols">',
+        f'<div class="desk"{anim(f"fadeup .7s ease-out {t0:.2f}s both")}>',
+        f'<div class="ws">{label}</div><div class="cols">',
     ]
     k = 0
     for column in COLUMNS:
         out.append('<div class="col">')
         for title, app, status, detail in column:
+            start = t0 + 0.35 + 0.20 * k
             if mode == "build":
-                style = anim(
-                    f"slidein .6s cubic-bezier(.2,.9,.2,1) {t0 + 0.35 + 0.16 * k:.2f}s both"
-                )
-                inner = f'<div class="d">{esc(detail if status == "back" else "")}</div>'
-            elif mode == "fall":
-                name = "fall" if k % 2 == 0 else "fallb"
-                style = anim(
-                    f"{name} .75s cubic-bezier(.55,0,.8,.4) {t0 + 0.9 + 0.09 * k:.2f}s both"
-                )
+                style = anim(f"slidein .6s ease-out {start:.2f}s both")
                 inner = f'<div class="d">{esc(detail if status == "back" else "")}</div>'
             else:
-                start = t0 + 0.9 + 0.28 * k
-                if status == "back":
-                    style = anim(f"fly .55s cubic-bezier(.18,1.35,.4,1) {start:.2f}s both")
-                    inner = (
-                        f'<div class="edge back"{anim(f"fadein .25s ease-out {start + 0.45:.2f}s both")}></div>'
-                        f'<div class="d">{esc(detail)}</div>'
-                        f'<div class="badge mint"{anim(f"pop .35s cubic-bezier(.2,1.6,.4,1) {start + 0.5:.2f}s both")}>'
-                        "BACK</div>"
-                    )
-                else:
-                    style = anim(f"ghost .6s ease-out {start:.2f}s both")
-                    inner = (
-                        f'<div class="edge missed"{anim(f"fadein .25s ease-out {start + 0.45:.2f}s both")}></div>'
-                        f'<div class="d coral">{esc(detail)}</div>'
-                        f'<div class="badge coral"{anim(f"pop .35s ease-out {start + 0.5:.2f}s both")}>'
-                        "NOT REOPENED</div>"
-                    )
+                name = "fly" if status == "back" else "ghost"
+                style = anim(f"{name} .6s ease-out {start:.2f}s both")
+                label = "BACK" if status == "back" else "NOT REOPENED"
+                color = "mint" if status == "back" else "coral"
+                inner = (
+                    f'<div class="edge {status}"></div><div class="d {color}">{esc(detail)}</div>'
+                    f'<div class="badge {color}"'
+                    + anim(f"pop .35s ease-out {start + 0.5:.2f}s both")
+                    + f">{label}</div>"
+                )
             out.append(
                 f'<div class="tile"{style}><div class="t">{esc(title)}</div>'
                 f'<div class="a">{esc(app)}</div>{inner}</div>'
             )
             k += 1
         out.append("</div>")
-    out.append("</div></div>")
-    return "".join(out)
+    return "".join(out) + "</div></div>"
+
+
+def header(tag: str, title: str, subtitle: str, t0: float) -> str:
+    return (
+        f'<div class="tag">{esc(tag)}</div><div class="title"'
+        + anim(f"fadeup .6s ease-out {t0 + 0.15:.2f}s both")
+        + f'>{title}</div><div class="sub">{esc(subtitle)}</div>'
+    )
 
 
 def scene(sid: str, start: float, duration: float, body: str, number: str) -> str:
     fade = "" if start == 0 else f' class="scene fade" style="animation-delay:{start:.2f}s"'
     head = fade or ' class="scene"'
     return (
-        f'<div id="{sid}"{head} data-start="{start:.2f}" data-duration="{duration:.2f}">'
-        f'<div class="num">{number} / 07</div>{body}</div>'
+        f'<div id="{sid}"{head}'
+        f' data-start="{start:.2f}" data-duration="{duration:.2f}">'
+        f'<div class="num">{number} / 09</div>{body}</div>'
     )
 
 
 def build() -> str:
-    s = []
-    # 1. The desktop you built.
-    s.append(
+    s = [
         scene(
-            "s1",
+            "desktop",
             0,
-            4.4,
-            '<div class="tag"'
-            + anim("fadein .5s ease-out .15s both")
-            + ">niri desktop continuity</div>"
-            '<div class="title"'
-            + anim("fadeup .8s cubic-bezier(.2,.9,.2,1) .25s both")
-            + ">You built this desktop.</div>"
+            5,
+            header("fabricated demo · niri desktop continuity", "You built this desktop.", "", 0)
             + desk("build", 0.7),
             "01",
         )
+    ]
+    # Snapshot the desktop, never imply a disk image or running-process checkpoint.
+    blueprint = "".join(
+        '<div class="bpcol">'
+        + "".join(
+            f'<div class="bptile{" short" if i == 2 else ""}"'
+            + anim(f"pop .4s ease-out {5.6 + 0.18 * i + 0.1 * j:.2f}s both")
+            + "></div>"
+            for j in range(2 if i < 2 else 1)
+        )
+        + "</div>"
+        for i in range(3)
     )
-    # 2. Then you reboot.
+    saved = (
+        '<div class="capture"><div class="blueprint"'
+        + anim("rise .6s ease-out 5.3s both")
+        + '><div class="label">YOUR DESKTOP → SNAPSHOT</div><div class="bpcols">'
+        + blueprint
+        + '</div></div><div class="savecard"'
+        + anim("slidein .7s ease-out 5.7s both")
+        + '><div class="cmd">niri-desktop-continuity capture</div>'
+        '<div class="snaprow">Workspaces · columns · widths</div>'
+        '<div class="snaprow">Reopen recipes · known agent session IDs</div>'
+        '<div class="snaprow muted">A map back to your work, saved to disk.</div>'
+        '<div class="saved"'
+        + anim("pop .4s ease-out 7.8s both")
+        + ">DEMO SNAPSHOT SAVED</div></div></div>"
+        '<div class="sub" style="top:900px">Automatic snapshots every 15 min after you opt in.</div>'
+    )
     s.append(
         scene(
-            "s2",
-            4.4,
-            3.2,
-            '<div class="tag coral">reboot</div>'
-            '<div class="title"'
-            + anim("fadeup .6s cubic-bezier(.2,.9,.2,1) 4.5s both")
-            + ">Then you reboot.</div>"
-            '<div class="title coral" style="top:470px; left:0px; width:1920px; text-align:center; font-size:140px;'
-            ' animation:fadeup .6s cubic-bezier(.2,.9,.2,1) 6.0s both">Everything is gone.</div>'
-            + desk("fall", 4.4),
+            "snapshot",
+            5,
+            6,
+            header(
+                "01 / save",
+                "Save your place.",
+                "Desktop layout + reopen recipes. Not an OS or memory backup.",
+                5,
+            )
+            + saved,
             "02",
         )
     )
-    # 3. Log in. It comes back.
+    steps = [
+        ("YOUR UPDATE TOOL", "Install OS updates.", "You do this."),
+        ("YOUR REBOOT", "Start the new kernel.", "The old processes end."),
+        ("SAVED DESKTOP", "Your map stays on disk.", "Ready for the next login."),
+    ]
+    update = (
+        '<div class="update-track">'
+        + "".join(
+            '<div class="step"'
+            + anim(f"rise .6s ease-out {11.5 + 0.5 * i:.2f}s both")
+            + f'><div class="label">{esc(label)}</div><div class="big">{esc(title)}</div>'
+            f'<div class="detail">{esc(detail)}</div><div class="bar"><div class="progress"'
+            + anim(f"fill 1.2s ease-out {12 + 0.5 * i:.2f}s both")
+            + "></div></div></div>"
+            for i, (label, title, detail) in enumerate(steps)
+        )
+        + "</div>"
+    )
     s.append(
         scene(
-            "s3",
-            7.6,
-            6.0,
-            '<div class="tag">log in</div>'
-            '<div class="title"'
-            + anim("fadeup .6s cubic-bezier(.2,.9,.2,1) 7.7s both")
-            + '>Log in. <span class="mint">It comes back.</span></div>'
-            '<div class="sub" style="top:268px; animation:fadein .6s ease-out 10.9s both">'
-            "each window on its workspace, in its column, at its width</div>" + desk("back", 7.6),
+            "update",
+            11,
+            5,
+            header(
+                "planned / update + reboot",
+                "Update the OS. Reboot.",
+                "You install updates. This tool reopens your desktop afterward.",
+                11,
+            )
+            + update
+            + '<div class="sub" style="top:900px">Hibernate resumes the old system. This is a fresh start.</div>',
             "03",
         )
     )
-    # 4. Agent sessions resume by id.
+    # A separate alternative, not a power failure during the illustrated OS update.
+    # Four seconds of setup, then four seconds of blackout. Keep the reading pause
+    # instead of covering the title while its entrance animation is still running.
+    # One abrupt cut to black; no flashing or repeated glitch/strobe effects.
+    outage = (
+        header("or / unexpected shutdown", "Or, without warning…", "While you are working.", 16)
+        + desk("build", 13)
+        + '<div class="blackout"'
+        + anim("fadein .01s steps(1,end) 20s both")
+        + '><div class="tag coral">OR / AN UNEXPECTED SHUTDOWN</div>'
+        '<div class="shout">POWER OUT.</div>'
+        '<div class="hope">A saved snapshot may survive.</div>'
+        '<div class="loss">Unsaved work does not.</div></div>'
+    )
+    s.append(scene("blackout", 16, 8, outage, "04"))
+    s.append(
+        scene(
+            "reopen",
+            24,
+            6,
+            header(
+                "after a successful boot / log in",
+                'Fresh session. <span class="mint">Familiar places.</span>',
+                "Needs a usable saved snapshot. Unsaved drafts and running jobs are not restored.",
+                24,
+            )
+            + desk("back", 24.3),
+            "05",
+        )
+    )
     agents = [
         ("Claude Code", "claude --resume 7c1e2f0a-3b5d", "session registry"),
         ("Pi", "pi --session …/3f9a1c7e.jsonl", "presence file"),
@@ -248,27 +327,27 @@ def build() -> str:
         ("Codex", "codex resume 0199a1f2-b8e4", "SessionStart hook"),
     ]
     cards = "".join(
-        f'<div class="card"{anim(f"rise .6s cubic-bezier(.2,.9,.2,1) {14.3 + 0.22 * i:.2f}s both")}>'
-        f'<div class="bar"></div><div class="h">{esc(how)}</div><div class="n">{esc(name)}</div>'
+        '<div class="card"'
+        + anim(f"rise .6s ease-out {30.6 + 0.22 * i:.2f}s both")
+        + f'><div class="bar"></div><div class="h">{esc(how)}</div><div class="n">{esc(name)}</div>'
         f'<div class="c">{esc(cmd)}</div></div>'
         for i, (name, cmd, how) in enumerate(agents)
     )
     s.append(
         scene(
-            "s4",
-            13.6,
-            6.0,
-            '<div class="tag">agents</div>'
-            '<div class="title"'
-            + anim("fadeup .6s cubic-bezier(.2,.9,.2,1) 13.75s both")
-            + '>Agent sessions <span class="mint">resume by id.</span></div>'
-            f'<div class="cards">{cards}</div>'
-            '<div class="sub" style="top:850px; animation:fadein .6s ease-out 16.2s both">'
-            "An agent it cannot resume is never relaunched with its opening prompt.</div>",
-            "04",
+            "agents",
+            30,
+            6,
+            header(
+                "conversations",
+                'Same conversation. <span class="mint">New process.</span>',
+                "Known sessions resume by ID, rather than replaying the opening prompt.",
+                30,
+            )
+            + f'<div class="cards">{cards}</div>',
+            "06",
         )
     )
-    # 5. New in 0.3: the result page.
     misses = [
         (
             "Draft release notes",
@@ -287,98 +366,85 @@ def build() -> str:
         ),
     ]
     rows = "".join(
-        f'<div class="miss"{anim(f"slidein .55s cubic-bezier(.2,.9,.2,1) {23.2 + 0.5 * i:.2f}s both")}>'
-        f'<div class="w">{esc(w)}</div><div class="r">{esc(r)}</div><div class="code">{esc(c)}</div></div>'
+        '<div class="miss"'
+        + anim(f"slidein .55s ease-out {39.2 + 0.5 * i:.2f}s both")
+        + f'><div class="w">{esc(w)}</div><div class="r">{esc(r)}</div><div class="code">{esc(c)}</div></div>'
         for i, (w, r, c) in enumerate(misses)
     )
     legend = "".join(
-        f'<div class="li{x}"{anim(f"fadein .4s ease-out {22.1 + 0.18 * i:.2f}s both")}><div class="lk">{esc(k)}</div><div>{esc(v)}</div></div>'
-        for i, (k, v, x) in enumerate(
-            [
-                ("BACK", "reopened and moved to its saved place", ""),
-                ("ALREADY OPEN", "this session was open already", ""),
-                ("APP ALREADY RUNNING", "not launched a second time", ""),
-                ("NOT BACK", "listed below with the reason", " x"),
-            ]
-        )
+        f'<div class="li{x}"><div class="lk">{esc(k)}</div><div>{esc(v)}</div></div>'
+        for k, v, x in [
+            ("BACK", "reopened and moved to its saved place", ""),
+            ("ALREADY OPEN", "this session was open already", ""),
+            ("APP ALREADY RUNNING", "not launched a second time", ""),
+            ("NOT BACK", "listed below with the reason", " x"),
+        ]
+    )
+    result = (
+        '<div class="page"' + anim("rise .8s ease-out 36.5s both") + ">"
+        '<div class="k">NIRI / DESKTOP CONTINUITY</div><div class="h1">What came back</div>'
+        '<div class="sum"><span class="mint"><span id="nback" data-reel data-reel-start="1.3"'
+        ' data-reel-duration="1.4" data-reel-stagger="0.15" data-reel-spins="1">20</span>'
+        ' of 23 came back</span> · <span class="coral">3 did not</span></div>'
+        f'<div class="legend">{legend}</div>{rows}</div>'
     )
     s.append(
         scene(
-            "s5",
-            19.6,
-            9.0,
-            '<div class="pill"'
-            + anim("pop .45s cubic-bezier(.2,1.6,.4,1) 19.75s both")
-            + ">NEW IN 0.3</div>"
-            '<div class="title" style="top:136px; font-size:96px; animation:fadeup .6s cubic-bezier(.2,.9,.2,1) 19.9s both">'
-            'Then it tells you <span class="mint">what came back.</span></div>'
-            '<div class="page"' + anim("rise .8s cubic-bezier(.2,.9,.2,1) 20.4s both") + ">"
-            '<div class="k">NIRI / DESKTOP CONTINUITY</div><div class="h1">What came back</div>'
-            '<div class="sum"><span class="mint"><span id="nback" data-reel data-reel-start="1.3" data-reel-duration="1.4"'
-            ' data-reel-stagger="0.15" data-reel-spins="1">20</span> of 23 came back</span>'
-            ' · <span class="coral">3 did not</span></div>'
-            f'<div class="legend">{legend}</div>{rows}</div>'
-            '<div class="sub" style="top:258px; font-size:28px; animation:fadein .6s ease-out 25.2s both">'
-            "It opens by itself when the reopen is over.</div>",
-            "05",
-        )
-    )
-    # 6. What it never does.
-    rules = [
-        ("Never closes a window.", ""),
-        ("Never moves one that was already open.", ""),
-        ("Never replays an agent it cannot resume.", ""),
-        ("No daemon. No network.", "Nothing runs at login unless you opt in."),
-    ]
-    lines = "".join(
-        f'<div class="rule"{anim(f"slidein .55s cubic-bezier(.2,.9,.2,1) {29.3 + 0.5 * i:.2f}s both")}>'
-        f'<div class="m"></div><div>{esc(a)}</div>'
-        + (f'<div class="s">{esc(b)}</div>' if b else "")
-        + "</div>"
-        for i, (a, b) in enumerate(rules)
-    )
-    s.append(
-        scene(
-            "s6",
-            28.6,
-            5.4,
-            '<div class="tag">guarantees</div>'
-            '<div class="title"'
-            + anim("fadeup .6s cubic-bezier(.2,.9,.2,1) 28.75s both")
-            + ">What it never does.</div>"
-            f'<div class="rules">{lines}</div>',
-            "06",
-        )
-    )
-    # 7. End card.
-    s.append(
-        scene(
-            "s7",
-            34.0,
-            5.0,
-            '<div class="halo"' + anim("glow 1.4s ease-out 34.1s both") + '></div><div class="end">'
-            '<div class="logo"'
-            + anim("fadeup .9s cubic-bezier(.2,.9,.2,1) 34.2s both")
-            + ">niri-desktop-continuity</div>"
-            '<div class="ver"'
-            + anim("pop .45s cubic-bezier(.2,1.6,.4,1) 34.75s both")
-            + ">v0.3.1</div>"
-            '<div class="cmd"'
-            + anim("fadeup .6s cubic-bezier(.2,.9,.2,1) 35.1s both")
-            + ">pipx install niri-desktop-continuity</div>"
-            '<div class="url"'
-            + anim("fadein .6s ease-out 35.5s both")
-            + ">github.com/tryingET/niri-desktop-continuity</div>"
-            '<div class="cr"'
-            + anim("fadein .6s ease-out 35.9s both")
-            + ">for niri, the scrollable-tiling Wayland compositor by YaLTeR</div>"
-            "</div>",
+            "results",
+            36,
+            7,
+            header(
+                "results · fabricated demo",
+                'See <span class="mint">what came back.</span>',
+                "The result page opens when the reopen is over. Misses have reasons.",
+                36,
+            )
+            + result,
             "07",
         )
     )
+    rules = [
+        "Never closes a window.",
+        "Never moves one that was already open.",
+        "Never replays an agent it cannot resume.",
+    ]
+    lines = "".join(
+        '<div class="rule"'
+        + anim(f"slidein .45s ease-out {43.4 + 0.3 * i:.2f}s both")
+        + f'><div class="m"></div><div>{esc(text)}</div></div>'
+        for i, text in enumerate(rules)
+    )
+    s.append(
+        scene(
+            "limits",
+            43,
+            4,
+            header(
+                "boundaries",
+                "Reopen work. Respect what's running.",
+                "No daemon. No network. Login restore is opt-in.",
+                43,
+            )
+            + f'<div class="rules">{lines}</div>',
+            "08",
+        )
+    )
+    end = (
+        '<div class="end"><div class="logo"'
+        + anim("fadeup .7s ease-out 47.2s both")
+        + '>niri-desktop-continuity</div><div class="ver"'
+        + anim("pop .4s ease-out 47.6s both")
+        + f">v{VIDEO_VERSION}</div>"
+        '<div class="promise">Save your place. Find your way back.</div><div class="cmd"'
+        + anim("fadeup .6s ease-out 47.9s both")
+        + ">pipx install niri-desktop-continuity</div>"
+        '<div class="url">github.com/tryingET/niri-desktop-continuity</div>'
+        '<div class="cr">for niri, the scrollable-tiling Wayland compositor by YaLTeR</div></div>'
+    )
+    s.append(scene("end", 47, 5, end, "09"))
     return (
         '<!doctype html><html><head><meta charset="utf-8"><style>' + CSS + "</style></head><body>"
-        f'<div id="film" data-composition-id="ndc-031" data-no-timeline data-width="{W}" data-height="{H}"'
+        f'<div id="film" data-composition-id="ndc-032" data-no-timeline data-width="{W}" data-height="{H}"'
         f' data-fps="{FPS}" data-duration="{DURATION}" data-motion-blur="4">'
         + "".join(s)
         + "</div></body></html>"

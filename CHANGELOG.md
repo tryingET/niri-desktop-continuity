@@ -4,6 +4,29 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.3.2] - 2026-11-05
+
+Documentation and release assets only. Runtime behavior, CLI output, saved-state formats and
+systemd units are unchanged; no migration is needed.
+
+### Documentation
+
+- The README and package description distinguish reopening after a real reboot from resuming
+  process memory through suspend or hibernation. Starting a new kernel is the planned-reboot
+  example; unexpected shutdowns require a usable snapshot saved before the loss and a successful
+  boot. Completed hibernation and hybrid sleep can also survive power loss.
+- The README prominently links a [52-second video tour](docs/announce/niri-desktop-continuity-0.3.2.mp4):
+  desktop snapshots, operator-owned OS updates, an alternative sudden blackout, then supported
+  windows and known agent conversations reopening. It explicitly excludes OS repair, memory
+  recovery and unsaved-work recovery. The first two slides and blackout setup have reading pauses.
+- The tour's fabricated source and offline timing regressions are available in
+  [docs/announce](docs/announce/README.md). The original 0.3.1 video is preserved.
+
+### Release assets
+
+- The version-matched MP4 is attached to the GitHub Release at creation and included in
+  `SHA256SUMS`. PyPI still receives only the wheel and source archive.
+
 ## [0.3.1] - 2026-11-04
 
 No change to what the tool does; its documentation now says exactly that.

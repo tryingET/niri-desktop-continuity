@@ -47,7 +47,15 @@ jobs:
       - name: The tag names the packaged version
         run: test "v$(uv run --frozen niri-desktop-continuity --version | cut -d' ' -f2)" = "$GITHUB_REF_NAME"
       - run: umask 022 && just ci # fixtures create 0755 directories the store must refuse
-      - run: cd dist && sha256sum -- *.whl *.tar.gz > SHA256SUMS
+      - name: Copy the optional announcement video
+        run: |
+          video="docs/announce/niri-desktop-continuity-${GITHUB_REF_NAME#v}.mp4"
+          if [ -f "$video" ]; then cp "$video" dist/; fi
+      - name: Checksum every release asset
+        run: |
+          shopt -s nullglob
+          cd dist
+          sha256sum -- *.whl *.tar.gz *.mp4 > SHA256SUMS
       - run: python3 scripts/release-notes.py "$GITHUB_REF_NAME" > dist/RELEASE_NOTES.md
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
@@ -55,6 +63,7 @@ jobs:
           path: |
             dist/*.whl
             dist/*.tar.gz
+            dist/*.mp4
             dist/SHA256SUMS
             dist/RELEASE_NOTES.md
           if-no-files-found: error
@@ -72,7 +81,10 @@ jobs:
         with:
           name: dist
           path: dist
-      - run: rm dist/SHA256SUMS dist/RELEASE_NOTES.md # PyPI takes distributions only
+      - name: Keep only distributions for PyPI
+        run: |
+          rm dist/SHA256SUMS dist/RELEASE_NOTES.md
+          rm -f dist/*.mp4
       - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2
 
   github-release:
@@ -85,9 +97,11 @@ jobs:
         with:
           name: dist
           path: dist
-      - run: >-
-          gh release create "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz dist/SHA256SUMS
-          --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME"
-          --notes-file dist/RELEASE_NOTES.md
+      - name: Create the immutable release with all assets
+        run: |
+          shopt -s nullglob
+          gh release create "$GITHUB_REF_NAME" dist/*.whl dist/*.tar.gz dist/*.mp4 dist/SHA256SUMS \
+            --repo "$GITHUB_REPOSITORY" --verify-tag --title "$GITHUB_REF_NAME" \
+            --notes-file dist/RELEASE_NOTES.md
         env:
           GH_TOKEN: ${{ github.token }}
