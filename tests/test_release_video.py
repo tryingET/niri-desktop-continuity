@@ -49,7 +49,9 @@ def artifacts(root, video):
 
 def run(script, root, **extra):
     env = {**os.environ, "GITHUB_REF_NAME": "v9.8.7", **extra}
-    subprocess.run(["bash", "-eu", "-o", "pipefail", "-c", script], cwd=root, env=env, check=True)
+    subprocess.run(
+        ["bash", "-eu", "-o", "pipefail", "-c", script], cwd=root, env=env, check=True, timeout=30
+    )
 
 
 @pytest.mark.parametrize("video", [False, True])
