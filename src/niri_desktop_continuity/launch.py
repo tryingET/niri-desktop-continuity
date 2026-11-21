@@ -14,6 +14,7 @@ from .launch_proc import read_cmdline as read_cmdline
 from .launch_proc import read_cwd as read_cwd
 from .launch_proc import read_exe as read_exe
 from .launch_sessions import AGENT_NAMES as AGENT_NAMES
+from .launch_sessions import agy_session as agy_session
 from .launch_sessions import claude_session as claude_session
 from .launch_sessions import clear_declaration as clear_declaration
 from .launch_sessions import declaration_root as declaration_root
@@ -185,6 +186,7 @@ def terminal_sessions(pid: int, inventory: list[dict]) -> list[dict]:
                 claude_session(candidate)
                 or pi_session(candidate)
                 or nodecode_session(candidate, start_ticks)
+                or agy_session(candidate, start_ticks)
                 or declared_session(candidate, start_ticks)
             )
             if found:

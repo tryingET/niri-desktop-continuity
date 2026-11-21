@@ -57,6 +57,7 @@ is recovery after an unplanned loss while working, not a claim that only this to
 |---|---|
 | An application | Launched once per saved instance, from your own route, its desktop entry or its saved command line. New windows with its app ID fill the saved places. |
 | Claude Code in Ghostty | `claude --resume <id>`, in the session's directory |
+| Antigravity CLI (`agy`) in Ghostty | `agy --conversation <id>`, in the session's directory |
 | Pi in Ghostty | Pi's own resume command for that session (needs a Pi extension, see [Agent sessions](#agent-sessions)) |
 | nodecode in Ghostty | The resume command nodecode recorded for its session (nodecode 0.1.5 and later); without a record, like any other command |
 | Codex, or another agent whose `SessionStart` hook passes its session id | The session it announced through `hook` |
@@ -177,7 +178,7 @@ second time.
 
 ## Agent sessions
 
-A recognised agent (`claude`, `codex`, `pi`, `angel` or `angelx`, `aider`, `gemini`, `opencode`, `goose`,
+A recognised agent (`claude`, `codex`, `pi`, `agy`, `angel` or `angelx`, `aider`, `gemini`, `opencode`, `goose`,
 `crush`, `qwen`, `grok`, `cursor-agent`) in a Ghostty tab or in a window of its own comes back only
 through a session it announced or one you declared. It is never relaunched from its command line,
 which would replay its opening prompt and start the same work over. A terminal of another kind
@@ -189,6 +190,9 @@ reason; see [Limits](#limits).
   ([anthropics/claude-code#100824](https://github.com/anthropics/claude-code/issues/100824)), so
   the [`SessionStart` hook](https://code.claude.com/docs/en/hooks) below is the documented way to
   cover every session.
+- **Antigravity CLI (`agy`):** read from the exclusive presence lock each live `agy` process holds
+  in `~/.gemini/antigravity-cli/presence/<id>.lock` (verified via `/proc/<pid>/fd` and `fdinfo`).
+  Reopens with `agy --conversation <id>` and never replays `-i` / `--prompt-interactive` flags.
 - **Pi:** needs the `session-presence` extension from
   [`@tryinget/pi-little-helpers`](https://github.com/tryingET/pi-extensions/tree/main/packages/pi-little-helpers),
   which records each Pi process's session. Install it with

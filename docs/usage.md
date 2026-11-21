@@ -267,8 +267,8 @@ reopen the terminal surface that runs PID when nothing can resume it, e.g. a fre
 from a handoff: `declare --pid 4242 -- claude "Continue from docs/handoff.md"`. The declaration
 lives in the per-boot runtime directory (`/run/user/<uid>/niri-desktop-continuity-declared`, 0600),
 is pinned to the process start time so a reused pid never matches, and becomes kind `declared`.
-Capture looks at the tab's processes from the shell down, and the first one with a Claude, Pi or
-nodecode session or a declaration decides; on one process a session wins over a declaration. `declare --pid PID --clear` removes it.
+Capture looks at the tab's processes from the shell down, and the first one with a Claude, Pi,
+nodecode or `agy` session or a declaration decides; on one process a session wins over a declaration. `declare --pid PID --clear` removes it.
 
 ## Planning
 

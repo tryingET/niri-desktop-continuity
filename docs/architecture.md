@@ -35,7 +35,8 @@ See the [coverage table](usage.md#conversationtool-coverage-and-evidence-limits)
   Its one effect, `open_report`, asks Niri to open the page with `xdg-open` at the end of the run.
 - `launch`: per-window reopen recipes from the same-user process tree (argv, cwd; inside Ghostty
   only: Claude session registry, Pi presence, nodecode shell records pinned to the shell's start
-  time, declarations, the foreground job's command). One agent-name table
+  time, Antigravity CLI (`agy`) presence locks verified via `/proc` fdinfo, declarations, the
+  foreground job's command). One agent-name table
   refuses agent surfaces without an announced session, including an agent named on another
   terminal's command line; `hook` declares an agent's announced session.
   Titles match sessions to windows and are never stored.

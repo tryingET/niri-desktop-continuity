@@ -1,5 +1,6 @@
 """Agent sessions a terminal tab can resume: Claude's registry, Pi's presence, nodecode's shell
-records and the declarations the SessionStart hook writes. Nothing here launches anything."""
+records, Antigravity CLI (agy) presence locks and the declarations the SessionStart hook writes.
+Nothing here launches anything."""
 
 from __future__ import annotations
 
@@ -7,18 +8,21 @@ import json
 import os
 import re
 import shutil
+import stat
 from pathlib import Path
 
 from .launch_proc import TERMINAL_MARKERS, read_cwd
 
 # Coding agents, by process name. Rerunning an agent's command line would replay its opening
 # prompt, so an agent comes back only through a session it announced (`hook`) or a built-in
-# reader (Claude registry, Pi presence). Adding an agent is one line here, never a module.
+# reader (Claude registry, Pi presence, agy presence lock). Adding an agent is one line here,
+# never a module.
 # nodecode is not listed: its shell takes no prompt, so without a record it reopens as itself.
 AGENT_NAMES = {
     "claude": "claude",
     "codex": "codex",
     "pi": "pi",
+    "agy": "agy",
     "angel": "angelx",
     "angelx": "angelx",
     "aider": "aider",
@@ -34,9 +38,11 @@ AGENT_NAMES = {
 RESUME_TEMPLATES = {
     "claude": ["claude", "--resume", "{id}"],
     "codex": ["codex", "resume", "{id}"],
+    "agy": ["agy", "--conversation", "{id}"],
     "angelx": ["angelx", "--resume", "{id}"],
 }
 SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
+AGY_SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
 
 
 def claude_registry_root() -> Path:
@@ -57,6 +63,10 @@ def nodecode_presence_root() -> Path | None:
     # nodecode writes these only where XDG_RUNTIME_DIR is absolute; there is no fallback.
     runtime = os.environ.get("XDG_RUNTIME_DIR", "")
     return Path(runtime) / "nodecode" / "shells" if runtime.startswith("/") else None
+
+
+def agy_presence_root() -> Path:
+    return Path.home() / ".gemini" / "antigravity-cli" / "presence"
 
 
 def declaration_root() -> Path:
@@ -164,6 +174,91 @@ def nodecode_session(pid: int, start_ticks: int | None) -> dict | None:
     if session_id not in argv or not (isinstance(cwd, str) and cwd.startswith("/")):
         return None
     return {"kind": "nodecode", "argv": list(argv), "cwd": cwd, "label": None}
+
+
+def _read_link(path: Path) -> str | None:
+    try:
+        return os.readlink(path)
+    except OSError:
+        return None
+
+
+def _fdinfo_holds_flock(text: str, pid: int, inode: int) -> bool:
+    """Whether a /proc/<pid>/fdinfo/<fd> file shows an exclusive FLOCK lock held by pid on inode."""
+    pid_text = str(pid)
+    inode_suffix = f":{inode}"
+    for line in text.splitlines():
+        if not line.startswith("lock:"):
+            continue
+        parts = line.split()
+        if (
+            len(parts) >= 7
+            and parts[2] == "FLOCK"
+            and parts[4] == "WRITE"
+            and parts[5] == pid_text
+            and parts[6].endswith(inode_suffix)
+        ):
+            return True
+    return False
+
+
+def agy_session(pid: int, start_ticks: int | None, *, proc_root: Path | None = None) -> dict | None:
+    """The conversation an Antigravity CLI (agy) process holds an exclusive presence lock for."""
+    if start_ticks is None:
+        return None
+    proc_dir = (proc_root or Path("/proc")) / str(pid)
+    try:
+        raw = (proc_dir / "stat").read_text()
+        open_paren = raw.index("(")
+        close_paren = raw.rindex(")")
+        comm = raw[open_paren + 1 : close_paren]
+        fields = raw[close_paren + 2 :].split()
+        if comm.lower() != "agy" or int(fields[19]) != start_ticks:
+            return None
+    except (OSError, ValueError, IndexError):
+        return None
+    uid = os.getuid()
+    root = agy_presence_root()
+    try:
+        root_info = root.stat()
+        if root_info.st_uid != uid or not stat.S_ISDIR(root_info.st_mode):
+            return None
+        root_resolved = root.resolve()
+        fd_entries = list((proc_dir / "fd").iterdir())
+    except OSError:
+        return None
+    matches: set[str] = set()
+    for fd_entry in fd_entries:
+        target = _read_link(fd_entry)
+        if not target or target.endswith(" (deleted)"):
+            continue
+        target_path = Path(target)
+        if target_path.parent != root_resolved or not target_path.name.endswith(".lock"):
+            continue
+        session_id = target_path.name[:-5]
+        if not AGY_SESSION_ID.fullmatch(session_id):
+            continue
+        try:
+            info = target_path.lstat()
+            if not stat.S_ISREG(info.st_mode) or info.st_uid != uid:
+                continue
+            fdinfo = (proc_dir / "fdinfo" / fd_entry.name).read_text()
+        except OSError:
+            continue
+        if _fdinfo_holds_flock(fdinfo, pid, info.st_ino):
+            matches.add(session_id)
+    if len(matches) != 1:
+        return None
+    cwd = read_cwd(pid) if proc_root is None else _read_link(proc_dir / "cwd")
+    if not (isinstance(cwd, str) and cwd.startswith("/")):
+        return None
+    session_id = next(iter(matches))
+    return {
+        "kind": "agy",
+        "argv": ["agy", "--conversation", session_id],
+        "cwd": cwd,
+        "label": None,
+    }
 
 
 def declared_session(pid: int, start_ticks: int | None) -> dict | None:
