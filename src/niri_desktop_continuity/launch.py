@@ -92,20 +92,44 @@ def mount_table(path: Path | None = None) -> list[tuple[str, str, str]]:
     return rows
 
 
+def _unwrapped_program(args: list[str]) -> str | None:
+    """The program `args` runs, looking past leading `env [OPT]... [NAME=VALUE]...` wrappers."""
+    index = 0
+    while index < len(args):
+        head = Path(args[index]).name.lower()
+        if head != "env":
+            return head
+        index += 1
+        while index < len(args):
+            token = args[index]
+            if token == "--":
+                index += 1
+                break
+            if token in {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}:
+                index += 2
+                continue
+            if token.startswith("-") or "=" in token:
+                index += 1
+                continue
+            break
+    return None
+
+
 def refusal(recipe: dict) -> str | None:
     """Why a saved recipe must not run, even if captured by older code that kept agent commands.
 
-    A `command` recipe whose program is a coding agent would replay its opening prompt, and so
-    would an `app` recipe of an agent in its own window (angelX 0.2.5 opens one).
+    A `command` recipe whose program is a coding agent (even behind `env VAR=val ...`) would
+    replay its opening prompt, and so would an `app` recipe of an agent in its own window
+    (angelX 0.2.5 opens one).
     """
     if recipe.get("kind") == "unknown":
         return recipe.get("reason") or "no-launch-command"
     argv = recipe.get("argv") or []
     program = None
     if recipe.get("kind") == "command" and "-e" in argv[:-1]:
-        program = Path(argv[argv.index("-e") + 1]).name.lower()
+        program = _unwrapped_program(argv[argv.index("-e") + 1 :])
     elif recipe.get("kind") == "app" and argv:
-        program = Path(argv[0]).name.lower()
+        program = _unwrapped_program(argv)
     if program in AGENT_NAMES:
         return "claude-session-unregistered" if program == "claude" else "agent-session-unannounced"
     if program in OTHER_TERMINALS and embedded_agent(argv[1:]):
@@ -263,6 +287,21 @@ def matches_title(session: dict, title: str) -> bool:
     return any(label and label in title for label in labels)
 
 
+def matches_cwd_title(session: dict, title: str) -> bool:
+    """Fallback title match on a session's working directory at path boundaries (exact or `~/`)."""
+    cwd = session.get("cwd")
+    if not isinstance(cwd, str) or not cwd.startswith("/") or cwd == "/" or not title:
+        return False
+    candidates = [cwd]
+    home = str(Path.home()).rstrip("/")
+    if home and (cwd == home or cwd.startswith(home + "/")):
+        candidates.append("~" + cwd[len(home) :])
+    return any(
+        re.search(rf"(?<![A-Za-z0-9._/~-]){re.escape(path)}(?![A-Za-z0-9._/-])", title) is not None
+        for path in candidates
+    )
+
+
 def terminal_recipe(cmdline: list[str], session: dict | None) -> dict:
     if session and session["kind"] == "unknown":
         return unknown_recipe(session["reason"])
@@ -400,12 +439,15 @@ def window_recipes(
         assigned: dict[int, dict] = {}
         remaining = list(sessions)
         if len(group) > 1 or len(sessions) > 1:
-            for window in group:
-                title = titles.get(window["id"], "")
-                match = next((s for s in remaining if matches_title(s, title)), None)
-                if match is not None:
-                    assigned[window["id"]] = match
-                    remaining.remove(match)
+            for matcher in (matches_title, matches_cwd_title):
+                for window in group:
+                    if window["id"] in assigned:
+                        continue
+                    title = titles.get(window["id"], "")
+                    match = next((s for s in remaining if matcher(s, title)), None)
+                    if match is not None:
+                        assigned[window["id"]] = match
+                        remaining.remove(match)
         for window in group:
             if window["id"] not in assigned and remaining:
                 assigned[window["id"]] = remaining.pop(0)

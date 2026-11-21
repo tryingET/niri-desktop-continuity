@@ -253,8 +253,9 @@ When it saves and reopens your desktop:
   no scripts or remote assets. The only page opened for you is the result page, once, at the end of
   a reopen.
 - **It never reads terminal contents or browser profiles.** Session ids come from Claude Code's
-  session registry, Pi's presence files (from the extension above) and nodecode's shell records.
-  From a Claude Code transcript
+  session registry, Pi's presence files (from the extension above), nodecode's shell records and
+  Antigravity CLI's (`agy`) presence locks.
+  From a Claude Code transcript or `agy`'s summary database
   it extracts only session titles, to tell apart windows of one terminal process.
 
 ## Limits

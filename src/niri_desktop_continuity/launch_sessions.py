@@ -8,8 +8,10 @@ import json
 import os
 import re
 import shutil
+import sqlite3
 import stat
 from pathlib import Path
+from urllib.parse import quote
 
 from .launch_proc import TERMINAL_MARKERS, read_cwd
 
@@ -67,6 +69,35 @@ def nodecode_presence_root() -> Path | None:
 
 def agy_presence_root() -> Path:
     return Path.home() / ".gemini" / "antigravity-cli" / "presence"
+
+
+def agy_conversation_title(session_id: str) -> str | None:
+    """Conversation title from agy's private summary DB, read-only with bounded timeout."""
+    if not AGY_SESSION_ID.fullmatch(session_id):
+        return None
+    db_path = agy_presence_root().parent / "conversation_summaries.db"
+    try:
+        info = db_path.lstat()
+        if not stat.S_ISREG(info.st_mode) or info.st_uid != os.getuid():
+            return None
+        uri = f"file:{quote(str(db_path), safe='/')}?mode=ro"
+        con = sqlite3.connect(uri, uri=True, timeout=0.2)
+    except (OSError, sqlite3.Error):
+        return None
+    try:
+        con.execute("PRAGMA query_only = ON")
+        row = con.execute(
+            "SELECT title FROM conversation_summaries WHERE conversation_id = ? LIMIT 1",
+            (session_id,),
+        ).fetchone()
+    except sqlite3.Error:
+        return None
+    finally:
+        con.close()
+    if not row or not isinstance(row[0], str):
+        return None
+    title = row[0].strip()
+    return title or None
 
 
 def declaration_root() -> Path:
@@ -253,11 +284,14 @@ def agy_session(pid: int, start_ticks: int | None, *, proc_root: Path | None = N
     if not (isinstance(cwd, str) and cwd.startswith("/")):
         return None
     session_id = next(iter(matches))
+    title = agy_conversation_title(session_id)
+    labels = [value for value in (title, session_id, session_id[:8]) if value]
     return {
         "kind": "agy",
         "argv": ["agy", "--conversation", session_id],
         "cwd": cwd,
-        "label": None,
+        "label": title,
+        "labels": labels,
     }
 
 

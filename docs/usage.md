@@ -19,7 +19,7 @@ conditional field; retries can also change the saved content, timestamps and dig
 changes or process-probe warnings; it does not establish that a focus switch caused an incident.
 This is bounded observation, not an atomic snapshot across processes. It never reads terminal
 contents or browser profiles, and never executes a discovered application binary. Session identity comes from Claude Code's per-PID
-registry, Pi's presence files and nodecode's shell records; a Claude transcript is scanned only for its title records, to
+registry, Pi's presence files, nodecode's shell records and Antigravity CLI's (`agy`) presence locks; a Claude transcript or `agy`'s summary database is read only for session titles, to
 match sessions to windows. Niri IPC is the only invoked runtime CLI.
 
 `capture --include-titles` stores private window labels and session titles. Default labels
@@ -90,6 +90,8 @@ or another refusal. Focus is reported separately. Native application state stays
 
 `capture` attaches a reopen recipe to every window (`reopen`): kind `app` (process argv and cwd),
 `claude` (`claude --resume <id>` inside the same terminal, from `~/.claude/sessions/<pid>.json`),
+`agy` (`agy --conversation <id>`, from the exclusive presence lock held by `agy` in
+`~/.gemini/antigravity-cli/presence/<id>.lock`),
 `pi` (the presence file's `resumeArgv`, written by the `session-presence` extension of
 `@tryinget/pi-little-helpers`), `command` (the job in the tab's foreground, as it
 was started: `just dev`, `bash start.sh`; a helper it detached or a background job is ignored),
@@ -114,7 +116,7 @@ and the session titles used for matching, are not stored unless `--include-title
    arrived during that wait stay where the app put them; a window of the same app that arrives
    later can be adopted by a later group of that app.
 3. An app with any window already open is not launched and its windows are not touched
-   (`already-running`). A Claude, Pi, nodecode or declared session whose saved command line is
+   (`already-running`). A Claude, Pi, nodecode, `agy` or declared session whose saved command line is
    already running, compared argument for argument, is `already-open`.
 4. Each saved Ghostty window is its own launch: `--gtk-single-instance=false` (unless the saved
    command line already sets single-instance), the saved directory and `-e` command, with your normal configuration (`--config-default-files=false` from earlier controlled

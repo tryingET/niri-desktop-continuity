@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import fcntl
 import os
+import sqlite3
 from pathlib import Path
 
 import pytest
@@ -149,6 +150,7 @@ def test_agy_tab_resumes_by_conversation_id_and_never_replays_prompt(
         "argv": ["agy", "--conversation", SESSION_ID],
         "cwd": "/fabricated/proj",
         "label": None,
+        "labels": [SESSION_ID, SESSION_ID[:8]],
     }
     assert sessions == [expected_session]
     reopen_recipe = launch.terminal_recipe(cmdline, sessions[0])
@@ -232,6 +234,60 @@ def test_refusal_blocks_legacy_command_app_and_other_terminal_agy_recipes():
         == "agent-session-unannounced"
     )
     assert (
+        launch.refusal(
+            {
+                "kind": "command",
+                "argv": [
+                    "ghostty",
+                    "-e",
+                    "env",
+                    "AGENT_HANDOFF=/fabricated/handoff.md",
+                    "agy",
+                    "--model",
+                    "demo-model",
+                    "-i",
+                    "Run handoff",
+                ],
+                "cwd": "/w",
+            }
+        )
+        == "agent-session-unannounced"
+    )
+    assert (
+        launch.refusal(
+            {
+                "kind": "command",
+                "argv": [
+                    "ghostty",
+                    "-e",
+                    "/usr/bin/env",
+                    "-u",
+                    "FOO",
+                    "BAR=1",
+                    "--",
+                    "claude",
+                    "Hi",
+                ],
+                "cwd": "/w",
+            }
+        )
+        == "claude-session-unregistered"
+    )
+    assert (
+        launch.refusal(
+            {"kind": "command", "argv": ["ghostty", "-e", "env", "FOO=1", "btop"], "cwd": "/w"}
+        )
+        is None
+    )
+    assert (
+        launch.refusal({"kind": "command", "argv": ["ghostty", "-e", "env", "FOO=1"], "cwd": "/w"})
+        is None
+    )
+    assert (
+        launch.refusal({"kind": "app", "argv": ["env", "FOO=1", "agy", "-i", "Hi"], "cwd": "/w"})
+        == "agent-session-unannounced"
+    )
+    assert (
         launch.refusal({"kind": "app", "argv": ["agy", "--prompt-interactive", "Hi"], "cwd": "/w"})
         == "agent-session-unannounced"
     )
@@ -251,7 +307,7 @@ def test_resume_template_for_agy():
 def test_kernel_oracle_fdinfo_flock_matches_real_linux_proc(tmp_path):
     """Real Linux kernel oracle: fcntl.flock populates /proc/self/fdinfo/<fd> as parsed."""
     lock_path = tmp_path / f"{SESSION_ID}.lock"
-    with lock_path.open("w") as stream:
+    with lock_path.open("w", encoding="utf-8") as stream:
         inode = lock_path.lstat().st_ino
         fdinfo_path = Path(f"/proc/{os.getpid()}/fdinfo/{stream.fileno()}")
         assert (
@@ -310,3 +366,140 @@ def test_preview_renders_agy_session_kind():
     markup = render_html(source)
     assert "Antigravity CLI session, resumed by id" in markup
     assert f"--conversation {SESSION_ID}" in markup
+
+
+def _write_summary_db(presence: Path, rows: list[tuple[str, str]]) -> Path:
+    db_path = presence.parent / "conversation_summaries.db"
+    con = sqlite3.connect(db_path)
+    try:
+        con.execute(
+            "CREATE TABLE conversation_summaries "
+            "(conversation_id TEXT PRIMARY KEY, title TEXT NOT NULL DEFAULT '')"
+        )
+        con.executemany(
+            "INSERT INTO conversation_summaries (conversation_id, title) VALUES (?, ?)", rows
+        )
+        con.commit()
+    finally:
+        con.close()
+    return db_path
+
+
+def test_agy_conversation_title_reads_summary_db_and_fails_safely(tmp_path, monkeypatch):
+    presence = tmp_path / "home" / ".gemini" / "antigravity-cli" / "presence"
+    presence.mkdir(parents=True)
+    monkeypatch.setattr(launch_sessions, "agy_presence_root", lambda: presence)
+    assert launch_sessions.agy_conversation_title(SESSION_ID) is None  # missing DB
+
+    db_path = _write_summary_db(
+        presence, [(SESSION_ID, "  Fix Kernel Reboot  "), (OTHER_ID, "   ")]
+    )
+    assert launch_sessions.agy_conversation_title(SESSION_ID) == "Fix Kernel Reboot"
+    assert launch_sessions.agy_conversation_title(OTHER_ID) is None  # blank title
+    assert launch_sessions.agy_conversation_title("not-a-uuid") is None
+
+    # Symlinked DB is refused (lstat must be a regular file).
+    real_db = tmp_path / "real.db"
+    db_path.rename(real_db)
+    os.symlink(real_db, db_path)
+    assert launch_sessions.agy_conversation_title(SESSION_ID) is None
+
+    # Corrupt DB returns None without raising.
+    db_path.unlink()
+    db_path.write_text("not a sqlite file", encoding="utf-8")
+    assert launch_sessions.agy_conversation_title(SESSION_ID) is None
+
+
+def test_multi_window_ghostty_matches_agy_by_conversation_title_and_short_id(tmp_path, monkeypatch):
+    proc_root, presence = _setup_fake_proc(
+        tmp_path,
+        pid=11,
+        cwd="/fabricated/shared",
+        locks=[("45", f"{SESSION_ID}.lock", {})],
+    )
+    _setup_fake_proc(
+        tmp_path,
+        pid=12,
+        cwd="/fabricated/shared",
+        locks=[("46", f"{OTHER_ID}.lock", {})],
+    )
+    _write_summary_db(presence, [(SESSION_ID, "Fix Login"), (OTHER_ID, "Add Cache")])
+    monkeypatch.setattr(launch_sessions, "agy_presence_root", lambda: presence)
+    monkeypatch.setattr(
+        launch,
+        "agy_session",
+        lambda pid, start_ticks: launch_sessions.agy_session(pid, start_ticks, proc_root=proc_root),
+    )
+    monkeypatch.setattr(launch, "claude_session", lambda pid: None)
+    monkeypatch.setattr(launch, "pi_session", lambda pid: None)
+    monkeypatch.setattr(launch, "nodecode_session", lambda pid, start_ticks: None)
+    monkeypatch.setattr(launch, "declared_session", lambda pid, start_ticks: None)
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: ["ghostty"])
+    monkeypatch.setattr(launch, "read_cwd", lambda pid: "/fabricated/shared")
+
+    windows = [
+        {"id": 1, "app_id": GHOSTTY, "pid": 10},
+        {"id": 2, "app_id": GHOSTTY, "pid": 10},
+    ]
+    processes = [{"pid": 10, "comm": "ghostty", "start_ticks": 1}]
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "ghostty", "start_ticks": 1},
+        {"pid": 11, "ppid": 10, "comm": "agy", "start_ticks": START_TICKS},
+        {"pid": 12, "ppid": 10, "comm": "agy", "start_ticks": START_TICKS},
+    ]
+    # Window 1 has session 12's title; Window 2 has session 11's short ID (reversed order).
+    titles = {1: "agy — Add Cache", 2: f"agy ({SESSION_ID[:8]})"}
+    recipes = launch.window_recipes(windows, processes, inventory, titles)
+    assert recipes[1]["argv"][-3:] == ["agy", "--conversation", OTHER_ID]
+    assert recipes[2]["argv"][-3:] == ["agy", "--conversation", SESSION_ID]
+    assert recipes[1]["label"] == "Add Cache"
+    assert "labels" not in recipes[1]  # labels are in-memory matching only
+
+
+def test_multi_window_ghostty_matches_cwd_title_at_path_boundaries(tmp_path, monkeypatch):
+    fake_home = tmp_path / "home"
+    monkeypatch.setattr(Path, "home", classmethod(lambda cls: fake_home))
+    proj = str(fake_home / "proj")
+    proj2 = str(fake_home / "proj-2")
+    proj_sub = str(fake_home / "proj" / "sub")
+
+    assert launch.matches_cwd_title({"cwd": proj}, "main · ~/proj") is True
+    assert launch.matches_cwd_title({"cwd": proj}, "main · ~/proj-2") is False
+    assert launch.matches_cwd_title({"cwd": proj}, "main · ~/proj/sub") is False
+    assert launch.matches_cwd_title({"cwd": proj2}, "main · ~/proj-2") is True
+    assert launch.matches_cwd_title({"cwd": proj_sub}, "main · ~/proj/sub") is True
+    assert launch.matches_cwd_title({"cwd": str(fake_home)}, "main · ~") is True
+    assert launch.matches_cwd_title({"cwd": str(fake_home)}, "main · ~/proj") is False
+    assert launch.matches_cwd_title({"cwd": "/"}, "main · /") is False
+
+    # End-to-end 2-pass window_recipes matching: Window 1 shows ~/proj-2, Window 2 shows ~/proj.
+    proc_root, presence = _setup_fake_proc(
+        tmp_path, pid=11, cwd=proj, locks=[("45", f"{SESSION_ID}.lock", {})]
+    )
+    _setup_fake_proc(tmp_path, pid=12, cwd=proj2, locks=[("46", f"{OTHER_ID}.lock", {})])
+    monkeypatch.setattr(launch_sessions, "agy_presence_root", lambda: presence)
+    monkeypatch.setattr(
+        launch,
+        "agy_session",
+        lambda pid, start_ticks: launch_sessions.agy_session(pid, start_ticks, proc_root=proc_root),
+    )
+    monkeypatch.setattr(launch, "claude_session", lambda pid: None)
+    monkeypatch.setattr(launch, "pi_session", lambda pid: None)
+    monkeypatch.setattr(launch, "nodecode_session", lambda pid, start_ticks: None)
+    monkeypatch.setattr(launch, "declared_session", lambda pid, start_ticks: None)
+    monkeypatch.setattr(launch, "read_cmdline", lambda pid: ["ghostty"])
+
+    windows = [
+        {"id": 1, "app_id": GHOSTTY, "pid": 10},
+        {"id": 2, "app_id": GHOSTTY, "pid": 10},
+    ]
+    processes = [{"pid": 10, "comm": "ghostty", "start_ticks": 1}]
+    inventory = [
+        {"pid": 10, "ppid": 1, "comm": "ghostty", "start_ticks": 1},
+        {"pid": 11, "ppid": 10, "comm": "agy", "start_ticks": START_TICKS},
+        {"pid": 12, "ppid": 10, "comm": "agy", "start_ticks": START_TICKS},
+    ]
+    titles = {1: "main · ~/proj-2", 2: "main · ~/proj"}
+    recipes = launch.window_recipes(windows, processes, inventory, titles)
+    assert recipes[1]["argv"][-3:] == ["agy", "--conversation", OTHER_ID]
+    assert recipes[2]["argv"][-3:] == ["agy", "--conversation", SESSION_ID]
