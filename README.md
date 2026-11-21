@@ -192,7 +192,10 @@ reason; see [Limits](#limits).
   cover every session.
 - **Antigravity CLI (`agy`):** read from the exclusive presence lock each live `agy` process holds
   in `~/.gemini/antigravity-cli/presence/<id>.lock` (verified via `/proc/<pid>/fd` and `fdinfo`).
-  Reopens with `agy --conversation <id>` and never replays `-i` / `--prompt-interactive` flags.
+  Reopens with `agy --conversation <id>` (preserving allowlisted session flags such as `--model`,
+  `--effort`, `--mode`, `--agent`, `--project`, `--add-dir`, `--sandbox`,
+  `--dangerously-skip-permissions`, `--remote-agent`, `--remote-control`) and never replays `-i` /
+  `--prompt-interactive` flags.
 - **Pi:** needs the `session-presence` extension from
   [`@tryinget/pi-little-helpers`](https://github.com/tryingET/pi-extensions/tree/main/packages/pi-little-helpers),
   which records each Pi process's session. Install it with

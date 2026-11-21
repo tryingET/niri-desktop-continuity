@@ -503,3 +503,68 @@ def test_multi_window_ghostty_matches_cwd_title_at_path_boundaries(tmp_path, mon
     recipes = launch.window_recipes(windows, processes, inventory, titles)
     assert recipes[1]["argv"][-3:] == ["agy", "--conversation", OTHER_ID]
     assert recipes[2]["argv"][-3:] == ["agy", "--conversation", SESSION_ID]
+
+
+def test_agy_preserves_allowlisted_session_flags_and_drops_prompt_flags(tmp_path, monkeypatch):
+    proc_root, presence = _setup_fake_proc(tmp_path, locks=[("45", f"{SESSION_ID}.lock", {})])
+    cmdline = [
+        "/fabricated/bin/agy",
+        "--model=demo-model",
+        "--effort",
+        "high",
+        "--mode",
+        "auto",
+        "--agent",
+        "reviewer",
+        "--project=demo-proj",
+        "--add-dir",
+        "/fabricated/extra-a",
+        "--add-dir=/fabricated/extra-b",
+        "--add-dir",
+        "/fabricated/extra-a",
+        "--sandbox",
+        "--remote-control",
+        "--log-file",
+        "/fabricated/tmp.log",
+        "--settings",
+        '{"secret":"nope"}',
+        "-i",
+        "--dangerously-skip-permissions",
+        "--prompt-interactive",
+        "Read the handoff and carry it out.",
+        "-p",
+        "--remote-agent",
+    ]
+    (proc_root / "11" / "cmdline").write_bytes(b"\0".join(a.encode() for a in cmdline) + b"\0")
+    monkeypatch.setattr(launch_sessions, "agy_presence_root", lambda: presence)
+
+    session = launch_sessions.agy_session(11, START_TICKS, proc_root=proc_root)
+    assert session is not None
+    assert session["argv"] == [
+        "agy",
+        "--conversation",
+        SESSION_ID,
+        "--model",
+        "demo-model",
+        "--effort",
+        "high",
+        "--mode",
+        "auto",
+        "--agent",
+        "reviewer",
+        "--project",
+        "demo-proj",
+        "--add-dir",
+        "/fabricated/extra-a",
+        "--add-dir",
+        "/fabricated/extra-b",
+        "--sandbox",
+        "--remote-control",
+    ]
+    # Re-capturing the resumed process produces the exact same canonical argv (already-open match).
+    (proc_root / "11" / "cmdline").write_bytes(
+        b"\0".join(a.encode() for a in session["argv"]) + b"\0"
+    )
+    resumed = launch_sessions.agy_session(11, START_TICKS, proc_root=proc_root)
+    assert resumed is not None
+    assert resumed["argv"] == session["argv"]

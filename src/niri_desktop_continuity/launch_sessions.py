@@ -13,7 +13,7 @@ import stat
 from pathlib import Path
 from urllib.parse import quote
 
-from .launch_proc import TERMINAL_MARKERS, read_cwd
+from .launch_proc import TERMINAL_MARKERS, read_cmdline, read_cwd
 
 # Coding agents, by process name. Rerunning an agent's command line would replay its opening
 # prompt, so an agent comes back only through a session it announced (`hook`) or a built-in
@@ -45,6 +45,32 @@ RESUME_TEMPLATES = {
 }
 SESSION_ID = re.compile(r"[A-Za-z0-9][A-Za-z0-9._:-]{0,199}")
 AGY_SESSION_ID = re.compile(r"[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")
+# Explicit allowlist of session-scoped `agy` CLI flags preserved across resume.
+# Prompt/one-shot/settings flags are skipped with their values so prompt text is never replayed.
+AGY_BOOL_FLAGS = (
+    "--dangerously-skip-permissions",
+    "--sandbox",
+    "--remote-agent",
+    "--remote-control",
+)
+AGY_VALUE_FLAGS = ("--model", "--effort", "--mode", "--agent", "--project")
+AGY_REPEAT_VALUE_FLAGS = ("--add-dir",)
+AGY_SKIP_VALUE_FLAGS = frozenset(
+    {
+        "-i",
+        "--prompt-interactive",
+        "-p",
+        "--print",
+        "--prompt",
+        "--conversation",
+        "--log-file",
+        "--settings",
+        "--input-format",
+        "--output-format",
+        "--json-schema",
+        "--print-timeout",
+    }
+)
 
 
 def claude_registry_root() -> Path:
@@ -214,6 +240,92 @@ def _read_link(path: Path) -> str | None:
         return None
 
 
+def _read_proc_cmdline(pid: int, proc_root: Path | None) -> list[str]:
+    if proc_root is None:
+        try:
+            return read_cmdline(pid)
+        except OSError:
+            return []
+    try:
+        raw = (proc_root / str(pid) / "cmdline").read_bytes()
+    except OSError:
+        return []
+    parts = raw.split(b"\0")
+    if parts and parts[-1] == b"":
+        parts.pop()
+    return [part.decode("utf-8", "surrogateescape") for part in parts]
+
+
+def _agy_resume_flags(cmdline: list[str]) -> list[str]:
+    """Extract allowlisted session-scoped flags from an `agy` cmdline in canonical order."""
+    args = cmdline[1:]
+    bools: set[str] = set()
+    values: dict[str, str] = {}
+    repeated: dict[str, list[str]] = {flag: [] for flag in AGY_REPEAT_VALUE_FLAGS}
+    index = 0
+    while index < len(args):
+        arg = args[index]
+        if arg == "--":
+            break
+        if arg in AGY_SKIP_VALUE_FLAGS:
+            index += 2
+            continue
+        if "=" in arg and arg.split("=", 1)[0] in AGY_SKIP_VALUE_FLAGS:
+            index += 1
+            continue
+        if arg in AGY_BOOL_FLAGS:
+            bools.add(arg)
+            index += 1
+            continue
+        matched = False
+        for flag in AGY_VALUE_FLAGS:
+            if arg == flag and index + 1 < len(args):
+                val = args[index + 1]
+                if val:
+                    values[flag] = val
+                index += 2
+                matched = True
+                break
+            if arg.startswith(flag + "="):
+                val = arg.split("=", 1)[1]
+                if val:
+                    values[flag] = val
+                index += 1
+                matched = True
+                break
+        if matched:
+            continue
+        for flag in AGY_REPEAT_VALUE_FLAGS:
+            if arg == flag and index + 1 < len(args):
+                val = args[index + 1]
+                if val and val not in repeated[flag]:
+                    repeated[flag].append(val)
+                index += 2
+                matched = True
+                break
+            if arg.startswith(flag + "="):
+                val = arg.split("=", 1)[1]
+                if val and val not in repeated[flag]:
+                    repeated[flag].append(val)
+                index += 1
+                matched = True
+                break
+        if matched:
+            continue
+        index += 1
+    result: list[str] = []
+    for flag in AGY_VALUE_FLAGS:
+        if flag in values:
+            result.extend([flag, values[flag]])
+    for flag in AGY_REPEAT_VALUE_FLAGS:
+        for val in repeated[flag]:
+            result.extend([flag, val])
+    for flag in AGY_BOOL_FLAGS:
+        if flag in bools:
+            result.append(flag)
+    return result
+
+
 def _fdinfo_holds_flock(text: str, pid: int, inode: int) -> bool:
     """Whether a /proc/<pid>/fdinfo/<fd> file shows an exclusive FLOCK lock held by pid on inode."""
     pid_text = str(pid)
@@ -284,11 +396,12 @@ def agy_session(pid: int, start_ticks: int | None, *, proc_root: Path | None = N
     if not (isinstance(cwd, str) and cwd.startswith("/")):
         return None
     session_id = next(iter(matches))
+    flags = _agy_resume_flags(_read_proc_cmdline(pid, proc_root))
     title = agy_conversation_title(session_id)
     labels = [value for value in (title, session_id, session_id[:8]) if value]
     return {
         "kind": "agy",
-        "argv": ["agy", "--conversation", session_id],
+        "argv": ["agy", "--conversation", session_id, *flags],
         "cwd": cwd,
         "label": title,
         "labels": labels,
