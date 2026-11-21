@@ -4,6 +4,34 @@ User-facing changes per release. Versions follow [semantic versioning](https://s
 before 1.0, a minor release may change CLI output or saved-state formats, and its entry says how.
 The release process is in [docs/release.md](docs/release.md).
 
+## [0.3.3] - 2026-11-21
+
+Adds native Antigravity CLI (`agy`) session resume, multi-window Ghostty title/directory matching,
+and refusal hardening for `env`-wrapped agent commands. Existing snapshots and systemd units stay
+compatible; no migration is needed.
+
+### Added
+
+- **Antigravity CLI (`agy`) in Ghostty:** `capture` identifies each live `agy` process's
+  conversation from the exclusive `FLOCK` presence lock it holds in
+  `~/.gemini/antigravity-cli/presence/<id>.lock` (verified via `/proc/<pid>/fd` and `fdinfo`).
+  Tabs reopen with `agy --conversation <id>` plus allowlisted session flags (`--model`, `--effort`,
+  `--mode`, `--agent`, `--project`, `--add-dir`, `--sandbox`, `--dangerously-skip-permissions`,
+  `--remote-agent`, `--remote-control`), never replaying `-i` / `--prompt-interactive` or `-p` /
+  `--print` prompts. Without a verified lock, `agy` tabs fail closed as `agent-session-unannounced`.
+- `hook agy` now has a built-in resume template (`agy --conversation {id}`), and `agy` is
+  recognized in `SESSION_KINDS` (`already-open` matching) and preview legends.
+- Multi-window Ghostty matching now reads `agy` conversation titles read-only from
+  `~/.gemini/antigravity-cli/conversation_summaries.db` (stripped unless `--include-titles` is
+  passed) and adds a second-pass path-boundary working-directory matcher for tabs whose window
+  title shows their directory (`cwd` or `~/`).
+
+### Fixed
+
+- `refusal()` now unwraps leading `env [OPT]... [NAME=VALUE]...` wrappers in legacy `command` and
+  `app` recipes (for example `ghostty -e env VAR=val agy -i "..."`), so saved agent commands
+  launched through `env` are refused rather than replayed.
+
 ## [0.3.2] - 2026-11-05
 
 Documentation and release assets only. Runtime behavior, CLI output, saved-state formats and
